@@ -10,7 +10,7 @@
     "module": "ESNext",
     "lib": ["ES2020", "DOM"],
     "types": ["@dcloudio/types"],
-    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
     "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]

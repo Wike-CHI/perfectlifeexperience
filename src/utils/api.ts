@@ -259,8 +259,8 @@ interface CloudUserInfo {
 export const getWxUserProfile = (): Promise<WxUserProfile> => {
   return new Promise((resolve, reject) => {
     uni.getUserProfile({
-      desc: '用于完善用户资料',
-      success: (res) => {
+      desc: '获取头像昵称',
+      success: (res: any) => {
         if (res.userInfo) {
           resolve({
             nickName: res.userInfo.nickName,
@@ -277,9 +277,41 @@ export const getWxUserProfile = (): Promise<WxUserProfile> => {
       },
       fail: (err) => {
         console.error('获取用户信息失败:', err);
-        reject(err);
+        // 用户拒绝授权时，提供默认信息
+        if (err.errMsg && err.errMsg.includes('deny')) {
+          resolve({
+            nickName: '微信用户',
+            avatarUrl: '/static/logo.png',
+            gender: 0,
+            country: '',
+            province: '',
+            city: '',
+            language: 'zh_CN'
+          });
+        } else {
+          reject(err);
+        }
       }
     });
+  });
+};
+
+// 获取用户手机号（需要专用按钮触发）
+export const getUserPhoneNumber = (e: any): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    // 检查是否获取到了加密数据
+    if (e.detail && e.detail.encryptedData && e.detail.iv) {
+      // 这里需要发送到后端解密，暂时返回提示
+      console.log('获取手机号加密数据:', e.detail);
+      resolve('手机号获取中...');
+    } else {
+      // 用户拒绝授权或其他错误
+      if (e.detail.errMsg && e.detail.errMsg.includes('deny')) {
+        reject(new Error('您取消了手机号授权'));
+      } else {
+        reject(new Error('获取手机号失败，请重试'));
+      }
+    }
   });
 };
 
@@ -382,12 +414,12 @@ export const syncUserToCloud = async (wxProfile: WxUserProfile, openid: string):
       }
     });
     
-    if (res.result && res.result.success) {
+    if ((res as any).result && (res as any).result.success) {
       // 记录登录时间
       uni.setStorageSync(LOGIN_TIME_KEY, Date.now());
-      return res.result;
+      return (res as any).result;
     }
-    throw new Error(res.result?.message || '同步用户失败');
+    throw new Error((res as any).result?.message || '同步用户失败');
   } catch (error) {
     console.error('同步用户到云端失败:', error);
     throw error;
@@ -403,8 +435,8 @@ export const getCloudUserInfo = async (): Promise<CloudUserInfo | null> => {
       action: 'getUserInfo'
     });
     
-    if (res.result && res.result.success) {
-      return res.result.userInfo;
+    if ((res as any).result && (res as any).result.success) {
+      return (res as any).result.userInfo;
     }
     return null;
   } catch (error) {
@@ -423,7 +455,7 @@ export const updateCloudUserInfo = async (updateData: Partial<CloudUserInfo>): P
       data: updateData
     });
     
-    return res.result && res.result.success;
+    return (res as any).result && (res as any).result.success;
   } catch (error) {
     console.error('更新云端用户信息失败:', error);
     return false;
@@ -586,10 +618,10 @@ export const getWalletBalance = async () => {
   
   try {
     const res = await callFunction('wallet', { action: 'getBalance' });
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '获取余额失败');
+    throw new Error((res as any).result?.msg || '获取余额失败');
   } catch (error) {
     console.error('获取钱包余额失败:', error);
     // 降级处理
@@ -609,10 +641,10 @@ export const rechargeWallet = async (amount: number, giftAmount: number = 0) => 
       data: { amount, giftAmount }
     });
     
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '充值失败');
+    throw new Error((res as any).result?.msg || '充值失败');
   } catch (error) {
     console.error('充值失败:', error);
     throw error;
@@ -631,10 +663,10 @@ export const getWalletTransactions = async (page = 1, limit = 20) => {
       data: { page, limit }
     });
     
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '获取交易记录失败');
+    throw new Error((res as any).result?.msg || '获取交易记录失败');
   } catch (error) {
     console.error('获取交易记录失败:', error);
     throw error;
@@ -901,10 +933,10 @@ export const bindPromotionRelation = async (parentInviteCode: string, userInfo: 
       deviceInfo
     });
 
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '绑定失败');
+    throw new Error((res as any).result?.msg || '绑定失败');
   } catch (error) {
     console.error('绑定推广关系失败:', error);
     throw error;
@@ -934,10 +966,10 @@ export const getPromotionInfo = async (): Promise<PromotionInfo> => {
 
   try {
     const res = await callFunction('promotion', { action: 'getInfo' });
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '获取失败');
+    throw new Error((res as any).result?.msg || '获取失败');
   } catch (error) {
     console.error('获取推广信息失败:', error);
     throw error;
@@ -958,10 +990,10 @@ export const getTeamMembers = async (level: number = 1, page: number = 1, limit:
       limit
     });
 
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '获取失败');
+    throw new Error((res as any).result?.msg || '获取失败');
   } catch (error) {
     console.error('获取团队成员失败:', error);
     throw error;
@@ -982,10 +1014,10 @@ export const getRewardRecords = async (status?: string, page: number = 1, limit:
       limit
     });
 
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '获取失败');
+    throw new Error((res as any).result?.msg || '获取失败');
   } catch (error) {
     console.error('获取奖励明细失败:', error);
     throw error;
@@ -1004,10 +1036,10 @@ export const generatePromotionQRCode = async (page?: string) => {
       page
     });
 
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '生成失败');
+    throw new Error((res as any).result?.msg || '生成失败');
   } catch (error) {
     console.error('生成二维码失败:', error);
     throw error;
@@ -1028,10 +1060,10 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
       orderAmount
     });
 
-    if (res.result && res.result.code === 0) {
-      return res.result.data;
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-    throw new Error(res.result?.msg || '计算失败');
+    throw new Error((res as any).result?.msg || '计算失败');
   } catch (error) {
     console.error('计算奖励失败:', error);
     throw error;

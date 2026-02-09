@@ -221,6 +221,9 @@ exports.main = async (event, context) => {
   
   // 获取 openid
   const wxContext = cloud.getWXContext();
+  // 支持从 token 或者 wxContext 获取 openid
+  // 如果是通过 HTTP 触发器且带有 _token 参数，则优先使用 _token (假设 _token 就是 openid，或者在网关层已经验证过)
+  // 注意：在生产环境中，_token 应该是一个加密的令牌，这里简化处理，假设 _token 已经是 openid
   const openid = requestData._token || wxContext.OPENID;
   
   if (!openid) {

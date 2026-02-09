@@ -9,7 +9,8 @@ const CLOUD_FUNCTION_URLS: Record<string, string> = {
   'promotion': 'https://1402837521-4mvonkik2k.ap-shanghai.tencentscf.com',
   'initData': 'https://1402837521-95tu47fi6q.ap-shanghai.tencentscf.com',
   'hello': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com', // 使用login的地址作为默认
-  'rewardSettlement': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com'
+  'rewardSettlement': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com',
+  'user': 'https://dyyq-0gxfchpt0a88ca22.service.tcloudbase.com/user'
 };
 
 // 检查环境ID是否已配置

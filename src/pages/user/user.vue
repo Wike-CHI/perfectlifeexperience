@@ -1,14 +1,18 @@
 <template>
   <view class="container">
     <!-- 用户信息区 -->
-    <view class="user-header">
+    <view class="user-header" @click="handleHeaderClick">
       <view class="user-bg"></view>
       <view class="user-info">
         <image class="user-avatar" :src="userInfo.avatarUrl || '/static/logo.png'" mode="aspectFill" />
         <view class="user-detail">
-          <text class="user-name">{{ userInfo.nickName || '微信用户' }}</text>
-          <view class="user-level">
+          <text class="user-name">{{ isLoggedIn ? (userInfo.nickName || '微信用户') : '点击登录' }}</text>
+          <view class="user-level" v-if="isLoggedIn">
             <text class="level-badge">VIP会员</text>
+            <text v-if="userInfo.nickName === '微信用户'" class="auth-tip">点击更新头像昵称</text>
+          </view>
+          <view class="user-level" v-else>
+            <text class="level-badge login-badge">登录享受更多权益</text>
           </view>
         </view>
       </view>
@@ -64,7 +68,7 @@
           <text class="menu-text">我的钱包</text>
         </view>
         <view class="menu-right">
-          <text class="balance-text" v-if="balance > 0">¥{{ (balance/100).toFixed(2) }}</text>
+          <text class="balance-text" v-if="isLoggedIn && balance > 0">¥{{ (balance/100).toFixed(2) }}</text>
           <image class="arrow-icon" src="/static/icons/arrow-right.svg" mode="aspectFit" />
         </view>
       </view>
@@ -80,7 +84,7 @@
           <text class="menu-text">推广中心</text>
         </view>
         <view class="menu-right">
-          <text class="promotion-hint" v-if="promotionReward > 0">+{{ (promotionReward/100).toFixed(2) }}</text>
+          <text class="promotion-hint" v-if="isLoggedIn && promotionReward > 0">+{{ (promotionReward/100).toFixed(2) }}</text>
           <image class="arrow-icon" src="/static/icons/arrow-right.svg" mode="aspectFit" />
         </view>
       </view>
@@ -147,11 +151,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo } from '@/utils/api';
+import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin } from '@/utils/api';
+import { getUserOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
 import type { UserInfo } from '@/types';
 
 // 数据
 const userInfo = ref<Partial<UserInfo>>({});
+const isLoggedIn = ref(false);
 const balance = ref(0);
 const promotionReward = ref(0);
 const orderCount = ref({
@@ -165,14 +171,100 @@ const orderCount = ref({
 const loadUserInfo = async () => {
   try {
     const res = await getUserInfo();
-    userInfo.value = res || {};
+    if (res) {
+      userInfo.value = res;
+      isLoggedIn.value = true;
+      // 加载其他数据
+      loadOrderCount();
+      loadWalletBalance();
+      loadPromotionReward();
+    } else {
+      userInfo.value = {};
+      isLoggedIn.value = false;
+      // 重置数据
+      balance.value = 0;
+      promotionReward.value = 0;
+      orderCount.value = { pending: 0, paid: 0, shipping: 0, completed: 0 };
+    }
   } catch (error) {
     console.error('加载用户信息失败:', error);
+    isLoggedIn.value = false;
   }
+};
+
+// 点击头部区域
+const handleHeaderClick = async () => {
+  if (isLoggedIn.value) {
+    // 已登录，跳转到个人资料设置页
+    uni.navigateTo({
+      url: '/pages/settings/account-security'
+    });
+  } else {
+    // 未登录，触发登录
+    await handleLogin();
+  }
+};
+
+// 处理登录
+const handleLogin = async () => {
+  uni.showLoading({ title: '登录中...' });
+  try {
+    // 1. 确保云开发登录态有效
+    let openid = getUserOpenid();
+    if (!openid) {
+      openid = await checkCloudLogin();
+    }
+    
+    if (!openid) {
+      throw new Error('云服务连接失败');
+    }
+    
+    // 2. 执行完整登录流程（获取头像昵称 + 同步云端）
+    const result = await fullLogin(openid);
+    
+    // 先隐藏 loading，避免与 showToast 冲突
+    uni.hideLoading();
+
+    if (result.success) {
+      uni.showToast({ title: '登录成功', icon: 'success' });
+      // 刷新用户信息
+      await loadUserInfo();
+    } else {
+      throw new Error(result.message);
+    }
+  } catch (error: any) {
+    // 先隐藏 loading
+    uni.hideLoading();
+    
+    console.error('登录失败:', error);
+    uni.showToast({ 
+      title: error.message || '登录失败', 
+      icon: 'none' 
+    });
+  }
+};
+
+// 检查登录拦截
+const checkAuth = () => {
+  if (!isLoggedIn.value) {
+    uni.showModal({
+      title: '提示',
+      content: '请先登录',
+      confirmText: '去登录',
+      success: (res) => {
+        if (res.confirm) {
+          handleLogin();
+        }
+      }
+    });
+    return false;
+  }
+  return true;
 };
 
 // 加载钱包余额
 const loadWalletBalance = async () => {
+  if (!isLoggedIn.value) return;
   try {
     const res = await getWalletBalance();
     balance.value = res.balance || 0;
@@ -183,6 +275,7 @@ const loadWalletBalance = async () => {
 
 // 加载订单统计
 const loadOrderCount = async () => {
+  if (!isLoggedIn.value) return;
   try {
     const orders = await getOrders();
     orderCount.value = {
@@ -198,6 +291,7 @@ const loadOrderCount = async () => {
 
 // 页面跳转
 const goToOrders = (status?: string | unknown) => {
+  if (!checkAuth()) return;
   const targetStatus = typeof status === 'string' ? status : '';
   uni.navigateTo({
     url: `/pages/order/list${targetStatus ? '?status=' + targetStatus : ''}`
@@ -205,18 +299,21 @@ const goToOrders = (status?: string | unknown) => {
 };
 
 const goToAddress = () => {
+  if (!checkAuth()) return;
   uni.navigateTo({
     url: '/pages/address/list'
   });
 };
 
 const goToCoupon = () => {
+  if (!checkAuth()) return;
   uni.navigateTo({
     url: '/pages/coupon/mine'
   });
 };
 
 const goToFavorites = () => {
+  if (!checkAuth()) return;
   uni.showToast({
     title: '功能开发中',
     icon: 'none'
@@ -230,6 +327,7 @@ const contactService = () => {
 };
 
 const goToSettings = () => {
+  // 设置页面不需要强制登录，但里面的部分功能可能需要
   uni.navigateTo({
     url: '/pages/settings/settings'
   });
@@ -238,18 +336,17 @@ const goToSettings = () => {
 // 生命周期
 onShow(() => {
   loadUserInfo();
-  loadOrderCount();
-  loadWalletBalance();
-  loadPromotionReward();
 });
 
 const goToWallet = () => {
+  if (!checkAuth()) return;
   uni.navigateTo({
     url: '/pages/wallet/index'
   });
 };
 
 const goToPromotion = () => {
+  if (!checkAuth()) return;
   uni.navigateTo({
     url: '/pages/promotion/center'
   });
@@ -257,6 +354,7 @@ const goToPromotion = () => {
 
 // 加载推广收益
 const loadPromotionReward = async () => {
+  if (!isLoggedIn.value) return;
   try {
     const info = await getPromotionInfo();
     promotionReward.value = info.pendingReward;
@@ -329,6 +427,21 @@ const loadPromotionReward = async () => {
   background: #D4A574;
   padding: 8rpx 24rpx;
   border-radius: 24rpx;
+}
+
+.auth-tip {
+  font-size: 20rpx;
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4rpx 12rpx;
+  border-radius: 16rpx;
+  margin-left: 12rpx;
+}
+
+.login-badge {
+  background: rgba(212, 165, 116, 0.3);
+  color: #E8DCC8;
+  border: 1rpx solid #D4A574;
 }
 
 /* 订单入口 */
