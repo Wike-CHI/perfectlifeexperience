@@ -1,0 +1,287 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "大友元气",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/promo/promo",
+			"style": {
+				"navigationBarTitleText": "限时特惠",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/category/category",
+			"style": {
+				"navigationBarTitleText": "分类",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/cart/cart",
+			"style": {
+				"navigationBarTitleText": "购物车",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white"
+			}
+		},
+		{
+			"path": "pages/user/user",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white"
+			}
+		},
+		{
+			"path": "pages/settings/settings",
+			"style": {
+				"navigationBarTitleText": "设置",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white"
+			}
+		},
+		{
+			"path": "pages/settings/account-security",
+			"style": {
+				"navigationBarTitleText": "账号与安全",
+				"navigationBarBackgroundColor": "#FDF8F3",
+				"navigationBarTextStyle": "black"
+			}
+		}
+	],
+	"subPackages": [
+		{
+			"root": "pages/product",
+			"pages": [
+				{
+					"path": "detail",
+					"style": {
+						"navigationBarTitleText": "商品详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/order",
+			"pages": [
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "我的订单",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "detail",
+					"style": {
+						"navigationBarTitleText": "订单详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "confirm",
+					"style": {
+						"navigationBarTitleText": "确认订单",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/address",
+			"pages": [
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "收货地址",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "edit",
+					"style": {
+						"navigationBarTitleText": "编辑地址",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/wallet",
+			"pages": [
+				{
+					"path": "index",
+					"style": {
+						"navigationBarTitleText": "我的钱包",
+						"navigationBarBackgroundColor": "#FFFFFF",
+						"navigationBarTextStyle": "black"
+					}
+				},
+				{
+					"path": "recharge",
+					"style": {
+						"navigationBarTitleText": "充值中心",
+						"navigationBarBackgroundColor": "#FFFFFF",
+						"navigationBarTextStyle": "black"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/coupon",
+			"pages": [
+				{
+					"path": "index",
+					"style": {
+						"navigationBarTitleText": "优惠券中心",
+						"navigationBarBackgroundColor": "#D4A574",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "mine",
+					"style": {
+						"navigationBarTitleText": "我的优惠券",
+						"navigationBarBackgroundColor": "#D4A574",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/promotion",
+			"pages": [
+				{
+					"path": "center",
+					"style": {
+						"navigationBarTitleText": "推广中心",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "team",
+					"style": {
+						"navigationBarTitleText": "我的团队",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "rewards",
+					"style": {
+						"navigationBarTitleText": "奖励明细",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "qrcode",
+					"style": {
+						"navigationBarTitleText": "推广二维码",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/store",
+			"pages": [
+				{
+					"path": "location",
+					"style": {
+						"navigationBarTitleText": "门店位置",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/common",
+			"pages": [
+				{
+					"path": "privacy-policy",
+					"style": {
+						"navigationBarTitleText": "隐私政策",
+						"navigationBarBackgroundColor": "#FDF8F3",
+						"navigationBarTextStyle": "black"
+					}
+				},
+				{
+					"path": "user-agreement",
+					"style": {
+						"navigationBarTitleText": "用户协议",
+						"navigationBarBackgroundColor": "#FDF8F3",
+						"navigationBarTextStyle": "black"
+					}
+				},
+				{
+					"path": "about-us",
+					"style": {
+						"navigationBarTitleText": "关于我们",
+						"navigationBarBackgroundColor": "#FDF8F3",
+						"navigationBarTextStyle": "black"
+					}
+				}
+			]
+		}
+	],
+	"tabBar": {
+		"color": "#666666",
+		"selectedColor": "#C9A962",
+		"backgroundColor": "#FFFFFF",
+		"borderStyle": "white",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页",
+				"iconPath": "static/tabbar/home.png",
+				"selectedIconPath": "static/tabbar/home-active.png"
+			},
+			{
+				"pagePath": "pages/category/category",
+				"text": "分类",
+				"iconPath": "static/tabbar/category.png",
+				"selectedIconPath": "static/tabbar/category-active.png"
+			},
+			{
+				"pagePath": "pages/cart/cart",
+				"text": "购物车",
+				"iconPath": "static/tabbar/cart.png",
+				"selectedIconPath": "static/tabbar/cart-active.png"
+			},
+			{
+				"pagePath": "pages/user/user",
+				"text": "我的",
+				"iconPath": "static/tabbar/user.png",
+				"selectedIconPath": "static/tabbar/user-active.png"
+			}
+		]
+	},
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "大友元气",
+		"navigationBarBackgroundColor": "#1A1A1A",
+		"backgroundColor": "#FAF9F7"
+	}
+}

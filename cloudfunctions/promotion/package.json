@@ -1,0 +1,9 @@
+{
+  "name": "promotion",
+  "version": "1.0.0",
+  "description": "推广关系绑定与奖励计算",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.16.0"
+  }
+}
