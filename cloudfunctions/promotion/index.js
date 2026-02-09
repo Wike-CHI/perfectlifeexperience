@@ -1,12 +1,24 @@
-const cloud = require('@cloudbase/node-sdk');
+const cloud = require('wx-server-sdk');
 
-// 初始化云开发环境
+// 初始化云开发
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
 });
 
 const db = cloud.database();
 const _ = db.command;
+
+// 解析 HTTP 触发器的请求体
+function parseEvent(event) {
+  if (event.body) {
+    try {
+      return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+    } catch (e) {
+      console.error('解析 body 失败:', e);
+    }
+  }
+  return event;
+}
 
 // 推广奖励比例配置（使用中性命名）
 const REWARD_RATIOS = {
@@ -38,7 +50,7 @@ function generateInviteCode() {
  * 获取设备指纹（用于防刷）
  */
 function getDeviceFingerprint(event) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const clientIP = event.clientIP || '';
   return {
     openid: OPENID,
@@ -85,7 +97,7 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
  * 绑定推广关系
  */
 async function bindPromotionRelation(event, context) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const { parentInviteCode, userInfo, deviceInfo } = event;
 
   try {
@@ -311,7 +323,7 @@ async function calculatePromotionReward(event, context) {
  * 获取推广信息
  */
 async function getPromotionInfo(event, context) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
 
   try {
     // 获取用户信息
@@ -454,7 +466,7 @@ async function getTeamStats(userId) {
  * 获取团队成员列表
  */
 async function getTeamMembers(event, context) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const { level = 1, page = 1, limit = 20 } = event;
 
   try {
@@ -517,7 +529,7 @@ async function getTeamMembers(event, context) {
  * 获取奖励明细
  */
 async function getRewardRecords(event, context) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const { status, page = 1, limit = 20 } = event;
 
   try {
@@ -577,7 +589,7 @@ async function getRewardRecords(event, context) {
  * 生成推广二维码
  */
 async function generateQRCode(event, context) {
-  const { OPENID } = cloud.getWXContext();
+  const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const { page = 'pages/index/index' } = event;
 
   try {
@@ -630,21 +642,33 @@ async function generateQRCode(event, context) {
  * 主入口函数
  */
 exports.main = async (event, context) => {
-  const { action } = event;
+  console.log('Promotion raw event:', JSON.stringify(event));
+  
+  const requestData = parseEvent(event);
+  console.log('Promotion parsed data:', JSON.stringify(requestData));
+  
+  const { action } = requestData;
+  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
+  const OPENID = requestData._token || cloud.getWXContext().OPENID;
+  
+  console.log('Promotion openid:', OPENID, 'action:', action);
+
+  // 将 OPENID 和 requestData 注入，供其他函数使用
+  requestData.OPENID = OPENID;
 
   switch (action) {
     case 'bindRelation':
-      return await bindPromotionRelation(event, context);
+      return await bindPromotionRelation(requestData, context);
     case 'calculateReward':
-      return await calculatePromotionReward(event, context);
+      return await calculatePromotionReward(requestData, context);
     case 'getInfo':
-      return await getPromotionInfo(event, context);
+      return await getPromotionInfo(requestData, context);
     case 'getTeamMembers':
-      return await getTeamMembers(event, context);
+      return await getTeamMembers(requestData, context);
     case 'getRewardRecords':
-      return await getRewardRecords(event, context);
+      return await getRewardRecords(requestData, context);
     case 'generateQRCode':
-      return await generateQRCode(event, context);
+      return await generateQRCode(requestData, context);
     default:
       return { code: -1, msg: '未知操作' };
   }

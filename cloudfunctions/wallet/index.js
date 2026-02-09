@@ -12,10 +12,30 @@ const $ = db.command.aggregate;
 const WALLETS_COLLECTION = 'user_wallets';
 const TRANSACTIONS_COLLECTION = 'wallet_transactions';
 
+// 解析 HTTP 触发器的请求体
+function parseEvent(event) {
+  if (event.body) {
+    try {
+      return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+    } catch (e) {
+      console.error('解析 body 失败:', e);
+    }
+  }
+  return event;
+}
+
 exports.main = async (event, context) => {
+  console.log('Wallet raw event:', JSON.stringify(event));
+  
+  const requestData = parseEvent(event);
+  console.log('Wallet parsed data:', JSON.stringify(requestData));
+  
   const wxContext = cloud.getWXContext();
-  const openid = wxContext.OPENID;
-  const { action, data } = event;
+  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
+  const openid = requestData._token || wxContext.OPENID;
+  const { action, data } = requestData;
+  
+  console.log('Wallet openid:', openid, 'action:', action);
 
   if (!openid) {
     return {

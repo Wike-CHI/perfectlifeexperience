@@ -224,33 +224,78 @@ export const cancelOrder = async (id: string) => {
 
 // ==================== 用户相关 API ====================
 const USER_KEY = 'local_user';
+const LOGIN_TIME_KEY = 'login_time';
+const LOGIN_EXPIRE_DAYS = 7; // 登录有效期7天
 
-// 获取用户信息
-export const getUserInfo = async () => {
+// 微信用户信息类型
+interface WxUserProfile {
+  nickName: string;
+  avatarUrl: string;
+  gender: number;
+  country: string;
+  province: string;
+  city: string;
+  language: string;
+}
+
+// 云端用户信息类型
+interface CloudUserInfo {
+  userId: string;
+  nickName: string;
+  avatarUrl: string;
+  gender: number;
+  country: string;
+  province: string;
+  city: string;
+  phone: string;
+  isVip: boolean;
+  vipLevel: number;
+  createTime: Date;
+  lastLoginTime: Date;
+  loginCount: number;
+}
+
+// 获取微信用户信息（需要用户点击按钮触发）
+export const getWxUserProfile = (): Promise<WxUserProfile> => {
+  return new Promise((resolve, reject) => {
+    uni.getUserProfile({
+      desc: '用于完善用户资料',
+      success: (res) => {
+        if (res.userInfo) {
+          resolve({
+            nickName: res.userInfo.nickName,
+            avatarUrl: res.userInfo.avatarUrl,
+            gender: res.userInfo.gender,
+            country: res.userInfo.country,
+            province: res.userInfo.province,
+            city: res.userInfo.city,
+            language: res.userInfo.language
+          });
+        } else {
+          reject(new Error('获取用户信息失败'));
+        }
+      },
+      fail: (err) => {
+        console.error('获取用户信息失败:', err);
+        reject(err);
+      }
+    });
+  });
+};
+
+// 获取用户信息（从本地存储读取，如果没有则返回 null）
+export const getUserInfo = async (): Promise<UserInfo | null> => {
   const userJson = uni.getStorageSync(USER_KEY);
   if (!userJson) {
-    // 本地调试模式：初始化模拟用户和地址
-    const mockUser: UserInfo = {
-      _id: 'user_mock_001',
-      nickName: '调试用户',
-      avatarUrl: '/static/logo.png',
-      addresses: [
-        {
-          name: '测试用户',
-          phone: '13800138000',
-          province: '浙江省',
-          city: '温州市',
-          district: '瑞安市',
-          detail: '瑞光大道1308号（测试地址）',
-          isDefault: true
-        }
-      ],
-      createTime: new Date()
-    };
-    uni.setStorageSync(USER_KEY, JSON.stringify(mockUser));
-    return mockUser;
+    return null;
   }
   return JSON.parse(userJson) as UserInfo;
+};
+
+// 检查用户是否已登录（有用户信息）
+export const isUserLoggedIn = async (): Promise<boolean> => {
+  const user = await getUserInfo();
+  return user !== null;
 };
 
 // 创建或更新用户信息
@@ -261,15 +306,26 @@ export const saveUserInfo = async (userInfo: Partial<UserInfo>) => {
   } else {
     user = {
       ...userInfo,
-      _id: 'user_001',
+      _id: userInfo._id || `user_${Date.now()}`,
       nickName: userInfo.nickName || '微信用户',
       avatarUrl: userInfo.avatarUrl || '',
-      addresses: [],
+      addresses: userInfo.addresses || [],
       createTime: new Date()
     } as UserInfo;
   }
   uni.setStorageSync(USER_KEY, JSON.stringify(user));
   return { _id: user._id };
+};
+
+// 使用微信用户信息创建/更新用户
+export const saveWxUserInfo = async (wxProfile: WxUserProfile, openid?: string) => {
+  const userInfo: Partial<UserInfo> = {
+    _id: openid,
+    nickName: wxProfile.nickName,
+    avatarUrl: wxProfile.avatarUrl,
+    addresses: []
+  };
+  return saveUserInfo(userInfo);
 };
 
 // 添加地址
@@ -291,7 +347,181 @@ export const addAddress = async (address: Address) => {
 // 退出登录
 export const logout = async () => {
   uni.removeStorageSync(USER_KEY);
+  uni.removeStorageSync(LOGIN_TIME_KEY);
+  // 同时清除云开发登录态
+  const { logoutCloudBase } = await import('./cloudbase');
+  logoutCloudBase();
   return { stats: { removed: 1 } };
+};
+
+// ==================== 云端用户相关 API ====================
+
+/**
+ * 同步用户登录信息到云端
+ * @param wxProfile - 微信用户信息
+ * @param openid - 用户openid
+ */
+export const syncUserToCloud = async (wxProfile: WxUserProfile, openid: string): Promise<{
+  success: boolean;
+  isNewUser: boolean;
+  userId: string;
+  message: string;
+}> => {
+  try {
+    const res = await callFunction('user', {
+      action: 'loginOrUpdate',
+      data: {
+        userInfo: {
+          nickName: wxProfile.nickName,
+          avatarUrl: wxProfile.avatarUrl,
+          gender: wxProfile.gender,
+          country: wxProfile.country,
+          province: wxProfile.province,
+          city: wxProfile.city
+        }
+      }
+    });
+    
+    if (res.result && res.result.success) {
+      // 记录登录时间
+      uni.setStorageSync(LOGIN_TIME_KEY, Date.now());
+      return res.result;
+    }
+    throw new Error(res.result?.message || '同步用户失败');
+  } catch (error) {
+    console.error('同步用户到云端失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 从云端获取用户信息
+ */
+export const getCloudUserInfo = async (): Promise<CloudUserInfo | null> => {
+  try {
+    const res = await callFunction('user', {
+      action: 'getUserInfo'
+    });
+    
+    if (res.result && res.result.success) {
+      return res.result.userInfo;
+    }
+    return null;
+  } catch (error) {
+    console.error('获取云端用户信息失败:', error);
+    return null;
+  }
+};
+
+/**
+ * 更新云端用户信息
+ */
+export const updateCloudUserInfo = async (updateData: Partial<CloudUserInfo>): Promise<boolean> => {
+  try {
+    const res = await callFunction('user', {
+      action: 'updateUserInfo',
+      data: updateData
+    });
+    
+    return res.result && res.result.success;
+  } catch (error) {
+    console.error('更新云端用户信息失败:', error);
+    return false;
+  }
+};
+
+/**
+ * 检查登录是否过期
+ */
+export const isLoginExpired = (): boolean => {
+  const loginTime = uni.getStorageSync(LOGIN_TIME_KEY);
+  if (!loginTime) {
+    return true;
+  }
+  
+  const now = Date.now();
+  const expireTime = loginTime + LOGIN_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+  return now > expireTime;
+};
+
+/**
+ * 获取登录剩余天数
+ */
+export const getLoginRemainingDays = (): number => {
+  const loginTime = uni.getStorageSync(LOGIN_TIME_KEY);
+  if (!loginTime) {
+    return 0;
+  }
+  
+  const now = Date.now();
+  const expireTime = loginTime + LOGIN_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+  const remainingMs = expireTime - now;
+  
+  if (remainingMs <= 0) {
+    return 0;
+  }
+  
+  return Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+};
+
+/**
+ * 完整的登录流程：获取用户信息 + 云端同步
+ * @param openid - 用户openid
+ * @returns 登录结果
+ */
+export const fullLogin = async (openid: string): Promise<{
+  success: boolean;
+  isNewUser: boolean;
+  userInfo?: UserInfo;
+  message: string;
+}> => {
+  try {
+    // 1. 获取微信用户信息（需要用户点击触发）
+    const wxProfile = await getWxUserProfile();
+    
+    // 2. 同步到云端
+    const cloudResult = await syncUserToCloud(wxProfile, openid);
+    
+    if (!cloudResult.success) {
+      throw new Error(cloudResult.message);
+    }
+    
+    // 3. 保存到本地
+    const userInfo: UserInfo = {
+      _id: openid,
+      nickName: wxProfile.nickName,
+      avatarUrl: wxProfile.avatarUrl,
+      addresses: []
+    };
+    await saveUserInfo(userInfo);
+    
+    return {
+      success: true,
+      isNewUser: cloudResult.isNewUser,
+      userInfo,
+      message: cloudResult.message
+    };
+  } catch (error: any) {
+    console.error('完整登录流程失败:', error);
+    return {
+      success: false,
+      isNewUser: false,
+      message: error.message || '登录失败'
+    };
+  }
+};
+
+/**
+ * 检查并刷新登录状态
+ * 如果登录过期，清除本地缓存
+ */
+export const checkAndRefreshLoginStatus = async (): Promise<boolean> => {
+  if (isLoginExpired()) {
+    console.log('登录已过期，清除登录状态');
+    await logout();
+    return false;
+  }
+  return true;
 };
 
 // 更新地址

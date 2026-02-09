@@ -56,8 +56,6 @@
             "urlCheck" : false
         },
         "usingComponents" : true,
-        "cloudfunctionRoot": "cloudfunctions/",
-        "cloud": true,
         "permission": {
             "scope.userLocation": {
                 "desc": "你的位置信息将用于展示门店距离及导航服务"
@@ -66,7 +64,10 @@
         "requiredPrivateInfos": [
             "getLocation",
             "chooseLocation"
-        ]
+        ],
+        "optimization": {
+            "subPackages": true
+        }
     },
     "mp-alipay" : {
         "usingComponents" : true

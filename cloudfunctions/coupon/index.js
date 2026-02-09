@@ -7,10 +7,30 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// 解析 HTTP 触发器的请求体
+function parseEvent(event) {
+  if (event.body) {
+    try {
+      return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+    } catch (e) {
+      console.error('解析 body 失败:', e);
+    }
+  }
+  return event;
+}
+
 // 云函数入口函数
 exports.main = async (event, context) => {
-  const { action, data = {} } = event;
-  const { OPENID } = cloud.getWXContext();
+  console.log('Coupon raw event:', JSON.stringify(event));
+  
+  const requestData = parseEvent(event);
+  console.log('Coupon parsed data:', JSON.stringify(requestData));
+  
+  const { action, data = {} } = requestData;
+  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
+  const OPENID = requestData._token || cloud.getWXContext().OPENID;
+  
+  console.log('Coupon openid:', OPENID, 'action:', action);
 
   try {
     switch (action) {
