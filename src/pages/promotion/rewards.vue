@@ -16,6 +16,21 @@
       </view>
     </view>
 
+    <!-- 类型筛选 -->
+    <view class="type-filter-bar">
+      <scroll-view scroll-x class="type-scroll">
+        <view 
+          v-for="type in typeOptions" 
+          :key="type.value"
+          class="type-tab"
+          :class="{ active: currentType === type.value }"
+          @click="switchType(type.value)"
+        >
+          <text>{{ type.label }}</text>
+        </view>
+      </scroll-view>
+    </view>
+
     <!-- 状态筛选 -->
     <view class="filter-bar">
       <view 
@@ -56,7 +71,12 @@
               ></uni-icons>
             </view>
             <view class="record-info">
-              <text class="record-title">{{ getLevelText(record.level) }}奖励</text>
+              <view class="record-title-row">
+                <text class="record-title">{{ record.rewardTypeName || getLevelText(record.level) }}</text>
+                <view :class="['reward-type-tag', getRewardTypeClass(record.rewardType)]">
+                  <text>{{ getRewardTypeShortName(record.rewardType) }}</text>
+                </view>
+              </view>
               <text class="record-desc">来自 {{ record.sourceUser?.nickName || '好友' }}</text>
               <text class="record-time">{{ formatTime(record.createTime) }}</text>
             </view>
@@ -82,6 +102,7 @@ import { getRewardRecords, getPromotionInfo } from '@/utils/api';
 import type { RewardRecord } from '@/types';
 
 const currentStatus = ref('');
+const currentType = ref('');
 const records = ref<RewardRecord[]>([]);
 const totalReward = ref(0);
 const pendingReward = ref(0);
@@ -95,6 +116,14 @@ const statusOptions = [
   { label: '全部', value: '' },
   { label: '待结算', value: 'pending' },
   { label: '已结算', value: 'settled' }
+];
+
+const typeOptions = [
+  { label: '全部类型', value: '' },
+  { label: '基础佣金', value: 'commission' },
+  { label: '复购奖励', value: 'repurchase' },
+  { label: '管理奖', value: 'management' },
+  { label: '育成津贴', value: 'nurture' }
 ];
 
 const loadOverview = async () => {
@@ -120,7 +149,7 @@ const loadRecords = async (isLoadMore = false) => {
   }
 
   try {
-    const res = await getRewardRecords(currentStatus.value || undefined, page.value, pageSize);
+    const res = await getRewardRecords(currentStatus.value || undefined, page.value, pageSize, currentType.value || undefined);
     const newRecords = res.records || [];
     
     if (isLoadMore) {
@@ -144,6 +173,11 @@ const loadRecords = async (isLoadMore = false) => {
 
 const switchStatus = (status: string) => {
   currentStatus.value = status;
+  loadRecords();
+};
+
+const switchType = (type: string) => {
+  currentType.value = type;
   loadRecords();
 };
 
@@ -201,6 +235,26 @@ const getStatusText = (status: string) => {
     deducted: '已扣回'
   };
   return texts[status] || status;
+};
+
+const getRewardTypeClass = (type: string) => {
+  const classes: Record<string, string> = {
+    commission: 'type-commission',
+    repurchase: 'type-repurchase',
+    management: 'type-management',
+    nurture: 'type-nurture'
+  };
+  return classes[type] || 'type-commission';
+};
+
+const getRewardTypeShortName = (type: string) => {
+  const names: Record<string, string> = {
+    commission: '佣',
+    repurchase: '复',
+    management: '管',
+    nurture: '育'
+  };
+  return names[type] || '奖';
 };
 
 onMounted(() => {
@@ -272,6 +326,41 @@ onMounted(() => {
   width: 2rpx;
   height: 80rpx;
   background: #F5F0E8;
+}
+
+/* 类型筛选 */
+.type-filter-bar {
+  background: #FFFFFF;
+  padding: 20rpx 0;
+  margin-bottom: 0;
+}
+
+.type-scroll {
+  white-space: nowrap;
+  padding: 0 20rpx;
+}
+
+.type-tab {
+  display: inline-block;
+  padding: 16rpx 28rpx;
+  margin: 0 10rpx;
+  border-radius: 32rpx;
+  background: #F5F0E8;
+  transition: all 0.3s;
+}
+
+.type-tab text {
+  font-size: 26rpx;
+  color: #6B5B4F;
+}
+
+.type-tab.active {
+  background: linear-gradient(135deg, #3D2914 0%, #5D3924 100%);
+}
+
+.type-tab.active text {
+  color: #FFFFFF;
+  font-weight: 500;
 }
 
 /* 状态筛选 */
@@ -391,13 +480,47 @@ onMounted(() => {
 .record-info {
   display: flex;
   flex-direction: column;
+  flex: 1;
+}
+
+.record-title-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
 }
 
 .record-title {
   font-size: 30rpx;
   font-weight: 500;
   color: #3D2914;
-  margin-bottom: 8rpx;
+  margin-right: 12rpx;
+}
+
+.reward-type-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+}
+
+.reward-type-tag text {
+  font-size: 20rpx;
+  color: #FFFFFF;
+}
+
+.reward-type-tag.type-commission {
+  background: linear-gradient(135deg, #0052D9 0%, #00A1FF 100%);
+}
+
+.reward-type-tag.type-repurchase {
+  background: linear-gradient(135deg, #00A870 0%, #4CD964 100%);
+}
+
+.reward-type-tag.type-management {
+  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+}
+
+.reward-type-tag.type-nurture {
+  background: linear-gradient(135deg, #FF6B00 0%, #FFB800 100%);
 }
 
 .record-desc {

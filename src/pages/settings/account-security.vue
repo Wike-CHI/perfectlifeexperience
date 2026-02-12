@@ -2,17 +2,23 @@
   <view class="container">
     <view class="section-title">基本信息</view>
     <view class="menu-section">
-      <view class="menu-item">
+      <button class="menu-item avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
         <text class="menu-text">头像</text>
         <view class="menu-right">
           <image class="user-avatar" :src="userInfo.avatarUrl || '/static/logo.png'" mode="aspectFill" />
           <uni-icons type="right" size="14" color="#9B8B7F"></uni-icons>
         </view>
-      </view>
+      </button>
       <view class="menu-item">
         <text class="menu-text">昵称</text>
         <view class="menu-right">
-          <text class="menu-value">{{ userInfo.nickName || '微信用户' }}</text>
+          <input 
+            type="nickname" 
+            class="nickname-input" 
+            placeholder="请输入昵称" 
+            :value="userInfo.nickName" 
+            @blur="onNicknameBlur"
+          />
           <uni-icons type="right" size="14" color="#9B8B7F"></uni-icons>
         </view>
       </view>
@@ -55,14 +61,79 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { getUserInfo } from '@/utils/api';
+import { onShow } from '@dcloudio/uni-app';
+import { getUserInfo, saveUserInfo, updateCloudUserInfo } from '@/utils/api';
+import { uploadFile } from '@/utils/cloudbase';
 
-// 模拟用户信息
+// 用户信息
 const userInfo = ref({
   nickName: '微信用户',
   avatarUrl: '',
-  phone: '13800138000'
+  phone: ''
 });
+
+// 页面显示时获取最新用户信息
+onShow(async () => {
+  const user = await getUserInfo();
+  if (user) {
+    userInfo.value = {
+      nickName: user.nickName || '微信用户',
+      avatarUrl: user.avatarUrl || '',
+      phone: user.phone || ''
+    };
+  }
+});
+
+// 处理头像选择
+const onChooseAvatar = async (e: any) => {
+  const { avatarUrl } = e.detail;
+  if (!avatarUrl) return;
+
+  try {
+    uni.showLoading({ title: '上传头像中...' });
+    
+    // 1. 上传到云存储
+    const fileID = await uploadFile(avatarUrl, `avatar/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+    
+    // 2. 更新本地显示
+    userInfo.value.avatarUrl = fileID; // 这里也可以用临时链接，但为了持久化最好用 fileID
+    
+    // 3. 更新云端用户信息
+    await updateCloudUserInfo({ avatarUrl: fileID });
+    
+    // 4. 更新本地缓存
+    await saveUserInfo({ avatarUrl: fileID });
+    
+    uni.hideLoading();
+    uni.showToast({ title: '头像更新成功', icon: 'success' });
+  } catch (error) {
+    console.error('更新头像失败:', error);
+    uni.hideLoading();
+    uni.showToast({ title: '头像更新失败', icon: 'none' });
+  }
+};
+
+// 处理昵称输入
+const onNicknameBlur = async (e: any) => {
+  const nickName = e.detail.value;
+  if (!nickName || nickName === userInfo.value.nickName) return;
+
+  try {
+    // 1. 更新本地显示
+    userInfo.value.nickName = nickName;
+    
+    // 2. 更新云端用户信息
+    await updateCloudUserInfo({ nickName });
+    
+    // 3. 更新本地缓存
+    await saveUserInfo({ nickName });
+    
+    uni.showToast({ title: '昵称更新成功', icon: 'none' });
+  } catch (error) {
+    console.error('更新昵称失败:', error);
+    uni.showToast({ title: '昵称更新失败', icon: 'none' });
+  }
+};
 
 // 手机号脱敏
 const maskPhone = (phone: string) => {
@@ -136,6 +207,22 @@ const handleDeleteAccount = () => {
   align-items: center;
   padding: 30rpx;
   border-bottom: 1rpx solid #F5F0E8;
+  background-color: #FFFFFF;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 重置 button 样式 */
+button.menu-item {
+  margin: 0;
+  line-height: inherit;
+  border-radius: 0;
+  text-align: left;
+  font-size: inherit;
+}
+
+button.menu-item::after {
+  border: none;
 }
 
 .menu-item:last-child {
@@ -154,12 +241,22 @@ const handleDeleteAccount = () => {
 .menu-right {
   display: flex;
   align-items: center;
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .menu-value {
   font-size: 28rpx;
   color: #9B8B7F;
   margin-right: 10rpx;
+}
+
+.nickname-input {
+  font-size: 28rpx;
+  color: #9B8B7F;
+  text-align: right;
+  margin-right: 10rpx;
+  width: 300rpx;
 }
 
 .menu-value.highlight {

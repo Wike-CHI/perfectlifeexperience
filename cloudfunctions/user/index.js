@@ -9,17 +9,7 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
-// 解析 HTTP 触发器的请求体
-function parseEvent(event) {
-  if (event.body) {
-    try {
-      return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-    } catch (e) {
-      console.error('解析 body 失败:', e);
-    }
-  }
-  return event;
-}
+const { getUserIdentity, parseEvent, withAuth, isDeprecatedAuth } = require('./common/auth');
 
 /**
  * 登录或更新用户信息
@@ -47,13 +37,11 @@ async function loginOrUpdate(openid, userInfo) {
         loginCount: _.inc(1)
       };
       
-      // 如果有新信息则更新
-      if (userInfo.nickName) updateData.nickName = userInfo.nickName;
-      if (userInfo.avatarUrl) updateData.avatarUrl = userInfo.avatarUrl;
-      if (userInfo.gender !== undefined) updateData.gender = userInfo.gender;
-      if (userInfo.country) updateData.country = userInfo.country;
-      if (userInfo.province) updateData.province = userInfo.province;
-      if (userInfo.city) updateData.city = userInfo.city;
+      // 注意：登录时不覆盖现有的昵称和头像，防止用户自定义的修改被微信信息覆盖
+      // 只有当数据库中没有这些字段时才补充
+      if (!user.nickName && userInfo.nickName) updateData.nickName = userInfo.nickName;
+      if (!user.avatarUrl && userInfo.avatarUrl) updateData.avatarUrl = userInfo.avatarUrl;
+      if (!user.gender && userInfo.gender !== undefined) updateData.gender = userInfo.gender;
       
       await usersCollection.doc(user._id).update({
         data: updateData
@@ -61,10 +49,14 @@ async function loginOrUpdate(openid, userInfo) {
       
       console.log('用户登录信息更新成功:', openid);
       
+      // 获取最新的用户信息返回
+      const latestUser = { ...user, ...updateData, loginCount: user.loginCount + 1, lastLoginTime: now };
+      
       return {
         success: true,
         isNewUser: false,
         userId: user._id,
+        userInfo: latestUser,
         message: '登录成功'
       };
     } else {

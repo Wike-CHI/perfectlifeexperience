@@ -1,26 +1,10 @@
 // 云开发环境ID - 年费环境
-const ENV_ID: string = 'dyyq-0gxfchpt0a88ca22';
+const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 
-// 云函数 HTTP 触发域名映射
-const CLOUD_FUNCTION_URLS: Record<string, string> = {
-  'login': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com',
-  'wallet': 'https://1402837521-6ebaxudvw4.ap-shanghai.tencentscf.com',
-  'coupon': 'https://1402837521-cucv0vyptk.ap-shanghai.tencentscf.com',
-  'promotion': 'https://1402837521-4mvonkik2k.ap-shanghai.tencentscf.com',
-  'initData': 'https://1402837521-95tu47fi6q.ap-shanghai.tencentscf.com',
-  'hello': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com', // 使用login的地址作为默认
-  'rewardSettlement': 'https://1402837521-kdpu0388ji.ap-shanghai.tencentscf.com',
-  'user': 'https://dyyq-0gxfchpt0a88ca22.service.tcloudbase.com/user'
-};
-
-// 检查环境ID是否已配置
-export const isValidEnvId = ENV_ID && ENV_ID !== 'your-env-id';
-
-// 判断是否为微信小程序环境
-const isMpWeixin = typeof uni !== 'undefined';
+// 声明 wx 全局对象
+declare const wx: any;
 
 // 存储用户登录凭证
-let userToken: string | null = null;
 let userOpenid: string | null = null;
 
 // 存储键名
@@ -32,7 +16,7 @@ const LOGIN_EXPIRE_DAYS = 7; // 登录有效期7天
  * 检查环境配置是否有效
  */
 export const checkEnvironment = () => {
-  if (!isValidEnvId) {
+  if (!ENV_ID) {
     console.error('❌ 云开发环境ID未配置');
     return false;
   }
@@ -40,65 +24,87 @@ export const checkEnvironment = () => {
 };
 
 /**
- * 获取小程序登录凭证 (code)
+ * 初始化云开发
  */
-const getWxLoginCode = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    uni.login({
-      provider: 'weixin',
-      success: (res: UniApp.LoginRes) => {
-        if (res.code) {
-          resolve(res.code);
-        } else {
-          reject(new Error('获取登录凭证失败'));
-        }
-      },
-      fail: reject
+export async function initCloudBase() {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    console.warn('当前环境不支持云开发 (非微信小程序环境)');
+    return false;
+  }
+
+  try {
+    console.log('正在初始化云开发，环境ID:', ENV_ID);
+    wx.cloud.init({
+      env: ENV_ID,
+      traceUser: true
     });
-  });
+    
+    // 尝试静默登录
+    const openid = await checkLogin();
+    console.log('云开发初始化:', openid ? '成功' : '失败');
+    return !!openid;
+  } catch (error) {
+    console.error('云开发初始化失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 调用云函数 (原生 wx.cloud.callFunction)
+ */
+export const callFunction = async (name: string, data: any = {}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    console.log(`调用云函数 ${name} (原生)`, JSON.stringify(data));
+    const res = await wx.cloud.callFunction({
+      name,
+      data
+    });
+    
+    console.log(`云函数 ${name} 响应:`, res.result);
+    // 保持与原有 HTTP 调用一致的返回结构: { result: ... }
+    // wx.cloud.callFunction 返回结构为 { result: ..., requestID: ... }
+    // 如果云函数内部返回 { success: true, ... }，则 res.result 就是这个对象
+    // 前端 api.ts 期望的结构是 res.result.success
+    // 所以直接返回 res 即可，res.result 就是云函数的返回值
+    return res;
+  } catch (error) {
+    console.error(`调用云函数 ${name} 失败:`, error);
+    throw error;
+  }
 };
 
 /**
- * 调用云函数 (通过 HTTP API)
+ * 上传文件到云存储
+ * @param filePath 本地文件路径
+ * @param cloudPath 云端路径（可选，如果不传则自动生成）
  */
-export const callFunction = async (name: string, data?: any) => {
+export const uploadFile = async (filePath: string, cloudPath?: string): Promise<string> => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
   try {
-    const baseUrl = CLOUD_FUNCTION_URLS[name];
-    if (!baseUrl) {
-      throw new Error(`未找到云函数 ${name} 的 HTTP 地址`);
+    if (!cloudPath) {
+      const ext = filePath.split('.').pop() || 'jpg';
+      const randomStr = Math.random().toString(36).substring(2);
+      const timestamp = Date.now();
+      cloudPath = `uploads/${timestamp}_${randomStr}.${ext}`;
     }
-    
-    const requestData = {
-      ...data,
-      _token: userToken
-    };
-    console.log(`调用云函数 ${name}，URL:`, baseUrl);
-    console.log(`请求数据:`, JSON.stringify(requestData));
-    
-    return await new Promise((resolve, reject) => {
-      uni.request({
-        url: baseUrl,
-        method: 'POST',
-        data: requestData,
-        header: {
-          'Content-Type': 'application/json'
-        },
-        success: (res: UniApp.RequestSuccessCallbackResult) => {
-          console.log(`云函数 ${name} 响应:`, res.statusCode, JSON.stringify(res.data));
-          if (res.statusCode === 200) {
-            resolve({ result: res.data });
-          } else {
-            reject(new Error(`请求失败: ${res.statusCode}`));
-          }
-        },
-        fail: (err: UniApp.GeneralCallbackResult) => {
-          console.error(`云函数 ${name} 请求失败:`, err);
-          reject(err);
-        }
-      });
+
+    console.log(`上传文件: ${filePath} -> ${cloudPath}`);
+    const res = await wx.cloud.uploadFile({
+      cloudPath,
+      filePath
     });
+
+    console.log('上传成功:', res.fileID);
+    return res.fileID;
   } catch (error) {
-    console.error(`调用云函数 ${name} 失败:`, error);
+    console.error('上传文件失败:', error);
     throw error;
   }
 };
@@ -111,7 +117,7 @@ export const getUserOpenid = (): string | null => {
 };
 
 /**
- * 用户登录 - 使用小程序 code 换取自定义登录态
+ * 用户登录 - 使用原生云开发静默登录
  * @returns 登录成功返回 openid，失败返回 null
  */
 export const checkLogin = async (): Promise<string | null> => {
@@ -124,25 +130,18 @@ export const checkLogin = async (): Promise<string | null> => {
   const cachedOpenid = uni.getStorageSync(OPENID_KEY);
   if (cachedOpenid) {
     userOpenid = cachedOpenid;
-    userToken = cachedOpenid;
     console.log('使用缓存的登录态:', cachedOpenid);
+    // 可以在这里异步验证一下登录态是否有效，但为了性能通常信任缓存
     return cachedOpenid;
   }
   
   try {
-    // 获取小程序登录凭证
-    console.log('正在获取 wx.login code...');
-    const code = await getWxLoginCode();
-    console.log('获取到 code:', code ? code.substring(0, 10) + '...' : 'null');
-    
-    // 调用登录云函数
-    console.log('调用 login 云函数...');
-    const result: any = await callFunction('login', { code });
-    console.log('login 云函数返回:', JSON.stringify(result));
+    console.log('正在进行云开发静默登录...');
+    // 调用 login 云函数，无需传参，云函数会自动获取 wxContext
+    const result: any = await callFunction('login', {});
     
     if (result?.result?.success) {
       userOpenid = result.result.openid;
-      userToken = result.result.token || result.result.openid;
       
       // 缓存 openid 到本地
       if (userOpenid) {
@@ -169,7 +168,6 @@ export const checkLogin = async (): Promise<string | null> => {
  * 退出登录
  */
 export const logoutCloudBase = () => {
-  userToken = null;
   userOpenid = null;
   uni.removeStorageSync(OPENID_KEY);
   uni.removeStorageSync(LOGIN_TIME_KEY);
@@ -231,28 +229,13 @@ export const recordLoginTime = () => {
   console.log('登录时间已记录');
 };
 
-/**
- * 初始化云开发
- */
-export async function initCloudBase() {
-  try {
-    console.log('正在初始化云开发，环境ID:', ENV_ID);
-    const openid = await checkLogin();
-    console.log('云开发初始化:', openid ? '成功' : '失败');
-    return openid;
-  } catch (error) {
-    console.error('云开发初始化失败:', error);
-    return null;
-  }
-}
-
 // 默认导出
 export default {
   checkLogin,
   checkEnvironment,
-  isValidEnvId,
   initCloudBase,
   callFunction,
+  uploadFile,
   getUserOpenid,
   logoutCloudBase
 };

@@ -63,8 +63,22 @@
         >
           <image class="member-avatar" :src="member.avatarUrl || '/static/logo.png'" mode="aspectFill" />
           <view class="member-info">
-            <text class="member-name">{{ member.nickName || '微信用户' }}</text>
+            <view class="member-name-row">
+              <text class="member-name">{{ member.nickName || '微信用户' }}</text>
+              <view class="member-badges">
+                <view :class="['star-badge', 'star-' + member.starLevel]">
+                  <text>{{ getStarLevelShort(member.starLevel) }}</text>
+                </view>
+                <view :class="['agent-badge', 'agent-' + member.agentLevel]">
+                  <text>{{ getAgentLevelRoman(member.agentLevel) }}</text>
+                </view>
+              </view>
+            </view>
             <text class="member-time">{{ formatTime(member.createTime) }}</text>
+            <view class="member-stats" v-if="member.performance">
+              <text class="stats-text">销售额 ¥{{ formatPrice(member.performance.totalSales) }}</text>
+              <text class="stats-text" v-if="member.performance.directCount">直推 {{ member.performance.directCount }}人</text>
+            </view>
           </view>
           <view class="member-level">
             <text class="level-tag">{{ getLevelText(member.level) }}</text>
@@ -185,6 +199,31 @@ const getLevelText = (level: number) => {
     4: '四级'
   };
   return texts[level] || '成员';
+};
+
+const getStarLevelShort = (level: number) => {
+  const names: Record<number, string> = {
+    0: '普',
+    1: '铜',
+    2: '银',
+    3: '金'
+  };
+  return names[level] || '普';
+};
+
+const getAgentLevelRoman = (level: number) => {
+  const romans: Record<number, string> = {
+    0: 'HQ',
+    1: 'I',
+    2: 'II',
+    3: 'III',
+    4: 'IV'
+  };
+  return romans[level] || 'IV';
+};
+
+const formatPrice = (price: number) => {
+  return ((price || 0) / 100).toFixed(0);
 };
 
 onMounted(() => {
@@ -378,16 +417,67 @@ onMounted(() => {
   flex-direction: column;
 }
 
+.member-name-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
 .member-name {
   font-size: 30rpx;
   font-weight: 500;
   color: #3D2914;
-  margin-bottom: 8rpx;
+  margin-right: 12rpx;
 }
+
+.member-badges {
+  display: flex;
+  gap: 8rpx;
+}
+
+.star-badge, .agent-badge {
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  font-size: 18rpx;
+}
+
+.star-badge text, .agent-badge text {
+  font-size: 18rpx;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* 星级徽章颜色 */
+.star-badge.star-0 { background: #9E9E9E; }
+.star-badge.star-1 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
+.star-badge.star-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
+.star-badge.star-3 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+
+/* 代理等级徽章颜色 */
+.agent-badge.agent-0 { background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); }
+.agent-badge.agent-1 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+.agent-badge.agent-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
+.agent-badge.agent-3 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
+.agent-badge.agent-4 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
 .member-time {
   font-size: 24rpx;
   color: #9B8B7F;
+  margin-bottom: 4rpx;
+}
+
+.member-stats {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 4rpx;
+}
+
+.stats-text {
+  font-size: 22rpx;
+  color: #6B5B4F;
+  background: #F5F0E8;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
 }
 
 .member-level {

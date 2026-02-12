@@ -161,6 +161,24 @@ export interface UserCoupon {
 
 // ==================== 推广相关类型 ====================
 
+// 奖励类型枚举
+export type RewardType = 'commission' | 'repurchase' | 'management' | 'nurture';
+
+// 星级身份枚举
+export type StarLevel = 0 | 1 | 2 | 3;
+
+// 代理层级枚举
+export type AgentLevel = 0 | 1 | 2 | 3 | 4;
+
+// 业绩追踪对象
+export interface Performance {
+  totalSales: number;      // 历史累计销售额 (单位: 分)
+  monthSales: number;      // 本月销售额 (单位: 分)
+  monthTag: string;        // 跨月标识, 如 "2026-02"
+  directCount: number;     // 直推有效人数
+  teamCount: number;       // 团队总人数
+}
+
 // 推广用户信息
 export interface PromotionUser {
   _id?: string;
@@ -169,11 +187,21 @@ export interface PromotionUser {
   avatarUrl: string;
   inviteCode: string;
   parentId?: string;
-  promotionLevel: number;
   promotionPath?: string;
+  // === 双轨制身份 ===
+  starLevel: StarLevel;           // 星级身份 (0-3)
+  agentLevel: AgentLevel;         // 代理层级 (0-4)
+  performance: Performance;       // 业绩追踪
+  mentorId?: string;              // 育成导师ID
+  // === 奖励统计 ===
   totalReward: number;
   pendingReward: number;
-  teamCount: number;
+  // === 奖励分类统计 ===
+  commissionReward?: number;      // 基础佣金累计
+  repurchaseReward?: number;      // 复购奖励累计
+  managementReward?: number;      // 团队管理奖累计
+  nurtureReward?: number;         // 育成津贴累计
+  // === 其他 ===
   isSuspicious?: boolean;
   createTime?: Date;
 }
@@ -214,6 +242,9 @@ export interface RewardRecord {
   cancelReason?: string;
   createTime?: Date;
   settleTime?: Date;
+  // === 新增奖励类型字段 ===
+  rewardType: RewardType;         // 奖励类型
+  rewardTypeName: string;         // 奖励类型名称
   sourceUser?: {
     nickName: string;
     avatarUrl: string;
@@ -229,14 +260,47 @@ export interface TeamStats {
   level4: number;
 }
 
+// 晋升进度信息
+export interface PromotionProgress {
+  currentLevel: StarLevel;
+  nextLevel: StarLevel | null;
+  // 金额进度
+  salesProgress: {
+    current: number;
+    target: number;
+    percent: number;
+  };
+  // 人数进度
+  countProgress: {
+    current: number;
+    target: number;
+    percent: number;
+  };
+}
+
 // 推广信息响应
 export interface PromotionInfo {
   inviteCode: string;
-  level: number;
+  // === 双轨制身份 ===
+  starLevel: StarLevel;
+  agentLevel: AgentLevel;
+  starLevelName: string;       // 星级名称
+  agentLevelName: string;      // 代理层级名称
+  // === 奖励统计 ===
   totalReward: number;
   pendingReward: number;
   todayReward: number;
   monthReward: number;
+  // === 分类奖励统计 ===
+  commissionReward: number;    // 基础佣金
+  repurchaseReward: number;    // 复购奖励
+  managementReward: number;    // 团队管理奖
+  nurtureReward: number;       // 育成津贴
+  // === 业绩数据 ===
+  performance: Performance;
+  // === 晋升进度 ===
+  promotionProgress: PromotionProgress;
+  // === 团队统计 ===
   teamStats: TeamStats;
 }
 

@@ -20,19 +20,76 @@ function parseEvent(event) {
   return event;
 }
 
-// 推广奖励比例配置（使用中性命名）
-const REWARD_RATIOS = {
-  LEVEL_1: 0.20, // 直接推广：20%
-  LEVEL_2: 0.15, // 二级：15%
-  LEVEL_3: 0.10, // 三级：10%
-  LEVEL_4: 0.05  // 四级：5%
+// ==================== 奖励比例配置 ====================
+
+// 基础佣金比例（按代理层级）
+const AGENT_COMMISSION_RATIOS = {
+  0: 0.25, // 总公司：25%
+  1: 0.20, // 一级代理：20%
+  2: 0.15, // 二级代理：15%
+  3: 0.10, // 三级代理：10%
+  4: 0.05  // 四级代理：5%
 };
+
+// 复购奖励比例
+const REPURCHASE_RATIO = 0.03; // 3%
+
+// 团队管理奖比例
+const MANAGEMENT_RATIO = 0.02; // 2%
+
+// 育成津贴比例
+const NURTURE_RATIO = 0.02; // 2%
 
 // 最大推广层级
 const MAX_LEVEL = 4;
 
-// 结算周期（天）
-const SETTLEMENT_DAYS = 7;
+// ==================== 晋升门槛配置 ====================
+
+// 晋升条件（金额单位：分）
+const PROMOTION_THRESHOLDS = {
+  // 晋升铜牌 (Star 0 -> 1)
+  BRONZE: {
+    totalSales: 2000000,    // 累计销售额 >= 20,000元
+    directCount: 30         // 或直推有效人数 >= 30人
+  },
+  // 晋升银牌 (Star 1 -> 2)
+  SILVER: {
+    monthSales: 5000000,    // 本月销售额 >= 50,000元
+    teamCount: 50           // 或团队人数 >= 50人
+  },
+  // 晋升金牌 (Star 2 -> 3) - 预留
+  GOLD: {
+    monthSales: 10000000,   // 本月销售额 >= 100,000元
+    teamCount: 200          // 或团队人数 >= 200人
+  }
+};
+
+// 星级名称映射
+const STAR_LEVEL_NAMES = {
+  0: '普通会员',
+  1: '铜牌推广员',
+  2: '银牌推广员',
+  3: '金牌推广员'
+};
+
+// 代理层级名称映射
+const AGENT_LEVEL_NAMES = {
+  0: '总公司',
+  1: '一级代理',
+  2: '二级代理',
+  3: '三级代理',
+  4: '四级代理'
+};
+
+// 奖励类型映射
+const REWARD_TYPE_NAMES = {
+  commission: '基础佣金',
+  repurchase: '复购奖励',
+  management: '团队管理奖',
+  nurture: '育成津贴'
+};
+
+// ==================== 工具函数 ====================
 
 /**
  * 生成唯一邀请码
@@ -44,6 +101,14 @@ function generateInviteCode() {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+/**
+ * 获取当前月份标识
+ */
+function getCurrentMonthTag() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
@@ -64,8 +129,7 @@ function getDeviceFingerprint(event) {
  */
 async function checkDuplicateRegistration(openid, deviceInfo) {
   try {
-    // 检查同一IP近期注册数量
-    const recentTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24小时内
+    const recentTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const ipCount = await db.collection('users')
       .where({
         registerIP: deviceInfo.ip,
@@ -77,7 +141,6 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
       return { valid: false, reason: '操作频繁，请稍后再试' };
     }
 
-    // 检查用户是否已存在
     const userExists = await db.collection('users')
       .where({ _openid: openid })
       .count();
@@ -94,11 +157,457 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
 }
 
 /**
+ * 获取用户业绩对象（带跨月重置）
+ */
+function getDefaultPerformance() {
+  return {
+    totalSales: 0,
+    monthSales: 0,
+    monthTag: getCurrentMonthTag(),
+    directCount: 0,
+    teamCount: 0
+  };
+}
+
+/**
+ * 检查并重置跨月数据
+ */
+async function checkAndResetMonthlyPerformance(user) {
+  const currentMonthTag = getCurrentMonthTag();
+  const performance = user.performance || getDefaultPerformance();
+  
+  // 如果月份变更，重置月度数据
+  if (performance.monthTag !== currentMonthTag) {
+    console.log(`月份变更: ${performance.monthTag} -> ${currentMonthTag}，重置月度数据`);
+    await db.collection('users')
+      .where({ _openid: user._openid })
+      .update({
+        data: {
+          'performance.monthSales': 0,
+          'performance.monthTag': currentMonthTag,
+          updateTime: db.serverDate()
+        }
+      });
+    performance.monthSales = 0;
+    performance.monthTag = currentMonthTag;
+  }
+  
+  return performance;
+}
+
+// ==================== 晋升检查引擎 ====================
+
+/**
+ * 检查星级晋升条件
+ */
+async function checkStarLevelPromotion(openid) {
+  try {
+    // 获取用户信息
+    const userRes = await db.collection('users')
+      .where({ _openid: openid })
+      .get();
+    
+    if (userRes.data.length === 0) {
+      return { promoted: false, reason: '用户不存在' };
+    }
+
+    const user = userRes.data[0];
+    const currentStarLevel = user.starLevel || 0;
+    
+    // 已是最高等级
+    if (currentStarLevel >= 3) {
+      return { promoted: false, reason: '已是最高等级' };
+    }
+
+    // 检查并重置跨月数据
+    const performance = await checkAndResetMonthlyPerformance(user);
+
+    let newStarLevel = currentStarLevel;
+    let promotionReason = '';
+
+    // 检查晋升条件
+    if (currentStarLevel === 0) {
+      // 晋升铜牌条件
+      if (performance.totalSales >= PROMOTION_THRESHOLDS.BRONZE.totalSales) {
+        newStarLevel = 1;
+        promotionReason = `累计销售额达到${PROMOTION_THRESHOLDS.BRONZE.totalSales / 100}元`;
+      } else if (performance.directCount >= PROMOTION_THRESHOLDS.BRONZE.directCount) {
+        newStarLevel = 1;
+        promotionReason = `直推人数达到${PROMOTION_THRESHOLDS.BRONZE.directCount}人`;
+      }
+    } else if (currentStarLevel === 1) {
+      // 晋升银牌条件
+      if (performance.monthSales >= PROMOTION_THRESHOLDS.SILVER.monthSales) {
+        newStarLevel = 2;
+        promotionReason = `本月销售额达到${PROMOTION_THRESHOLDS.SILVER.monthSales / 100}元`;
+      } else if (performance.teamCount >= PROMOTION_THRESHOLDS.SILVER.teamCount) {
+        newStarLevel = 2;
+        promotionReason = `团队人数达到${PROMOTION_THRESHOLDS.SILVER.teamCount}人`;
+      }
+    } else if (currentStarLevel === 2) {
+      // 晋升金牌条件
+      if (performance.monthSales >= PROMOTION_THRESHOLDS.GOLD.monthSales) {
+        newStarLevel = 3;
+        promotionReason = `本月销售额达到${PROMOTION_THRESHOLDS.GOLD.monthSales / 100}元`;
+      } else if (performance.teamCount >= PROMOTION_THRESHOLDS.GOLD.teamCount) {
+        newStarLevel = 3;
+        promotionReason = `团队人数达到${PROMOTION_THRESHOLDS.GOLD.teamCount}人`;
+      }
+    }
+
+    // 执行晋升
+    if (newStarLevel > currentStarLevel) {
+      await db.collection('users')
+        .where({ _openid: openid })
+        .update({
+          data: {
+            starLevel: newStarLevel,
+            updateTime: db.serverDate()
+          }
+        });
+
+      console.log(`用户 ${openid} 晋升成功: ${currentStarLevel} -> ${newStarLevel}，原因: ${promotionReason}`);
+
+      return {
+        promoted: true,
+        oldLevel: currentStarLevel,
+        newLevel: newStarLevel,
+        reason: promotionReason
+      };
+    }
+
+    return { promoted: false, reason: '未满足晋升条件' };
+  } catch (error) {
+    console.error('晋升检查失败:', error);
+    return { promoted: false, reason: '检查失败' };
+  }
+}
+
+/**
+ * 计算晋升进度
+ */
+function calculatePromotionProgress(user) {
+  const performance = user.performance || getDefaultPerformance();
+  const currentLevel = user.starLevel || 0;
+
+  // 已是最高等级
+  if (currentLevel >= 3) {
+    return {
+      currentLevel: 3,
+      nextLevel: null,
+      salesProgress: { current: 0, target: 0, percent: 100 },
+      countProgress: { current: 0, target: 0, percent: 100 }
+    };
+  }
+
+  // 获取下一级的门槛
+  let thresholds;
+  if (currentLevel === 0) {
+    thresholds = PROMOTION_THRESHOLDS.BRONZE;
+  } else if (currentLevel === 1) {
+    thresholds = PROMOTION_THRESHOLDS.SILVER;
+  } else {
+    thresholds = PROMOTION_THRESHOLDS.GOLD;
+  }
+
+  // 计算金额进度
+  const salesCurrent = currentLevel === 0 ? performance.totalSales : performance.monthSales;
+  const salesTarget = currentLevel === 0 ? thresholds.totalSales : thresholds.monthSales;
+  const salesPercent = Math.min(100, Math.floor((salesCurrent / salesTarget) * 100));
+
+  // 计算人数进度
+  const countCurrent = currentLevel === 0 ? performance.directCount : performance.teamCount;
+  const countTarget = currentLevel === 0 ? thresholds.directCount : thresholds.teamCount;
+  const countPercent = Math.min(100, Math.floor((countCurrent / countTarget) * 100));
+
+  return {
+    currentLevel,
+    nextLevel: currentLevel + 1,
+    salesProgress: {
+      current: salesCurrent,
+      target: salesTarget,
+      percent: salesPercent
+    },
+    countProgress: {
+      current: countCurrent,
+      target: countTarget,
+      percent: countPercent
+    }
+  };
+}
+
+// ==================== 四重分润算法 ====================
+
+/**
+ * 计算订单推广奖励（四重分润）
+ */
+async function calculatePromotionReward(event, context) {
+  const { orderId, buyerId, orderAmount, isRepurchase = false } = event;
+
+  try {
+    // 获取买家信息
+    const buyerRes = await db.collection('users')
+      .where({ _openid: buyerId })
+      .get();
+    
+    if (buyerRes.data.length === 0) {
+      return { code: -1, msg: '买家信息不存在' };
+    }
+
+    const buyer = buyerRes.data[0];
+    const promotionPath = buyer.promotionPath || '';
+
+    // 如果没有推广路径，直接返回
+    if (!promotionPath) {
+      return { code: 0, msg: '无推广关系', data: { rewards: [] } };
+    }
+
+    // 解析推广路径，获取上级链（从近到远）
+    const parentChain = promotionPath.split('/').filter(id => id).reverse();
+    
+    // 记录推广订单
+    await db.collection('promotion_orders').add({
+      data: {
+        orderId,
+        buyerId,
+        orderAmount,
+        isRepurchase,
+        status: 'pending',
+        createTime: db.serverDate(),
+        settleTime: null
+      }
+    });
+
+    // 批量获取上级链用户信息
+    const usersRes = await db.collection('users')
+      .where({ _openid: _.in(parentChain) })
+      .get();
+    
+    const userMap = {};
+    usersRes.data.forEach(u => {
+      userMap[u._openid] = u;
+    });
+
+    const rewards = [];
+    const managementRatios = {}; // 记录已分配的管理奖比例
+
+    for (let i = 0; i < Math.min(parentChain.length, MAX_LEVEL); i++) {
+      const beneficiaryId = parentChain[i];
+      const beneficiary = userMap[beneficiaryId];
+
+      if (!beneficiary) continue;
+
+      const position = i + 1; // 层级位置（1-4）
+      const agentLevel = beneficiary.agentLevel || 4; // 默认四级代理
+      const starLevel = beneficiary.starLevel || 0;
+      const mentorId = beneficiary.mentorId;
+
+      // ========== 1. 基础佣金 ==========
+      const commissionRatio = AGENT_COMMISSION_RATIOS[agentLevel] || 0.05;
+      const commissionAmount = Math.floor(orderAmount * commissionRatio);
+
+      if (commissionAmount > 0) {
+        await createRewardRecord({
+          orderId,
+          beneficiaryId,
+          sourceUserId: buyerId,
+          orderAmount,
+          ratio: commissionRatio,
+          amount: commissionAmount,
+          rewardType: 'commission',
+          position
+        });
+        rewards.push({
+          beneficiaryId,
+          type: 'commission',
+          amount: commissionAmount,
+          ratio: commissionRatio
+        });
+      }
+
+      // ========== 2. 复购奖励 ==========
+      if (isRepurchase && starLevel >= 1) {
+        const repurchaseAmount = Math.floor(orderAmount * REPURCHASE_RATIO);
+        
+        if (repurchaseAmount > 0) {
+          await createRewardRecord({
+            orderId,
+            beneficiaryId,
+            sourceUserId: buyerId,
+            orderAmount,
+            ratio: REPURCHASE_RATIO,
+            amount: repurchaseAmount,
+            rewardType: 'repurchase',
+            position
+          });
+          rewards.push({
+            beneficiaryId,
+            type: 'repurchase',
+            amount: repurchaseAmount,
+            ratio: REPURCHASE_RATIO
+          });
+        }
+      }
+
+      // ========== 3. 团队管理奖（级差制） ==========
+      if (starLevel >= 2) {
+        // 计算已分配给下级的管理奖比例
+        let alreadyDistributed = 0;
+        for (let j = 0; j < i; j++) {
+          const prevUserId = parentChain[j];
+          if (managementRatios[prevUserId]) {
+            alreadyDistributed += managementRatios[prevUserId];
+          }
+        }
+
+        // 当前用户可获得的管理奖 = 总比例 - 已分配比例
+        const availableRatio = Math.max(0, MANAGEMENT_RATIO - alreadyDistributed);
+        
+        if (availableRatio > 0) {
+          const managementAmount = Math.floor(orderAmount * availableRatio);
+          
+          if (managementAmount > 0) {
+            await createRewardRecord({
+              orderId,
+              beneficiaryId,
+              sourceUserId: buyerId,
+              orderAmount,
+              ratio: availableRatio,
+              amount: managementAmount,
+              rewardType: 'management',
+              position
+            });
+            rewards.push({
+              beneficiaryId,
+              type: 'management',
+              amount: managementAmount,
+              ratio: availableRatio
+            });
+            managementRatios[beneficiaryId] = availableRatio;
+          }
+        }
+      }
+
+      // ========== 4. 育成津贴 ==========
+      if (mentorId && userMap[mentorId]) {
+        const nurtureAmount = Math.floor(orderAmount * NURTURE_RATIO);
+        
+        if (nurtureAmount > 0) {
+          await createRewardRecord({
+            orderId,
+            beneficiaryId: mentorId,
+            sourceUserId: buyerId,
+            orderAmount,
+            ratio: NURTURE_RATIO,
+            amount: nurtureAmount,
+            rewardType: 'nurture',
+            position: 0, // 导师不计入层级
+            relatedBeneficiaryId: beneficiaryId // 关联的实际受益人
+          });
+          rewards.push({
+            beneficiaryId: mentorId,
+            type: 'nurture',
+            amount: nurtureAmount,
+            ratio: NURTURE_RATIO,
+            relatedBeneficiary: beneficiaryId
+          });
+        }
+      }
+    }
+
+    // 更新买家订单计数（用于判断复购）
+    await updateBuyerOrderCount(buyerId);
+
+    return {
+      code: 0,
+      msg: '奖励计算成功',
+      data: { rewards }
+    };
+  } catch (error) {
+    console.error('计算奖励失败:', error);
+    return { code: -1, msg: '计算失败' };
+  }
+}
+
+/**
+ * 创建奖励记录
+ */
+async function createRewardRecord({
+  orderId,
+  beneficiaryId,
+  sourceUserId,
+  orderAmount,
+  ratio,
+  amount,
+  rewardType,
+  position,
+  relatedBeneficiaryId
+}) {
+  await db.collection('reward_records').add({
+    data: {
+      orderId,
+      beneficiaryId,
+      sourceUserId,
+      level: position,
+      orderAmount,
+      ratio,
+      amount,
+      rewardType,
+      rewardTypeName: REWARD_TYPE_NAMES[rewardType],
+      status: 'pending',
+      relatedBeneficiaryId,
+      createTime: db.serverDate(),
+      settleTime: null
+    }
+  });
+
+  // 更新用户的待结算奖励
+  await db.collection('users')
+    .where({ _openid: beneficiaryId })
+    .update({
+      data: {
+        pendingReward: _.inc(amount),
+        [`${rewardType}Reward`]: _.inc(amount), // 分类奖励统计
+        updateTime: db.serverDate()
+      }
+    });
+}
+
+/**
+ * 更新买家订单计数
+ */
+async function updateBuyerOrderCount(buyerId) {
+  try {
+    // 统计买家历史订单数
+    const orderCount = await db.collection('orders')
+      .where({
+        _openid: buyerId,
+        status: _.in(['paid', 'shipping', 'completed'])
+      })
+      .count();
+
+    // 更新用户表中的订单计数
+    await db.collection('users')
+      .where({ _openid: buyerId })
+      .update({
+        data: {
+          orderCount: orderCount.total,
+          updateTime: db.serverDate()
+        }
+      });
+  } catch (error) {
+    console.error('更新买家订单计数失败:', error);
+  }
+}
+
+// ==================== 核心业务函数 ====================
+
+/**
  * 绑定推广关系
  */
 async function bindPromotionRelation(event, context) {
   const OPENID = event.OPENID || cloud.getWXContext().OPENID;
-  const { parentInviteCode, userInfo, deviceInfo } = event;
+  const { parentInviteCode, mentorCode, userInfo, deviceInfo } = event;
 
   try {
     // 防刷检查
@@ -109,7 +618,7 @@ async function bindPromotionRelation(event, context) {
 
     // 查找上级用户
     let parentId = null;
-    let parentLevel = 0;
+    let parentAgentLevel = 4;
     let parentPath = '';
 
     if (parentInviteCode) {
@@ -123,18 +632,28 @@ async function bindPromotionRelation(event, context) {
 
       const parent = parentRes.data[0];
       parentId = parent._openid;
-      parentLevel = parent.promotionLevel || 0;
+      parentAgentLevel = parent.agentLevel || 4;
       parentPath = parent.promotionPath || '';
-
-      // 检查层级深度
-      if (parentLevel >= MAX_LEVEL) {
-        // 超过4级，按4级处理
-        parentLevel = MAX_LEVEL - 1;
-      }
 
       // 不能绑定自己
       if (parentId === OPENID) {
         return { code: -1, msg: '不能绑定自己' };
+      }
+    }
+
+    // 查找导师（可选）
+    let mentorId = null;
+    if (mentorCode) {
+      const mentorRes = await db.collection('users')
+        .where({ inviteCode: mentorCode })
+        .get();
+      
+      if (mentorRes.data.length > 0) {
+        const mentor = mentorRes.data[0];
+        // 导师不能是自己
+        if (mentor._openid !== OPENID) {
+          mentorId = mentor._openid;
+        }
       }
     }
 
@@ -155,8 +674,9 @@ async function bindPromotionRelation(event, context) {
       }
     }
 
-    // 计算当前用户的推广层级和路径
-    const currentLevel = parentLevel + 1;
+    // 计算当前用户的代理层级
+    // 子代理的层级 = 父代理层级 + 1，最大为4
+    const currentAgentLevel = parentId ? Math.min(4, parentAgentLevel + 1) : 4;
     const currentPath = parentPath ? `${parentPath}/${parentId}` : (parentId || '');
 
     // 创建用户记录
@@ -165,24 +685,37 @@ async function bindPromotionRelation(event, context) {
       ...userInfo,
       inviteCode,
       parentId,
-      promotionLevel: currentLevel,
       promotionPath: currentPath,
-      registerIP: deviceInfo.ip,
+      // === 双轨制身份 ===
+      starLevel: 0,
+      agentLevel: currentAgentLevel,
+      performance: getDefaultPerformance(),
+      mentorId,
+      // === 奖励统计 ===
       totalReward: 0,
       pendingReward: 0,
-      teamCount: 0,
+      commissionReward: 0,
+      repurchaseReward: 0,
+      managementReward: 0,
+      nurtureReward: 0,
+      // === 其他 ===
+      registerIP: deviceInfo.ip,
+      orderCount: 0,
+      isSuspicious: false,
       createTime: db.serverDate(),
       updateTime: db.serverDate()
     };
 
     await db.collection('users').add({ data: userData });
 
-    // 更新上级的团队数量
+    // 更新上级的团队数量和直推人数
     if (parentId) {
       await db.collection('users')
         .where({ _openid: parentId })
         .update({
           data: {
+            'performance.directCount': _.inc(1),
+            'performance.teamCount': _.inc(1),
             teamCount: _.inc(1),
             updateTime: db.serverDate()
           }
@@ -193,7 +726,7 @@ async function bindPromotionRelation(event, context) {
         data: {
           userId: OPENID,
           parentId,
-          level: currentLevel,
+          level: 1,
           path: currentPath,
           createTime: db.serverDate()
         }
@@ -205,117 +738,14 @@ async function bindPromotionRelation(event, context) {
       msg: '绑定成功',
       data: {
         inviteCode,
-        level: currentLevel
+        starLevel: 0,
+        agentLevel: currentAgentLevel,
+        mentorId
       }
     };
   } catch (error) {
     console.error('绑定推广关系失败:', error);
     return { code: -1, msg: '绑定失败，请重试' };
-  }
-}
-
-/**
- * 计算订单推广奖励
- */
-async function calculatePromotionReward(event, context) {
-  const { orderId, buyerId, orderAmount } = event;
-
-  try {
-    // 获取买家信息
-    const buyerRes = await db.collection('users')
-      .where({ _openid: buyerId })
-      .get();
-    
-    if (buyerRes.data.length === 0) {
-      return { code: -1, msg: '买家信息不存在' };
-    }
-
-    const buyer = buyerRes.data[0];
-    const promotionPath = buyer.promotionPath || '';
-
-    // 如果没有推广路径，直接返回
-    if (!promotionPath) {
-      return { code: 0, msg: '无推广关系', data: { rewards: [] } };
-    }
-
-    // 解析推广路径，获取上级链
-    const parentChain = promotionPath.split('/').filter(id => id);
-    
-    // 记录推广订单
-    await db.collection('promotion_orders').add({
-      data: {
-        orderId,
-        buyerId,
-        orderAmount,
-        status: 'pending', // pending/settled
-        createTime: db.serverDate(),
-        settleTime: null
-      }
-    });
-
-    // 计算各级奖励
-    const rewards = [];
-    const reversedChain = parentChain.reverse(); // 从近到远
-
-    for (let i = 0; i < Math.min(reversedChain.length, MAX_LEVEL); i++) {
-      const beneficiaryId = reversedChain[i];
-      const level = i + 1;
-      
-      // 根据层级确定比例
-      let ratio = 0;
-      switch (level) {
-        case 1: ratio = REWARD_RATIOS.LEVEL_1; break;
-        case 2: ratio = REWARD_RATIOS.LEVEL_2; break;
-        case 3: ratio = REWARD_RATIOS.LEVEL_3; break;
-        case 4: ratio = REWARD_RATIOS.LEVEL_4; break;
-      }
-
-      const rewardAmount = Math.floor(orderAmount * ratio);
-
-      if (rewardAmount > 0) {
-        // 创建奖励记录
-        await db.collection('reward_records').add({
-          data: {
-            orderId,
-            beneficiaryId,
-            sourceUserId: buyerId,
-            level,
-            orderAmount,
-            ratio,
-            amount: rewardAmount,
-            status: 'pending',
-            createTime: db.serverDate(),
-            settleTime: null
-          }
-        });
-
-        // 更新用户的待结算奖励
-        await db.collection('users')
-          .where({ _openid: beneficiaryId })
-          .update({
-            data: {
-              pendingReward: _.inc(rewardAmount),
-              updateTime: db.serverDate()
-            }
-          });
-
-        rewards.push({
-          beneficiaryId,
-          level,
-          amount: rewardAmount,
-          ratio
-        });
-      }
-    }
-
-    return {
-      code: 0,
-      msg: '奖励计算成功',
-      data: { rewards }
-    };
-  } catch (error) {
-    console.error('计算奖励失败:', error);
-    return { code: -1, msg: '计算失败' };
   }
 }
 
@@ -326,7 +756,6 @@ async function getPromotionInfo(event, context) {
   const OPENID = event.OPENID || cloud.getWXContext().OPENID;
 
   try {
-    // 获取用户信息
     const userRes = await db.collection('users')
       .where({ _openid: OPENID })
       .get();
@@ -337,8 +766,24 @@ async function getPromotionInfo(event, context) {
 
     const user = userRes.data[0];
 
+    // 检查并重置跨月数据
+    const performance = await checkAndResetMonthlyPerformance(user);
+
     // 获取团队统计
     const teamStats = await getTeamStats(OPENID);
+
+    // 更新团队人数到业绩
+    if (performance.teamCount !== teamStats.total) {
+      await db.collection('users')
+        .where({ _openid: OPENID })
+        .update({
+          data: {
+            'performance.teamCount': teamStats.total,
+            updateTime: db.serverDate()
+          }
+        });
+      performance.teamCount = teamStats.total;
+    }
 
     // 获取今日收益
     const today = new Date();
@@ -367,16 +812,37 @@ async function getPromotionInfo(event, context) {
     
     const monthReward = monthRewardRes.data.reduce((sum, r) => sum + r.amount, 0);
 
+    // 计算晋升进度
+    const promotionProgress = calculatePromotionProgress({
+      ...user,
+      performance
+    });
+
     return {
       code: 0,
       msg: '获取成功',
       data: {
         inviteCode: user.inviteCode,
-        level: user.promotionLevel,
-        totalReward: user.totalReward,
-        pendingReward: user.pendingReward,
+        // === 双轨制身份 ===
+        starLevel: user.starLevel || 0,
+        agentLevel: user.agentLevel || 4,
+        starLevelName: STAR_LEVEL_NAMES[user.starLevel || 0],
+        agentLevelName: AGENT_LEVEL_NAMES[user.agentLevel || 4],
+        // === 奖励统计 ===
+        totalReward: user.totalReward || 0,
+        pendingReward: user.pendingReward || 0,
         todayReward,
         monthReward,
+        // === 分类奖励 ===
+        commissionReward: user.commissionReward || 0,
+        repurchaseReward: user.repurchaseReward || 0,
+        managementReward: user.managementReward || 0,
+        nurtureReward: user.nurtureReward || 0,
+        // === 业绩数据 ===
+        performance,
+        // === 晋升进度 ===
+        promotionProgress,
+        // === 团队统计 ===
         teamStats
       }
     };
@@ -413,41 +879,31 @@ async function getTeamStats(userId) {
     if (level1Users.data.length > 0) {
       const level1Ids = level1Users.data.map(u => u._openid);
       const level2Res = await db.collection('users')
-        .where({
-          parentId: _.in(level1Ids)
-        })
+        .where({ parentId: _.in(level1Ids) })
         .count();
       stats.level2 = level2Res.total;
 
       // 获取三级
       const level2Users = await db.collection('users')
-        .where({
-          parentId: _.in(level1Ids)
-        })
+        .where({ parentId: _.in(level1Ids) })
         .get();
       
       if (level2Users.data.length > 0) {
         const level2Ids = level2Users.data.map(u => u._openid);
         const level3Res = await db.collection('users')
-          .where({
-            parentId: _.in(level2Ids)
-          })
+          .where({ parentId: _.in(level2Ids) })
           .count();
         stats.level3 = level3Res.total;
 
         // 获取四级
         const level3Users = await db.collection('users')
-          .where({
-            parentId: _.in(level2Ids)
-          })
+          .where({ parentId: _.in(level2Ids) })
           .get();
         
         if (level3Users.data.length > 0) {
           const level3Ids = level3Users.data.map(u => u._openid);
           const level4Res = await db.collection('users')
-            .where({
-              parentId: _.in(level3Ids)
-            })
+            .where({ parentId: _.in(level3Ids) })
             .count();
           stats.level4 = level4Res.total;
         }
@@ -473,11 +929,8 @@ async function getTeamMembers(event, context) {
     let query = {};
     
     if (level === 1) {
-      // 直接团队成员
       query = { parentId: OPENID };
     } else {
-      // 需要查询多级，这里简化处理
-      // 实际应该使用path字段查询
       const userRes = await db.collection('users')
         .where({ _openid: OPENID })
         .get();
@@ -489,13 +942,11 @@ async function getTeamMembers(event, context) {
       const userPath = userRes.data[0].promotionPath || '';
       const fullPath = userPath ? `${userPath}/${OPENID}` : OPENID;
       
-      // 查询路径中包含当前用户路径的成员
       query = {
         promotionPath: db.RegExp({
           regexp: fullPath,
           options: 'i'
-        }),
-        promotionLevel: (userRes.data[0].promotionLevel || 0) + level
+        })
       };
     }
 
@@ -511,7 +962,11 @@ async function getTeamMembers(event, context) {
       nickName: m.nickName,
       avatarUrl: m.avatarUrl,
       createTime: m.createTime,
-      level: m.promotionLevel
+      starLevel: m.starLevel || 0,
+      agentLevel: m.agentLevel || 4,
+      starLevelName: STAR_LEVEL_NAMES[m.starLevel || 0],
+      agentLevelName: AGENT_LEVEL_NAMES[m.agentLevel || 4],
+      performance: m.performance || getDefaultPerformance()
     }));
 
     return {
@@ -530,13 +985,17 @@ async function getTeamMembers(event, context) {
  */
 async function getRewardRecords(event, context) {
   const OPENID = event.OPENID || cloud.getWXContext().OPENID;
-  const { status, page = 1, limit = 20 } = event;
+  const { status, rewardType, page = 1, limit = 20 } = event;
 
   try {
     let query = { beneficiaryId: OPENID };
     
     if (status) {
       query.status = status;
+    }
+    
+    if (rewardType) {
+      query.rewardType = rewardType;
     }
 
     const recordsRes = await db.collection('reward_records')
@@ -549,9 +1008,7 @@ async function getRewardRecords(event, context) {
     // 获取来源用户信息
     const sourceIds = [...new Set(recordsRes.data.map(r => r.sourceUserId))];
     const usersRes = await db.collection('users')
-      .where({
-        _openid: _.in(sourceIds)
-      })
+      .where({ _openid: _.in(sourceIds) })
       .get();
     
     const userMap = {};
@@ -566,6 +1023,8 @@ async function getRewardRecords(event, context) {
       ratio: r.ratio,
       level: r.level,
       status: r.status,
+      rewardType: r.rewardType,
+      rewardTypeName: r.rewardTypeName || REWARD_TYPE_NAMES[r.rewardType] || '基础佣金',
       createTime: r.createTime,
       settleTime: r.settleTime,
       sourceUser: userMap[r.sourceUserId] ? {
@@ -593,7 +1052,6 @@ async function generateQRCode(event, context) {
   const { page = 'pages/index/index' } = event;
 
   try {
-    // 获取用户邀请码
     const userRes = await db.collection('users')
       .where({ _openid: OPENID })
       .get();
@@ -605,7 +1063,6 @@ async function generateQRCode(event, context) {
     const user = userRes.data[0];
     const scene = `invite=${user.inviteCode}`;
 
-    // 调用微信接口生成小程序码
     const result = await cloud.openapi.wxacode.getUnlimited({
       scene,
       page,
@@ -613,13 +1070,11 @@ async function generateQRCode(event, context) {
       checkPath: false
     });
 
-    // 上传二维码到云存储
     const uploadRes = await cloud.uploadFile({
       cloudPath: `qrcodes/${OPENID}_${Date.now()}.png`,
       fileContent: result.buffer
     });
 
-    // 获取临时链接
     const fileRes = await cloud.getTempFileURL({
       fileList: [uploadRes.fileID]
     });
@@ -639,6 +1094,62 @@ async function generateQRCode(event, context) {
 }
 
 /**
+ * 更新业绩并检查晋升
+ */
+async function updatePerformanceAndCheckPromotion(event, context) {
+  const { userId, orderAmount } = event;
+
+  try {
+    // 获取用户信息
+    const userRes = await db.collection('users')
+      .where({ _openid: userId })
+      .get();
+    
+    if (userRes.data.length === 0) {
+      return { code: -1, msg: '用户不存在' };
+    }
+
+    const user = userRes.data[0];
+    const currentMonthTag = getCurrentMonthTag();
+    const performance = user.performance || getDefaultPerformance();
+
+    // 准备更新数据
+    const updateData = {
+      'performance.totalSales': _.inc(orderAmount),
+      updateTime: db.serverDate()
+    };
+
+    // 如果月份相同，累加月度销售额
+    if (performance.monthTag === currentMonthTag) {
+      updateData['performance.monthSales'] = _.inc(orderAmount);
+    } else {
+      // 月份变更，重置月度销售额
+      updateData['performance.monthSales'] = orderAmount;
+      updateData['performance.monthTag'] = currentMonthTag;
+    }
+
+    // 更新业绩
+    await db.collection('users')
+      .where({ _openid: userId })
+      .update({ data: updateData });
+
+    // 检查晋升
+    const promotionResult = await checkStarLevelPromotion(userId);
+
+    return {
+      code: 0,
+      msg: '更新成功',
+      data: {
+        promotion: promotionResult
+      }
+    };
+  } catch (error) {
+    console.error('更新业绩失败:', error);
+    return { code: -1, msg: '更新失败' };
+  }
+}
+
+/**
  * 主入口函数
  */
 exports.main = async (event, context) => {
@@ -648,12 +1159,10 @@ exports.main = async (event, context) => {
   console.log('Promotion parsed data:', JSON.stringify(requestData));
   
   const { action } = requestData;
-  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
   const OPENID = requestData._token || cloud.getWXContext().OPENID;
   
   console.log('Promotion openid:', OPENID, 'action:', action);
 
-  // 将 OPENID 和 requestData 注入，供其他函数使用
   requestData.OPENID = OPENID;
 
   switch (action) {
@@ -669,6 +1178,10 @@ exports.main = async (event, context) => {
       return await getRewardRecords(requestData, context);
     case 'generateQRCode':
       return await generateQRCode(requestData, context);
+    case 'checkPromotion':
+      return await checkStarLevelPromotion(OPENID);
+    case 'updatePerformance':
+      return await updatePerformanceAndCheckPromotion(requestData, context);
     default:
       return { code: -1, msg: '未知操作' };
   }

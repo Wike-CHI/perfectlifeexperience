@@ -1,7 +1,7 @@
 {
-    "name" : "CloudBase UniApp 模板",
+    "name" : "大友元气精酿啤酒",
     "appid" : "",
-    "description" : "基于 UniApp 和腾讯云开发（CloudBase）的跨平台应用模板",
+    "description" : "大友元气精酿啤酒",
     "versionName" : "1.0.0",
     "versionCode" : "100",
     "transformPx" : false,
@@ -53,20 +53,18 @@
     "mp-weixin" : {
         "appid" : "wx4a0b93c3660d1404",
         "setting" : {
-            "urlCheck" : false
+            "urlCheck" : false,
+            "es6" : true
         },
         "usingComponents" : true,
-        "permission": {
-            "scope.userLocation": {
-                "desc": "你的位置信息将用于展示门店距离及导航服务"
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "你的位置信息将用于展示门店距离及导航服务"
             }
         },
-        "requiredPrivateInfos": [
-            "getLocation",
-            "chooseLocation"
-        ],
-        "optimization": {
-            "subPackages": true
+        "requiredPrivateInfos" : [ "getLocation", "chooseLocation" ],
+        "optimization" : {
+            "subPackages" : true
         }
     },
     "mp-alipay" : {

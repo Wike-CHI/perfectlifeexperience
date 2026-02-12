@@ -3,6 +3,13 @@
     <!-- 顶部数据概览 -->
     <view class="header-section">
       <view class="header-bg"></view>
+      
+      <!-- 身份徽章 -->
+      <PromotionBadge 
+        :starLevel="promotionInfo.starLevel" 
+        :agentLevel="promotionInfo.agentLevel" 
+      />
+      
       <view class="stats-grid">
         <view class="stat-card">
           <text class="stat-value">{{ formatPrice(promotionInfo.todayReward) }}</text>
@@ -23,13 +30,58 @@
       </view>
     </view>
 
+    <!-- 晋升进度 -->
+    <PromotionProgress :progress="promotionInfo.promotionProgress" />
+
+    <!-- 收益分类统计 -->
+    <view class="reward-category-section">
+      <view class="section-title">
+        <text>收益明细</text>
+      </view>
+      <view class="category-grid">
+        <view class="category-item">
+          <view class="category-icon commission">
+            <text>佣</text>
+          </view>
+          <view class="category-info">
+            <text class="category-label">基础佣金</text>
+            <text class="category-value">{{ formatPrice(promotionInfo.commissionReward) }}</text>
+          </view>
+        </view>
+        <view class="category-item">
+          <view class="category-icon repurchase">
+            <text>复</text>
+          </view>
+          <view class="category-info">
+            <text class="category-label">复购奖励</text>
+            <text class="category-value">{{ formatPrice(promotionInfo.repurchaseReward) }}</text>
+          </view>
+        </view>
+        <view class="category-item">
+          <view class="category-icon management">
+            <text>管</text>
+          </view>
+          <view class="category-info">
+            <text class="category-label">团队管理奖</text>
+            <text class="category-value">{{ formatPrice(promotionInfo.managementReward) }}</text>
+          </view>
+        </view>
+        <view class="category-item">
+          <view class="category-icon nurture">
+            <text>育</text>
+          </view>
+          <view class="category-info">
+            <text class="category-label">育成津贴</text>
+            <text class="category-value">{{ formatPrice(promotionInfo.nurtureReward) }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <!-- 邀请码卡片 -->
     <view class="invite-card">
       <view class="invite-header">
         <text class="invite-title">我的邀请码</text>
-        <view class="level-badge" v-if="promotionInfo.level > 0">
-          <text>LV.{{ promotionInfo.level }}</text>
-        </view>
       </view>
       <view class="invite-code" @click="copyInviteCode">
         <text class="code-text">{{ promotionInfo.inviteCode || '------' }}</text>
@@ -86,6 +138,32 @@
         </view>
         <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
       </view>
+
+      <view class="menu-item" @click="goToRewardRules">
+        <view class="menu-left">
+          <view class="menu-icon rules">
+            <text class="icon-text">💰</text>
+          </view>
+          <view class="menu-info">
+            <text class="menu-title">分销机制</text>
+            <text class="menu-subtitle">四重分润详解</text>
+          </view>
+        </view>
+        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+      </view>
+
+      <view class="menu-item" @click="goToStarRules">
+        <view class="menu-left">
+          <view class="menu-icon star">
+            <text class="icon-text">⭐</text>
+          </view>
+          <view class="menu-info">
+            <text class="menu-title">晋升机制</text>
+            <text class="menu-subtitle">升级条件与权益</text>
+          </view>
+        </view>
+        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+      </view>
     </view>
 
     <!-- 规则说明 -->
@@ -103,10 +181,14 @@
       </view>
       <view class="rule-item">
         <text class="rule-num">3</text>
-        <text class="rule-text">直接推广奖励 20%，二级 15%，三级 10%，四级 5%</text>
+        <text class="rule-text">基础佣金按代理等级：一级20%，二级15%，三级10%，四级5%</text>
       </view>
       <view class="rule-item">
         <text class="rule-num">4</text>
+        <text class="rule-text">铜牌享3%复购奖，银牌享2%管理奖，导师享2%育成津贴</text>
+      </view>
+      <view class="rule-item">
+        <text class="rule-num">5</text>
         <text class="rule-text">订单完成后 {{ SETTLEMENT_DAYS }} 天自动结算到钱包</text>
       </view>
     </view>
@@ -120,17 +202,42 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getPromotionInfo } from '@/utils/api';
-import type { PromotionInfo, TeamStats } from '@/types';
+import type { PromotionInfo, TeamStats, PromotionProgress as PromotionProgressType } from '@/types';
+import PromotionBadge from '@/components/PromotionBadge.vue';
+import PromotionProgress from '@/components/PromotionProgress.vue';
 
 const SETTLEMENT_DAYS = 7;
 
+// 默认晋升进度
+const defaultPromotionProgress: PromotionProgressType = {
+  currentLevel: 0,
+  nextLevel: 1,
+  salesProgress: { current: 0, target: 2000000, percent: 0 },
+  countProgress: { current: 0, target: 30, percent: 0 }
+};
+
 const promotionInfo = ref<PromotionInfo>({
   inviteCode: '',
-  level: 0,
+  starLevel: 0,
+  agentLevel: 4,
+  starLevelName: '普通会员',
+  agentLevelName: '四级代理',
   totalReward: 0,
   pendingReward: 0,
   todayReward: 0,
   monthReward: 0,
+  commissionReward: 0,
+  repurchaseReward: 0,
+  managementReward: 0,
+  nurtureReward: 0,
+  performance: {
+    totalSales: 0,
+    monthSales: 0,
+    monthTag: '',
+    directCount: 0,
+    teamCount: 0
+  },
+  promotionProgress: defaultPromotionProgress,
   teamStats: {
     total: 0,
     level1: 0,
@@ -149,7 +256,11 @@ const loadData = async () => {
   loading.value = true;
   try {
     const data = await getPromotionInfo();
-    promotionInfo.value = data;
+    promotionInfo.value = {
+      ...promotionInfo.value,
+      ...data,
+      promotionProgress: data.promotionProgress || defaultPromotionProgress
+    };
   } catch (error) {
     console.error('加载推广信息失败:', error);
     uni.showToast({
@@ -162,7 +273,7 @@ const loadData = async () => {
 };
 
 const formatPrice = (price: number) => {
-  return (price / 100).toFixed(2);
+  return ((price || 0) / 100).toFixed(2);
 };
 
 const copyInviteCode = () => {
@@ -221,7 +332,7 @@ onShow(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 320rpx;
+  height: 400rpx;
   background: linear-gradient(180deg, #3D2914 0%, #5D3924 100%);
   border-radius: 0 0 40rpx 40rpx;
 }
@@ -232,6 +343,7 @@ onShow(() => {
   grid-template-columns: repeat(4, 1fr);
   gap: 16rpx;
   z-index: 1;
+  margin-top: 24rpx;
 }
 
 .stat-card {
@@ -256,6 +368,85 @@ onShow(() => {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* 收益分类统计 */
+.reward-category-section {
+  background: #FFFFFF;
+  margin: 0 30rpx 30rpx;
+  padding: 32rpx;
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+}
+
+.section-title {
+  margin-bottom: 24rpx;
+}
+
+.section-title text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #3D2914;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20rpx;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+  background: #FDF8F3;
+  border-radius: 16rpx;
+}
+
+.category-icon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.category-icon.commission {
+  background: linear-gradient(135deg, #0052D9 0%, #00A1FF 100%);
+}
+
+.category-icon.repurchase {
+  background: linear-gradient(135deg, #00A870 0%, #4CD964 100%);
+}
+
+.category-icon.management {
+  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+}
+
+.category-icon.nurture {
+  background: linear-gradient(135deg, #FF6B00 0%, #FFB800 100%);
+}
+
+.category-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.category-label {
+  font-size: 24rpx;
+  color: #6B5B4F;
+  margin-bottom: 4rpx;
+}
+
+.category-value {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #3D2914;
+}
+
 /* 邀请码卡片 */
 .invite-card {
   background: #FFFFFF;
@@ -276,18 +467,6 @@ onShow(() => {
   font-size: 32rpx;
   font-weight: 600;
   color: #3D2914;
-}
-
-.level-badge {
-  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
-  padding: 8rpx 24rpx;
-  border-radius: 24rpx;
-}
-
-.level-badge text {
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #FFFFFF;
 }
 
 .invite-code {

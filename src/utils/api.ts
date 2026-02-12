@@ -949,11 +949,31 @@ export const getPromotionInfo = async (): Promise<PromotionInfo> => {
     // 返回模拟数据
     return {
       inviteCode: 'MOCK1234',
-      level: 1,
+      starLevel: 0,
+      agentLevel: 4,
+      starLevelName: '普通会员',
+      agentLevelName: '四级代理',
       totalReward: 0,
       pendingReward: 0,
       todayReward: 0,
       monthReward: 0,
+      commissionReward: 0,
+      repurchaseReward: 0,
+      managementReward: 0,
+      nurtureReward: 0,
+      performance: {
+        totalSales: 0,
+        monthSales: 0,
+        monthTag: '2026-02',
+        directCount: 0,
+        teamCount: 0
+      },
+      promotionProgress: {
+        currentLevel: 0,
+        nextLevel: 1,
+        salesProgress: { current: 0, target: 2000000, percent: 0 },
+        countProgress: { current: 0, target: 30, percent: 0 }
+      },
       teamStats: {
         total: 0,
         level1: 0,
@@ -1001,7 +1021,7 @@ export const getTeamMembers = async (level: number = 1, page: number = 1, limit:
 };
 
 // 获取奖励明细
-export const getRewardRecords = async (status?: string, page: number = 1, limit: number = 20) => {
+export const getRewardRecords = async (status?: string, page: number = 1, limit: number = 20, rewardType?: string) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
     return { records: [] };
   }
@@ -1010,6 +1030,7 @@ export const getRewardRecords = async (status?: string, page: number = 1, limit:
     const res = await callFunction('promotion', {
       action: 'getRewardRecords',
       status,
+      rewardType,
       page,
       limit
     });

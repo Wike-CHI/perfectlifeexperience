@@ -7,70 +7,125 @@ cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
 });
 
-// 小程序配置 - 需要从环境变量或常量配置
+const db = cloud.database();
+const _ = db.command;
+
+// 小程序配置
 const APPID = 'wx4a0b93c3660d1404'; // 小程序 AppID
-const SECRET = process.env.WX_APP_SECRET || 'f5e326daa6f723eb89e7ed0a09e04cda'; // 小程序密钥，建议从环境变量读取
+const SECRET = process.env.WX_APP_SECRET || 'f5e326daa6f723eb89e7ed0a09e04cda'; // 小程序密钥
+
+/**
+ * 获取或创建用户
+ * @param {string} openid
+ * @param {object} extraData 额外数据 (如 unionid, session_key)
+ */
+async function getOrCreateUser(openid, extraData = {}) {
+  const userCollection = db.collection('users');
+  const userResult = await userCollection.where({
+    _openid: openid
+  }).get();
+  
+  let user = null;
+  let isNewUser = false;
+  
+  if (userResult.data.length === 0) {
+    // 新用户，创建记录
+    isNewUser = true;
+    const createData = {
+      _openid: openid,
+      createTime: new Date(),
+      lastLoginTime: new Date(),
+      loginCount: 1,
+      platform: 'weixin_miniprogram',
+      ...extraData
+    };
+    
+    const createResult = await userCollection.add({
+      data: createData
+    });
+    user = { _id: createResult._id, ...createData };
+  } else {
+    // 已存在用户，更新登录信息
+    user = userResult.data[0];
+    const updateData = {
+      lastLoginTime: new Date(),
+      loginCount: _.inc(1)
+    };
+    if (extraData.session_key) updateData.session_key = extraData.session_key;
+    if (extraData.unionid) updateData.unionid = extraData.unionid;
+    
+    await userCollection.doc(user._id).update({
+      data: updateData
+    });
+  }
+  
+  return {
+    success: true,
+    openid,
+    isNewUser,
+    userId: user._id,
+    userInfo: user,
+    message: '登录成功'
+  };
+}
 
 // 云函数入口函数
 exports.main = async (event, context) => {
-  console.log('Raw event:', JSON.stringify(event));
+  console.log('Login function called, event:', event);
   
-  // HTTP 触发器模式下，参数可能在 event.body 中
+  const wxContext = cloud.getWXContext();
+  let openid = wxContext.OPENID;
+  let unionid = wxContext.UNIONID;
+  let session_key = null;
+  
+  // 1. 尝试从 wxContext 获取 (原生调用)
+  if (openid) {
+    console.log('Native call detected, openid:', openid);
+    return await getOrCreateUser(openid, { unionid });
+  }
+  
+  // 2. 尝试使用 code 换取 (HTTP 调用或显式传 code)
+  // 解析 body (如果是 HTTP 触发)
   let requestData = event;
   if (event.body) {
     try {
       requestData = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     } catch (e) {
-      console.error('解析 body 失败:', e);
+      console.error('Parse body failed:', e);
     }
   }
   
   const { code } = requestData;
   
-  console.log('Parsed requestData:', requestData);
-  console.log('Extracted code:', code);
-  
-  // 如果没有 code，返回错误
-  if (!code) {
-    return {
-      success: false,
-      error: '缺少 code 参数',
-      receivedEvent: event,
-      message: '登录失败：缺少必要参数'
-    };
-  }
-  
-  // 使用 code 换取 openid
-  try {
-    // 调用微信接口换取 openid
-    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${APPID}&secret=${SECRET}&js_code=${code}&grant_type=authorization_code`;
-    console.log('Calling wx api with code:', code);
-    const response = await axios.get(url);
-    
-    console.log('Wx api response:', response.data);
-    
-    if (response.data.openid) {
-      return {
-        success: true,
-        openid: response.data.openid,
-        unionid: response.data.unionid,
-        session_key: response.data.session_key,
-        message: '登录成功'
-      };
-    } else {
+  if (code) {
+    try {
+      const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${APPID}&secret=${SECRET}&js_code=${code}&grant_type=authorization_code`;
+      const response = await axios.get(url);
+      
+      if (response.data.openid) {
+        openid = response.data.openid;
+        unionid = response.data.unionid;
+        session_key = response.data.session_key;
+        
+        return await getOrCreateUser(openid, { unionid, session_key });
+      } else {
+        return {
+          success: false,
+          error: response.data.errmsg || '获取 openid 失败',
+          code: response.data.errcode
+        };
+      }
+    } catch (error) {
+      console.error('Wx login failed:', error);
       return {
         success: false,
-        error: response.data.errmsg || '获取 openid 失败',
-        errcode: response.data.errcode,
-        message: '登录失败'
+        error: error.message
       };
     }
-  } catch (error) {
-    console.error('登录失败:', error);
-    return {
-      success: false,
-      error: error.message,
-      message: '登录失败'
-    };
   }
+  
+  return {
+    success: false,
+    error: '无法获取用户身份 (缺少 code 且非原生调用)'
+  };
 };
