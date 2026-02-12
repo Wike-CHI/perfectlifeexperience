@@ -3,9 +3,16 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "CloudBase UniApp",
-				"navigationBarBackgroundColor": "#667eea",
+				"navigationBarTitleText": "大友元气后台",
+				"navigationBarBackgroundColor": "#1A1A1A",
 				"navigationBarTextStyle": "white"
+			}
+		},
+		{
+			"path": "pages/dashboard/index",
+			"style": {
+				"navigationBarTitleText": "Dashboard",
+				"navigationStyle": "custom"
 			}
 		},
 		{
