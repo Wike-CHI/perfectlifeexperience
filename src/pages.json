@@ -200,6 +200,22 @@
 						"navigationBarBackgroundColor": "#3D2914",
 						"navigationBarTextStyle": "white"
 					}
+				},
+				{
+					"path": "reward-rules",
+					"style": {
+						"navigationBarTitleText": "分销机制",
+						"navigationBarBackgroundColor": "#F5F0E8",
+						"navigationBarTextStyle": "black"
+					}
+				},
+				{
+					"path": "star-rules",
+					"style": {
+						"navigationBarTitleText": "晋升机制",
+						"navigationBarBackgroundColor": "#F5F0E8",
+						"navigationBarTextStyle": "black"
+					}
 				}
 			]
 		},

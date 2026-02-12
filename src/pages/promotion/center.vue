@@ -308,6 +308,18 @@ const goToQRCode = () => {
   });
 };
 
+const goToRewardRules = () => {
+  uni.navigateTo({
+    url: '/pages/promotion/reward-rules'
+  });
+};
+
+const goToStarRules = () => {
+  uni.navigateTo({
+    url: '/pages/promotion/star-rules'
+  });
+};
+
 onShow(() => {
   loadData();
 });
@@ -548,6 +560,18 @@ onShow(() => {
 
 .menu-icon.qrcode {
   background: rgba(255, 176, 133, 0.15);
+}
+
+.menu-icon.rules {
+  background: rgba(0, 82, 217, 0.1);
+}
+
+.menu-icon.star {
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.icon-text {
+  font-size: 36rpx;
 }
 
 .icon-svg {

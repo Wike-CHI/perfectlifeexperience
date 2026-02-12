@@ -166,36 +166,61 @@ const ORDER_KEY = 'local_orders';
 
 // 创建订单
 export const createOrder = async (order: Omit<Order, '_id' | '_openid' | 'orderNo' | 'createTime'>) => {
-  const ordersJson = uni.getStorageSync(ORDER_KEY);
-  const orders: Order[] = ordersJson ? JSON.parse(ordersJson) : [];
-  
   const orderNo = generateOrderNo();
-  const newOrder: Order = {
+  const newOrder = {
     ...order,
-    _id: `order_${Date.now()}`,
-    orderNo,
-    createTime: new Date()
+    orderNo
   };
   
-  orders.push(newOrder);
-  uni.setStorageSync(ORDER_KEY, JSON.stringify(orders));
-  return { _id: newOrder._id };
+  try {
+    const res = await callFunction('order', {
+      action: 'createOrder',
+      data: newOrder
+    });
+    
+    if ((res as any).result && (res as any).result.success) {
+      // 同时更新本地缓存以便快速显示（可选）
+      // ...
+      return { _id: (res as any).result.orderId };
+    }
+    throw new Error((res as any).result?.message || '创建订单失败');
+  } catch (error) {
+    console.error('创建订单失败:', error);
+    // 降级到本地存储（如果云函数失败）- 但这会导致数据不一致，暂时只抛出错误
+    throw error;
+  }
 };
 
 // 获取订单列表
 export const getOrders = async (status?: string) => {
-  const ordersJson = uni.getStorageSync(ORDER_KEY);
-  let orders: Order[] = ordersJson ? JSON.parse(ordersJson) : [];
-  
-  if (status && status !== 'all') {
-    orders = orders.filter(o => o.status === status);
+  try {
+    const res = await callFunction('order', {
+      action: 'getOrders',
+      data: { status }
+    });
+    
+    if ((res as any).result && (res as any).result.success) {
+      const orders = (res as any).result.orders as Order[];
+      // 更新本地缓存
+      uni.setStorageSync(ORDER_KEY, JSON.stringify(orders));
+      return orders;
+    }
+    throw new Error((res as any).result?.message || '获取订单失败');
+  } catch (error) {
+    console.error('获取订单列表失败:', error);
+    // 降级：从本地缓存读取
+    const ordersJson = uni.getStorageSync(ORDER_KEY);
+    let orders: Order[] = ordersJson ? JSON.parse(ordersJson) : [];
+    if (status && status !== 'all') {
+      orders = orders.filter(o => o.status === status);
+    }
+    return orders;
   }
-  
-  return orders.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
 };
 
 // 获取订单详情
 export const getOrderDetail = async (id: string) => {
+  // 优先从获取到的订单列表中查找
   const orders = await getOrders('all');
   const order = orders.find(o => o._id === id);
   if (!order) throw new Error('订单不存在');
@@ -204,22 +229,38 @@ export const getOrderDetail = async (id: string) => {
 
 // 更新订单状态
 export const updateOrderStatus = async (id: string, status: Order['status']) => {
-  const orders = await getOrders('all');
-  const order = orders.find(o => o._id === id);
-  if (order) {
-    order.status = status;
-    if (status === 'paid') order.payTime = new Date();
-    else if (status === 'shipping') order.shipTime = new Date();
-    else if (status === 'completed') order.completeTime = new Date();
+  try {
+    const res = await callFunction('order', {
+      action: 'updateOrderStatus',
+      data: { orderId: id, status }
+    });
     
-    uni.setStorageSync(ORDER_KEY, JSON.stringify(orders));
+    if ((res as any).result && (res as any).result.success) {
+      return { stats: { updated: 1 } };
+    }
+    throw new Error((res as any).result?.message || '更新订单状态失败');
+  } catch (error) {
+    console.error('更新订单状态失败:', error);
+    throw error;
   }
-  return { stats: { updated: 1 } };
 };
 
 // 取消订单
 export const cancelOrder = async (id: string) => {
-  return updateOrderStatus(id, 'cancelled');
+  try {
+    const res = await callFunction('order', {
+      action: 'cancelOrder',
+      data: { orderId: id }
+    });
+    
+    if ((res as any).result && (res as any).result.success) {
+      return { stats: { updated: 1 } };
+    }
+    throw new Error((res as any).result?.message || '取消订单失败');
+  } catch (error) {
+    console.error('取消订单失败:', error);
+    throw error;
+  }
 };
 
 // ==================== 用户相关 API ====================
@@ -397,6 +438,7 @@ export const syncUserToCloud = async (wxProfile: WxUserProfile, openid: string):
   success: boolean;
   isNewUser: boolean;
   userId: string;
+  userInfo?: any;
   message: string;
 }> => {
   try {
@@ -519,11 +561,14 @@ export const fullLogin = async (openid: string): Promise<{
     }
     
     // 3. 保存到本地
+    // 优先使用云端返回的用户信息（因为可能包含了之前的修改），如果没有则使用微信信息
+    const cloudUser = cloudResult.userInfo || {};
+    
     const userInfo: UserInfo = {
       _id: openid,
-      nickName: wxProfile.nickName,
-      avatarUrl: wxProfile.avatarUrl,
-      addresses: []
+      nickName: cloudUser.nickName || wxProfile.nickName,
+      avatarUrl: cloudUser.avatarUrl || wxProfile.avatarUrl,
+      addresses: cloudUser.addresses || []
     };
     await saveUserInfo(userInfo);
     

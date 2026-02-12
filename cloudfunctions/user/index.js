@@ -88,6 +88,7 @@ async function loginOrUpdate(openid, userInfo) {
         success: true,
         isNewUser: true,
         userId: _id,
+        userInfo: newUser,
         message: '注册成功'
       };
     }

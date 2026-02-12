@@ -99,7 +99,8 @@ const onChooseAvatar = async (e: any) => {
     userInfo.value.avatarUrl = fileID; // 这里也可以用临时链接，但为了持久化最好用 fileID
     
     // 3. 更新云端用户信息
-    await updateCloudUserInfo({ avatarUrl: fileID });
+    const success = await updateCloudUserInfo({ avatarUrl: fileID });
+    if (!success) throw new Error('同步到云端失败');
     
     // 4. 更新本地缓存
     await saveUserInfo({ avatarUrl: fileID });
@@ -123,7 +124,8 @@ const onNicknameBlur = async (e: any) => {
     userInfo.value.nickName = nickName;
     
     // 2. 更新云端用户信息
-    await updateCloudUserInfo({ nickName });
+    const success = await updateCloudUserInfo({ nickName });
+    if (!success) throw new Error('同步到云端失败');
     
     // 3. 更新本地缓存
     await saveUserInfo({ nickName });
