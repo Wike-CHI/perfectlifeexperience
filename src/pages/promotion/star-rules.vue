@@ -9,7 +9,9 @@
     <!-- 晋升路径图 -->
     <view class="section">
       <view class="section-header">
-        <view class="section-icon">🚀</view>
+        <view class="section-icon">
+          <image class="icon-svg" src="/static/icons/icon-path.svg" mode="aspectFit"/>
+        </view>
         <text class="section-title">晋升路径</text>
       </view>
       <view class="path-flow">
@@ -28,7 +30,9 @@
     <!-- 晋升条件详情 -->
     <view class="section">
       <view class="section-header">
-        <view class="section-icon">📋</view>
+        <view class="section-icon">
+          <image class="icon-svg" src="/static/icons/icon-condition.svg" mode="aspectFit"/>
+        </view>
         <text class="section-title">晋升条件</text>
       </view>
       <view class="condition-cards">
@@ -40,7 +44,7 @@
           <view class="condition-body">
             <view class="condition-row">
               <view class="condition-label">
-                <text class="label-icon">💰</text>
+                <image class="label-icon" src="/static/icons/icon-sales.svg" mode="aspectFit"/>
                 <text class="label-text">销售额要求</text>
               </view>
               <text class="condition-value">{{ item.salesReq }}</text>
@@ -48,7 +52,7 @@
             <view class="condition-divider"></view>
             <view class="condition-row">
               <view class="condition-label">
-                <text class="label-icon">👥</text>
+                <image class="label-icon" src="/static/icons/icon-users.svg" mode="aspectFit"/>
                 <text class="label-text">人数要求</text>
               </view>
               <text class="condition-value">{{ item.countReq }}</text>
@@ -64,7 +68,9 @@
     <!-- 权益对比 -->
     <view class="section">
       <view class="section-header">
-        <view class="section-icon">⚖️</view>
+        <view class="section-icon">
+          <image class="icon-svg" src="/static/icons/icon-benefit.svg" mode="aspectFit"/>
+        </view>
         <text class="section-title">权益对比</text>
       </view>
       <view class="compare-table">
@@ -87,7 +93,9 @@
     <!-- 晋升FAQ -->
     <view class="section">
       <view class="section-header">
-        <view class="section-icon">❓</view>
+        <view class="section-icon">
+          <image class="icon-svg" src="/static/icons/icon-faq.svg" mode="aspectFit"/>
+        </view>
         <text class="section-title">常见问题</text>
       </view>
       <view class="faq-list">
@@ -272,8 +280,17 @@ const toggleFaq = (index: number) => {
 }
 
 .section-icon {
-  font-size: 36rpx;
+  width: 40rpx;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-right: 16rpx;
+}
+
+.section-icon .icon-svg {
+  width: 36rpx;
+  height: 36rpx;
 }
 
 .section-title {
@@ -376,8 +393,14 @@ const toggleFaq = (index: number) => {
 }
 
 .label-icon {
-  font-size: 28rpx;
+  width: 32rpx;
+  height: 32rpx;
   margin-right: 12rpx;
+}
+
+.label-icon .icon-svg {
+  width: 28rpx;
+  height: 28rpx;
 }
 
 .label-text {

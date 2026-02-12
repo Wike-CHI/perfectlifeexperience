@@ -3,13 +3,13 @@
     <!-- 顶部数据概览 -->
     <view class="header-section">
       <view class="header-bg"></view>
-      
+
       <!-- 身份徽章 -->
-      <PromotionBadge 
-        :starLevel="promotionInfo.starLevel" 
-        :agentLevel="promotionInfo.agentLevel" 
+      <PromotionBadge
+        :starLevel="promotionInfo.starLevel"
+        :agentLevel="promotionInfo.agentLevel"
       />
-      
+
       <view class="stats-grid">
         <view class="stat-card">
           <text class="stat-value">{{ formatPrice(promotionInfo.todayReward) }}</text>
@@ -142,7 +142,7 @@
       <view class="menu-item" @click="goToRewardRules">
         <view class="menu-left">
           <view class="menu-icon rules">
-            <text class="icon-text">💰</text>
+            <image class="icon-svg" src="/static/icons/icon-mechanism.svg" mode="aspectFit"/>
           </view>
           <view class="menu-info">
             <text class="menu-title">分销机制</text>
@@ -155,7 +155,7 @@
       <view class="menu-item" @click="goToStarRules">
         <view class="menu-left">
           <view class="menu-icon star">
-            <text class="icon-text">⭐</text>
+            <image class="icon-svg" src="/static/icons/icon-level-star.svg" mode="aspectFit"/>
           </view>
           <view class="menu-info">
             <text class="menu-title">晋升机制</text>
@@ -568,10 +568,6 @@ onShow(() => {
 
 .menu-icon.star {
   background: rgba(255, 193, 7, 0.1);
-}
-
-.icon-text {
-  font-size: 36rpx;
 }
 
 .icon-svg {

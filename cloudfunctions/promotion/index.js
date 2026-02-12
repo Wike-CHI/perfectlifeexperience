@@ -766,6 +766,33 @@ async function getPromotionInfo(event, context) {
 
     const user = userRes.data[0];
 
+    // 检查并补全邀请码（针对老用户）
+    if (!user.inviteCode) {
+      let inviteCode = generateInviteCode();
+      let codeExists = true;
+      let retryCount = 0;
+      
+      while (codeExists && retryCount < 10) {
+        const existRes = await db.collection('users')
+          .where({ inviteCode })
+          .count();
+        if (existRes.total === 0) {
+          codeExists = false;
+        } else {
+          inviteCode = generateInviteCode();
+          retryCount++;
+        }
+      }
+
+      await db.collection('users').doc(user._id).update({
+        data: {
+          inviteCode,
+          updateTime: db.serverDate()
+        }
+      });
+      user.inviteCode = inviteCode;
+    }
+
     // 检查并重置跨月数据
     const performance = await checkAndResetMonthlyPerformance(user);
 
@@ -1159,7 +1186,7 @@ exports.main = async (event, context) => {
   console.log('Promotion parsed data:', JSON.stringify(requestData));
   
   const { action } = requestData;
-  const OPENID = requestData._token || cloud.getWXContext().OPENID;
+  const OPENID = requestData._token || cloud.getWXContext().OPENID || requestData.OPENID;
   
   console.log('Promotion openid:', OPENID, 'action:', action);
 

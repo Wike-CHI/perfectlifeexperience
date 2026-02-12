@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" class="icon-svg">
+  <defs>
+    <linearGradient id="benefitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00A870;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#CD7F32;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <g>
+    <!-- 徽章底座 -->
+    <ellipse cx="16" cy="24" rx="12" ry="3" fill="url(#benefitGradient)"/>
+    <!-- 徽章圆形主体 -->
+    <circle cx="16" cy="14" r="9" fill="url(#benefitGradient)"/>
+    <!-- 星星装饰 -->
+    <path d="M16 9 C12 9 11 12 L10 14 C10 15 11 15.5 L10 17 C11 18 11.5 19.5 L12.5 21 C13 20 12.5 20.5 L15 22 C15 21 16 21 L17 22 C18 21 18.5 20.5 L19 21 C18.5 20 19 20.5 L16 20.5 Z" fill="#FFD700" opacity="0.4"/>
+  </g>
+</svg>

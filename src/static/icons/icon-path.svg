@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" class="icon-svg">
+  <defs>
+    <linearGradient id="pathGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06D6A0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00A870;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#pathGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 向上箭头 -->
+    <path d="M16 6 L12 12 L16 6 L20 12" stroke="url(#pathGradient)" stroke-width="2"/>
+    <!-- 向右箭头 -->
+    <path d="M16 6 L12 16 L16 6 L16 18 L20 18" stroke="url(#pathGradient)" stroke-width="2"/>
+    <!-- 向右箭头 -->
+    <path d="M16 6 L12 20 L16 20 L16 22 L20 22" stroke="url(#pathGradient)" stroke-width="2"/>
+  </g>
+  <circle cx="16" cy="24" r="2" fill="#00A870"/>
+</svg>

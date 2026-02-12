@@ -7,7 +7,7 @@
     
     <!-- 已是最高等级提示 -->
     <view v-if="!hasNextLevel" class="max-level-tip">
-      <text class="tip-icon">👑</text>
+      <image class="tip-icon" src="/static/icons/icon-crown.svg" mode="aspectFit"/>
       <text class="tip-text">恭喜您已达到最高等级！</text>
     </view>
     
@@ -131,8 +131,14 @@ const formatAmount = (amount: number): string => {
 }
 
 .tip-icon {
-  font-size: 64rpx;
+  width: 80rpx;
+  height: 80rpx;
   margin-bottom: 16rpx;
+}
+
+.tip-icon .icon-svg {
+  width: 64rpx;
+  height: 64rpx;
 }
 
 .tip-text {

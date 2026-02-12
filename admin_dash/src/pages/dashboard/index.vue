@@ -97,6 +97,10 @@ onMounted(() => {
 <style lang="scss" scoped>
 @import "@/styles/variables.scss";
 
+.dashboard-overview {
+  padding: $spacing-lg;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
