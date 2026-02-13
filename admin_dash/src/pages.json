@@ -62,6 +62,13 @@
 				"navigationBarBackgroundColor": "#667eea",
 				"navigationBarTextStyle": "white"
 			}
+		},
+		{
+			"path": "pages/admin/login/index",
+			"style": {
+				"navigationBarTitleText": "管理员登录",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {
