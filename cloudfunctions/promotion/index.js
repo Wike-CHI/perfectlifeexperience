@@ -12,6 +12,19 @@ const _ = db.command;
 const { createLogger } = require('../common/logger');
 const logger = createLogger('promotion');
 
+// ✅ 引入常量配置
+const {
+  Time,
+  AgentLevel,
+  StarLevel,
+  OrderStatus,
+  Amount,
+  PromotionRatio,
+  AntiFraud,
+  PromotionThreshold,
+  Collections
+} = require('../common/constants');
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -24,86 +37,58 @@ function parseEvent(event) {
   return event;
 }
 
-// ==================== 奖励比例配置 ====================
+// ==================== 常量引用（已移至 common/constants.js）====================
 
-// 基础佣金比例（按代理层级）
+// 为保持兼容性，创建别名指向常量
 const AGENT_COMMISSION_RATIOS = {
-  0: 0.25, // 总公司：25%
-  1: 0.20, // 一级代理：20%
-  2: 0.15, // 二级代理：15%
-  3: 0.10, // 三级代理：10%
-  4: 0.05  // 四级代理：5%
+  [AgentLevel.HEAD_OFFICE]: PromotionRatio.COMMISSION.HEAD_OFFICE,
+  [AgentLevel.LEVEL_1]: PromotionRatio.COMMISSION.LEVEL_1,
+  [AgentLevel.LEVEL_2]: PromotionRatio.COMMISSION.LEVEL_2,
+  [AgentLevel.LEVEL_3]: PromotionRatio.COMMISSION.LEVEL_3,
+  [AgentLevel.LEVEL_4]: PromotionRatio.COMMISSION.LEVEL_4
 };
-
-// 复购奖励比例
-const REPURCHASE_RATIO = 0.03; // 3%
-
-// 团队管理奖比例
-const MANAGEMENT_RATIO = 0.02; // 2%
-
-// 育成津贴比例
-const NURTURE_RATIO = 0.02; // 2%
-
-// 最大推广层级
-const MAX_LEVEL = 4;
-
-// 金额精度（分）
-const AMOUNT_PRECISION = 100;
-
-// 最小奖励金额（分），避免产生0.01分的小额奖励
-const MIN_REWARD_AMOUNT = 1;
-
-// 防刷：同一IP 24小时内最大注册次数
-const MAX_REGISTRATIONS_PER_IP = 3;
-
-// 防刷：IP限制时间窗口（毫秒）
-const IP_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24小时
-
-// 邀请码生成重试次数
-const INVITE_CODE_MAX_RETRY = 10;
-
-// 邀请码长度
-const INVITE_CODE_LENGTH = 8;
+const REPURCHASE_RATIO = PromotionRatio.REPURCHASE;
+const MANAGEMENT_RATIO = PromotionRatio.MANAGEMENT;
+const NURTURE_RATIO = PromotionRatio.NURTURE;
+const MAX_LEVEL = AgentLevel.MAX_LEVEL;
+const MIN_REWARD_AMOUNT = Amount.MIN_REWARD;
+const MAX_REGISTRATIONS_PER_IP = AntiFraud.MAX_REGISTRATIONS_PER_IP;
+const IP_LIMIT_WINDOW = AntiFraud.IP_LIMIT_WINDOW_HOURS * Time.HOUR_MS;
+const INVITE_CODE_MAX_RETRY = AntiFraud.INVITE_CODE_MAX_RETRY;
+const INVITE_CODE_LENGTH = AntiFraud.INVITE_CODE_LENGTH;
 
 // 注册尝试记录保留时间（毫秒）
-const REGISTRATION_ATTEMPT_TTL = 7 * 24 * 60 * 60 * 1000; // 7天
+const REGISTRATION_ATTEMPT_TTL = AntiFraud.REGISTRATION_ATTEMPT_TTL_DAYS * Time.DAY_MS; // 7天
 
 // ==================== 晋升门槛配置 ====================
 
 // 晋升条件（金额单位：分）
 const PROMOTION_THRESHOLDS = {
   // 晋升铜牌 (Star 0 -> 1)
-  BRONZE: {
-    totalSales: 2000000,    // 累计销售额 >= 20,000元
-    directCount: 30         // 或直推有效人数 >= 30人
-  },
+  BRONZE: PromotionThreshold.BRONZE,
+
   // 晋升银牌 (Star 1 -> 2)
-  SILVER: {
-    monthSales: 5000000,    // 本月销售额 >= 50,000元
-    teamCount: 50           // 或团队人数 >= 50人
-  },
+  SILVER: PromotionThreshold.SILVER,
+
   // 晋升金牌 (Star 2 -> 3) - 预留
-  GOLD: {
-    monthSales: 10000000,   // 本月销售额 >= 100,000元
-    teamCount: 200          // 或团队人数 >= 200人
-  }
+  GOLD: PromotionThreshold.GOLD
 };
 
-// 星级名称映射
+// 星级名称映射（已移至常量，保持别名）
 const STAR_LEVEL_NAMES = {
-  0: '普通会员',
-  1: '铜牌推广员',
-  2: '银牌推广员',
-  3: '金牌推广员'
+  [StarLevel.NORMAL]: '普通会员',
+  [StarLevel.BRONZE]: '铜牌推广员',
+  [StarLevel.SILVER]: '银牌推广员',
+  [StarLevel.GOLD]: '金牌推广员'
 };
 
-// 代理层级名称映射
+// 代理层级名称映射（已移至常量，保持别名）
 const AGENT_LEVEL_NAMES = {
-  0: '总公司',
-  1: '一级代理',
-  2: '二级代理',
-  3: '三级代理',
-  4: '四级代理'
+  [AgentLevel.HEAD_OFFICE]: '总公司',
+  [AgentLevel.LEVEL_1]: '一级代理',
+  [AgentLevel.LEVEL_2]: '二级代理',
+  [AgentLevel.LEVEL_3]: '三级代理',
+  [AgentLevel.LEVEL_4]: '四级代理'
 };
 
 // 奖励类型映射
@@ -120,7 +105,7 @@ const REWARD_TYPE_NAMES = {
  * 生成唯一邀请码
  */
 function generateInviteCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除易混淆字符 I, O, 0, 1
+  const chars = AntiFraud.INVITE_CODE_CHARS; // 排除易混淆字符 I, O, 0, 1
   let code = '';
   for (let i = 0; i < INVITE_CODE_LENGTH; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));

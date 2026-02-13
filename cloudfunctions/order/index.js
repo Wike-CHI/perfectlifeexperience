@@ -18,6 +18,14 @@ const { validateAmount, validateObject } = require('../common/validator');
 // ✅ 引入统一响应工具
 const { success, error, ErrorCodes } = require('../common/response');
 
+// ✅ 引入常量配置
+const {
+  Amount,
+  Collections,
+  Time,
+  OrderStatus
+} = require('../common/constants');
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -30,14 +38,14 @@ function parseEvent(event) {
   return event;
 }
 
-// ==================== 配置常量 ====================
+// ==================== 配置常量（别名）====================
 
 // 最小/最大购买数量
-const MIN_QUANTITY = 1;
-const MAX_QUANTITY = 999;
+const MIN_QUANTITY = Amount.MIN_CART_QUANTITY;
+const MAX_QUANTITY = Amount.MAX_CART_QUANTITY;
 
 // 金额容忍误差（分）- 容忍服务器价格更新后的微小差异
-const PRICE_TOLERANCE = 100; // 1元
+const PRICE_TOLERANCE = Amount.PRICE_TOLERANCE;
 
 // ==================== 购物车验证 ====================
 
