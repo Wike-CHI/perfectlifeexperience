@@ -1,0 +1,7 @@
+{
+  "name": "common-utilities",
+  "version": "1.0.0",
+  "description": "Common utilities for cloud functions",
+  "main": "logger.js",
+  "dependencies": {}
+}

@@ -9,14 +9,14 @@ const db = cloud.database();
 const _ = db.command;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('order');
 
 // ✅ 引入验证工具
-const { validateAmount, validateObject } = require('../common/validator');
+const { validateAmount, validateObject } = require('./common/validator');
 
 // ✅ 引入统一响应工具
-const { success, error, ErrorCodes } = require('../common/response');
+const { success, error, ErrorCodes } = require('./common/response');
 
 // ✅ 引入常量配置
 const {
@@ -24,7 +24,7 @@ const {
   Collections,
   Time,
   OrderStatus
-} = require('../common/constants');
+} = require('./common/constants');
 
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {

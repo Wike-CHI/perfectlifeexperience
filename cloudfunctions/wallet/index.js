@@ -9,7 +9,7 @@ const _ = db.command;
 const $ = db.command.aggregate;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('wallet');
 
 // 集合名称

@@ -9,7 +9,7 @@ const db = cloud.database();
 const _ = db.command;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('promotion');
 
 // ✅ 引入常量配置
@@ -23,7 +23,7 @@ const {
   AntiFraud,
   PromotionThreshold,
   Collections
-} = require('../common/constants');
+} = require('./common/constants');
 
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
