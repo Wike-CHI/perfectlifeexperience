@@ -43,6 +43,14 @@ exports.main = async (event, context) => {
         return await getOrderDetailAdmin(data)
       case 'updateOrderStatus':
         return await updateOrderStatusAdmin(data, wxContext)
+      case 'getAnnouncements':
+        return await getAnnouncementsAdmin(data)
+      case 'createAnnouncement':
+        return await createAnnouncementAdmin(data, wxContext)
+      case 'updateAnnouncement':
+        return await updateAnnouncementAdmin(data, wxContext)
+      case 'deleteAnnouncement':
+        return await deleteAnnouncementAdmin(data, wxContext)
       default:
         return {
           code: 400,
@@ -389,6 +397,128 @@ async function updateOrderStatusAdmin(data, wxContext) {
     };
   } catch (error) {
     console.error('Update order status error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// Announcement functions
+async function getAnnouncementsAdmin(data) {
+  try {
+    const { page = 1, limit = 20, type, status } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (type && type !== 'all') {
+      query.type = type;
+    }
+
+    if (status === 'active') {
+      query.isActive = true;
+    } else if (status === 'inactive') {
+      query.isActive = false;
+    }
+
+    const [announcementsResult, countResult] = await Promise.all([
+      db.collection('announcements')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('announcements').where(query).count()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        list: announcementsResult.data,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Get announcements error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+async function createAnnouncementAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const announcementData = {
+      ...data,
+      createTime: new Date(),
+      publishTime: data.isActive ? new Date() : null
+    };
+
+    const result = await db.collection('announcements').add({
+      data: announcementData
+    });
+
+    await logOperation(adminInfo.id, 'createAnnouncement', {
+      announcementId: result.id,
+      title: data.title
+    });
+
+    return {
+      code: 0,
+      data: { id: result.id },
+      msg: '公告创建成功'
+    };
+  } catch (error) {
+    console.error('Create announcement error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+async function updateAnnouncementAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { id, ...updateData } = data;
+    if (updateData.isActive && !updateData.publishTime) {
+      updateData.publishTime = new Date();
+    }
+
+    await db.collection('announcements').doc(id).update({
+      data: updateData
+    });
+
+    await logOperation(adminInfo.id, 'updateAnnouncement', {
+      announcementId: id,
+      ...updateData
+    });
+
+    return {
+      code: 0,
+      msg: '公告更新成功'
+    };
+  } catch (error) {
+    console.error('Update announcement error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+async function deleteAnnouncementAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { id } = data;
+
+    await db.collection('announcements').doc(id).remove();
+
+    await logOperation(adminInfo.id, 'deleteAnnouncement', { announcementId: id });
+
+    return {
+      code: 0,
+      msg: '公告删除成功'
+    };
+  } catch (error) {
+    console.error('Delete announcement error:', error);
     return { code: 500, msg: error.message };
   }
 }

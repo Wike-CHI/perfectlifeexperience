@@ -97,6 +97,20 @@
 				"navigationBarTitleText": "订单详情",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/announcements/list/index",
+			"style": {
+				"navigationBarTitleText": "公告管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/announcements/edit/index",
+			"style": {
+				"navigationBarTitleText": "编辑公告",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {
