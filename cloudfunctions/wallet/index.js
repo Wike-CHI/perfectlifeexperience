@@ -8,6 +8,10 @@ const db = cloud.database();
 const _ = db.command;
 const $ = db.command.aggregate;
 
+// ✅ 引入安全日志工具
+const { createLogger } = require('../common/logger');
+const logger = createLogger('wallet');
+
 // 集合名称
 const WALLETS_COLLECTION = 'user_wallets';
 const TRANSACTIONS_COLLECTION = 'wallet_transactions';
@@ -25,17 +29,19 @@ function parseEvent(event) {
 }
 
 exports.main = async (event, context) => {
-  console.log('Wallet raw event:', JSON.stringify(event));
-  
+  // ✅ 使用结构化日志（已脱敏）
+  logger.debug('Wallet event received', { action: event.action });
+
   const requestData = parseEvent(event);
-  console.log('Wallet parsed data:', JSON.stringify(requestData));
-  
+  logger.debug('Wallet parsed data', { action: requestData.action });
+
   const wxContext = cloud.getWXContext();
   // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
   const openid = requestData._token || wxContext.OPENID;
   const { action, data } = requestData;
-  
-  console.log('Wallet openid:', openid, 'action:', action);
+
+  // ✅ 敏感信息不记录到日志
+  logger.info('Wallet action', { action });
 
   if (!openid) {
     return {
@@ -59,7 +65,8 @@ exports.main = async (event, context) => {
         };
     }
   } catch (err) {
-    console.error(err);
+    // ✅ 使用结构化日志
+    logger.error('Wallet operation failed', err);
     return {
       code: 500,
       msg: err.message || '服务器内部错误'

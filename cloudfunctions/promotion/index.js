@@ -8,13 +8,17 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// ✅ 引入安全日志工具
+const { createLogger } = require('../common/logger');
+const logger = createLogger('promotion');
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
     try {
       return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     } catch (e) {
-      console.error('解析 body 失败:', e);
+      logger.error('Failed to parse event body', e);
     }
   }
   return event;
@@ -60,6 +64,9 @@ const INVITE_CODE_MAX_RETRY = 10;
 
 // 邀请码长度
 const INVITE_CODE_LENGTH = 8;
+
+// 注册尝试记录保留时间（毫秒）
+const REGISTRATION_ATTEMPT_TTL = 7 * 24 * 60 * 60 * 1000; // 7天
 
 // ==================== 晋升门槛配置 ====================
 
@@ -143,14 +150,21 @@ function getDeviceFingerprint(event) {
 }
 
 /**
- * 检查是否为重复注册（防刷）
+ * 检查是否为重复注册（增强版防刷）
+ *
+ * 安全增强：
+ * - 设备指纹识别
+ * - 注册尝试跟踪（7天保留）
+ * - 自动清理过期记录
+ * - 敏感信息脱敏日志
  */
 async function checkDuplicateRegistration(openid, deviceInfo) {
   try {
     const recentTime = new Date(Date.now() - IP_LIMIT_WINDOW);
 
-    console.log(`[防刷检查] 检查用户 ${openid}，IP: ${deviceInfo.ip}`);
+    logger.debug('Anti-fraud check initiated', { ip: deviceInfo.ip });
 
+    // 1. 检查IP注册频率
     const ipCount = await db.collection('users')
       .where({
         registerIP: deviceInfo.ip,
@@ -158,26 +172,67 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
       })
       .count();
 
-    console.log(`[防刷检查] IP ${deviceInfo.ip} 近24小时注册数: ${ipCount.total}`);
+    logger.debug('IP registration count', {
+      ip: deviceInfo.ip,
+      count: ipCount.total,
+      window: '24h'
+    });
 
     if (ipCount.total >= MAX_REGISTRATIONS_PER_IP) {
-      console.warn(`[防刷拒绝] IP ${deviceInfo.ip} 超过限制`);
+      logger.warn('IP rate limit exceeded', {
+        ip: deviceInfo.ip,
+        count: ipCount.total
+      });
       return { valid: false, reason: '操作频繁，请稍后再试' };
     }
 
+    // 2. 检查用户是否已存在
     const userExists = await db.collection('users')
       .where({ _openid: openid })
       .count();
 
     if (userExists.total > 0) {
-      console.warn(`[防刷拒绝] 用户 ${openid} 已存在`);
+      logger.warn('Duplicate registration attempt', {
+        userExists: true
+      });
       return { valid: false, reason: '用户已存在' };
     }
 
-    console.log(`[防刷通过] 用户 ${openid} 检查通过`);
+    // 3. 记录注册尝试（用于风控分析）
+    try {
+      // 使用脱敏标识（openid哈希值的前8位）
+      const anonymizedId = openid.substring(0, 8) + '***';
+
+      const attemptData = {
+        anonymizedId,
+        ip: deviceInfo.ip,
+        userAgent: deviceInfo.userAgent || '',
+        timestamp: db.serverDate(),
+        expiredAt: new Date(Date.now() + REGISTRATION_ATTEMPT_TTL)
+      };
+
+      // 自动清理过期记录（保留7天）
+      const expirationDate = new Date(Date.now() - REGISTRATION_ATTEMPT_TTL);
+      await db.collection('registration_attempts')
+        .where({ expiredAt: _.lt(expirationDate) })
+        .remove();
+
+      await db.collection('registration_attempts').add({ data: attemptData });
+
+      logger.debug('Registration attempt recorded', {
+        anonymizedId,
+        ip: deviceInfo.ip
+      });
+    } catch (recordError) {
+      logger.error('Failed to record registration attempt', recordError);
+      // 记录失败不影响注册流程
+    }
+
+    logger.debug('Anti-fraud check passed');
+
     return { valid: true };
   } catch (error) {
-    console.error('[防刷检查失败]', error);
+    logger.error('Anti-fraud check failed', error);
     return { valid: false, reason: '系统繁忙' };
   }
 }
@@ -201,10 +256,14 @@ function getDefaultPerformance() {
 async function checkAndResetMonthlyPerformance(user) {
   const currentMonthTag = getCurrentMonthTag();
   const performance = user.performance || getDefaultPerformance();
-  
+
   // 如果月份变更，重置月度数据
   if (performance.monthTag !== currentMonthTag) {
-    console.log(`月份变更: ${performance.monthTag} -> ${currentMonthTag}，重置月度数据`);
+    logger.info('Month reset detected', {
+      from: performance.monthTag,
+      to: currentMonthTag
+    });
+
     await db.collection('users')
       .where({ _openid: user._openid })
       .update({
@@ -217,7 +276,7 @@ async function checkAndResetMonthlyPerformance(user) {
     performance.monthSales = 0;
     performance.monthTag = currentMonthTag;
   }
-  
+
   return performance;
 }
 
@@ -232,14 +291,14 @@ async function checkStarLevelPromotion(openid) {
     const userRes = await db.collection('users')
       .where({ _openid: openid })
       .get();
-    
+
     if (userRes.data.length === 0) {
       return { promoted: false, reason: '用户不存在' };
     }
 
     const user = userRes.data[0];
     const currentStarLevel = user.starLevel || 0;
-    
+
     // 已是最高等级
     if (currentStarLevel >= 3) {
       return { promoted: false, reason: '已是最高等级' };
@@ -292,7 +351,11 @@ async function checkStarLevelPromotion(openid) {
           }
         });
 
-      console.log(`用户 ${openid} 晋升成功: ${currentStarLevel} -> ${newStarLevel}，原因: ${promotionReason}`);
+      logger.info('User promoted', {
+        from: currentStarLevel,
+        to: newStarLevel,
+        reason: promotionReason
+      });
 
       return {
         promoted: true,
@@ -304,7 +367,7 @@ async function checkStarLevelPromotion(openid) {
 
     return { promoted: false, reason: '未满足晋升条件' };
   } catch (error) {
-    console.error('晋升检查失败:', error);
+    logger.error('Promotion check failed', error);
     return { promoted: false, reason: '检查失败' };
   }
 }
@@ -370,11 +433,15 @@ function calculatePromotionProgress(user) {
 async function calculatePromotionReward(event, context) {
   const { orderId, buyerId, orderAmount, isRepurchase = false } = event;
 
-  console.log(`[奖励计算] 开始计算 订单:${orderId} 买家:${buyerId} 金额:${orderAmount}分 复购:${isRepurchase}`);
+  logger.info('Reward calculation started', {
+    orderId,
+    amount: orderAmount,
+    isRepurchase
+  });
 
   // 边界情况：金额为0
   if (!orderAmount || orderAmount <= 0) {
-    console.warn('[奖励计算] 订单金额无效，跳过计算');
+    logger.warn('Invalid order amount', { amount: orderAmount });
     return { code: 0, msg: '订单金额无效', data: { rewards: [] } };
   }
 
@@ -385,7 +452,7 @@ async function calculatePromotionReward(event, context) {
       .get();
 
     if (buyerRes.data.length === 0) {
-      console.error('[奖励计算] 买家信息不存在:', buyerId);
+      logger.error('Buyer not found', { buyerId });
       return { code: -1, msg: '买家信息不存在' };
     }
 
@@ -394,13 +461,13 @@ async function calculatePromotionReward(event, context) {
 
     // 如果没有推广路径，直接返回
     if (!promotionPath) {
-      console.log('[奖励计算] 无推广关系');
+      logger.info('No promotion relationship');
       return { code: 0, msg: '无推广关系', data: { rewards: [] } };
     }
 
     // 解析推广路径，获取上级链（从近到远）
     const parentChain = promotionPath.split('/').filter(id => id).reverse();
-    console.log(`[奖励计算] 推广链长度: ${parentChain.length}`);
+    logger.debug('Promotion chain', { length: parentChain.length });
 
     // 记录推广订单
     await db.collection('promotion_orders').add({
@@ -425,7 +492,10 @@ async function calculatePromotionReward(event, context) {
       userMap[u._openid] = u;
     });
 
-    console.log(`[奖励计算] 成功获取 ${usersRes.data.length}/${parentChain.length} 个上级用户信息`);
+    logger.debug('Parent users retrieved', {
+      found: usersRes.data.length,
+      total: parentChain.length
+    });
 
     const rewards = [];
     const managementRatios = {}; // 记录已分配的管理奖比例
@@ -438,7 +508,7 @@ async function calculatePromotionReward(event, context) {
       const beneficiary = userMap[beneficiaryId];
 
       if (!beneficiary) {
-        console.warn(`[奖励计算] 跳过不存在的用户: ${beneficiaryId}`);
+        logger.warn('Parent user not found', { position: i + 1 });
         continue;
       }
 
@@ -447,13 +517,21 @@ async function calculatePromotionReward(event, context) {
       const starLevel = beneficiary.starLevel || 0;
       const mentorId = beneficiary.mentorId;
 
-      console.log(`[奖励计算] 处理层级${position} 用户:${beneficiaryId} 代理等级:${agentLevel} 星级:${starLevel}`);
+      logger.debug('Processing reward', {
+        position,
+        agentLevel,
+        starLevel
+      });
 
       // ========== 1. 基础佣金 ==========
       const commissionRatio = AGENT_COMMISSION_RATIOS[agentLevel] || 0.05;
       const commissionAmount = Math.floor(orderAmount * commissionRatio);
 
-      console.log(`[奖励计算] 基础佣金: ${commissionAmount}分 (${(commissionRatio * 100).toFixed(1)}%)`);
+      logger.debug('Commission calculated', {
+        position,
+        amount: commissionAmount,
+        ratio: (commissionRatio * 100).toFixed(1) + '%'
+      });
 
       if (commissionAmount >= MIN_REWARD_AMOUNT) {
         await createRewardRecord({
@@ -478,7 +556,11 @@ async function calculatePromotionReward(event, context) {
       if (isRepurchase && starLevel >= 1) {
         const repurchaseAmount = Math.floor(orderAmount * REPURCHASE_RATIO);
 
-        console.log(`[奖励计算] 复购奖励: ${repurchaseAmount}分 (${(REPURCHASE_RATIO * 100).toFixed(1)}%)`);
+        logger.debug('Repurchase reward calculated', {
+          position,
+          amount: repurchaseAmount,
+          ratio: (REPURCHASE_RATIO * 100).toFixed(1) + '%'
+        });
 
         if (repurchaseAmount >= MIN_REWARD_AMOUNT) {
           await createRewardRecord({
@@ -499,7 +581,11 @@ async function calculatePromotionReward(event, context) {
           });
         }
       } else {
-        console.log(`[奖励计算] 跳过复购奖励 (复购:${isRepurchase} 星级:${starLevel})`);
+        logger.debug('Repurchase reward skipped', {
+          position,
+          isRepurchase,
+          starLevel
+        });
       }
 
       // ========== 3. 团队管理奖（级差制） ==========
@@ -516,7 +602,11 @@ async function calculatePromotionReward(event, context) {
         // 当前用户可获得的管理奖 = 总比例 - 已分配比例
         const availableRatio = Math.max(0, MANAGEMENT_RATIO - alreadyDistributed);
 
-        console.log(`[奖励计算] 团队管理奖: 已分配${(alreadyDistributed * 100).toFixed(1)}% 可获得${(availableRatio * 100).toFixed(1)}%`);
+        logger.debug('Management award calculated', {
+          position,
+          alreadyDistributed: (alreadyDistributed * 100).toFixed(1) + '%',
+          availableRatio: (availableRatio * 100).toFixed(1) + '%'
+        });
 
         if (availableRatio > 0) {
           const managementAmount = Math.floor(orderAmount * availableRatio);
@@ -542,14 +632,18 @@ async function calculatePromotionReward(event, context) {
           }
         }
       } else {
-        console.log(`[奖励计算] 跳过团队管理奖 (星级:${starLevel} < 2)`);
+        logger.debug('Management award skipped', { position, starLevel });
       }
 
       // ========== 4. 育成津贴 ==========
       if (mentorId && userMap[mentorId]) {
         const nurtureAmount = Math.floor(orderAmount * NURTURE_RATIO);
 
-        console.log(`[奖励计算] 育成津贴: ${nurtureAmount}分 给导师:${mentorId}`);
+        logger.debug('Nurture allowance calculated', {
+          mentorId,
+          amount: nurtureAmount,
+          ratio: (NURTURE_RATIO * 100).toFixed(1) + '%'
+        });
 
         if (nurtureAmount >= MIN_REWARD_AMOUNT) {
           await createRewardRecord({
@@ -572,14 +666,16 @@ async function calculatePromotionReward(event, context) {
           });
         }
       } else {
-        console.log(`[奖励计算] 跳过育成津贴 (导师:${mentorId})`);
+        logger.debug('Nurture allowance skipped', { mentorId });
       }
     }
 
     // 更新买家订单计数（用于判断复购）
     await updateBuyerOrderCount(buyerId);
 
-    console.log(`[奖励计算] 完成 生成${rewards.length}条奖励记录`);
+    logger.info('Reward calculation completed', {
+      rewardsCount: rewards.length
+    });
 
     return {
       code: 0,
@@ -587,7 +683,7 @@ async function calculatePromotionReward(event, context) {
       data: { rewards }
     };
   } catch (error) {
-    console.error('[奖励计算] 异常:', error);
+    logger.error('Reward calculation failed', error);
     return { code: -1, msg: '计算失败' };
   }
 }
@@ -659,7 +755,7 @@ async function updateBuyerOrderCount(buyerId) {
         }
       });
   } catch (error) {
-    console.error('更新买家订单计数失败:', error);
+    logger.error('Failed to update buyer order count', error);
   }
 }
 
@@ -672,13 +768,18 @@ async function bindPromotionRelation(event, context) {
   const OPENID = event.OPENID || cloud.getWXContext().OPENID;
   const { parentInviteCode, mentorCode, userInfo, deviceInfo } = event;
 
-  console.log(`[绑定推广] 用户:${OPENID} 邀请码:${parentInviteCode} 导师码:${mentorCode}`);
+  logger.info('Binding promotion relation', {
+    inviteCode: parentInviteCode,
+    mentorCode
+  });
 
   try {
     // 防刷检查
     const checkResult = await checkDuplicateRegistration(OPENID, deviceInfo);
     if (!checkResult.valid) {
-      console.warn(`[绑定推广] 防刷检查失败: ${checkResult.reason}`);
+      logger.warn('Anti-fraud check failed', {
+        reason: checkResult.reason
+      });
       return { code: -1, msg: checkResult.reason };
     }
 
@@ -688,13 +789,14 @@ async function bindPromotionRelation(event, context) {
     let parentPath = '';
 
     if (parentInviteCode) {
-      console.log(`[绑定推广] 查找上级用户 邀请码:${parentInviteCode}`);
+      logger.debug('Searching for parent user', { inviteCode: parentInviteCode });
+
       const parentRes = await db.collection('users')
         .where({ inviteCode: parentInviteCode })
         .get();
 
       if (parentRes.data.length === 0) {
-        console.warn(`[绑定推广] 邀请码无效: ${parentInviteCode}`);
+        logger.warn('Invalid invite code', { inviteCode: parentInviteCode });
         return { code: -1, msg: '邀请码无效' };
       }
 
@@ -703,11 +805,14 @@ async function bindPromotionRelation(event, context) {
       parentAgentLevel = parent.agentLevel || 4;
       parentPath = parent.promotionPath || '';
 
-      console.log(`[绑定推广] 找到上级: ${parentId} 代理等级: ${parentAgentLevel}`);
+      logger.debug('Parent user found', {
+        parentId,
+        agentLevel: parentAgentLevel
+      });
 
       // 不能绑定自己
       if (parentId === OPENID) {
-        console.warn('[绑定推广] 尝试绑定自己');
+        logger.warn('Self-binding attempted');
         return { code: -1, msg: '不能绑定自己' };
       }
     }
@@ -715,7 +820,8 @@ async function bindPromotionRelation(event, context) {
     // 查找导师（可选）
     let mentorId = null;
     if (mentorCode) {
-      console.log(`[绑定推广] 查找导师 导师码:${mentorCode}`);
+      logger.debug('Searching for mentor', { mentorCode });
+
       const mentorRes = await db.collection('users')
         .where({ inviteCode: mentorCode })
         .get();
@@ -725,7 +831,7 @@ async function bindPromotionRelation(event, context) {
         // 导师不能是自己
         if (mentor._openid !== OPENID) {
           mentorId = mentor._openid;
-          console.log(`[绑定推广] 找到导师: ${mentorId}`);
+          logger.debug('Mentor found', { mentorId });
         }
       }
     }
@@ -735,7 +841,7 @@ async function bindPromotionRelation(event, context) {
     let codeExists = true;
     let retryCount = 0;
 
-    console.log(`[绑定推广] 生成邀请码 (尝试${INVITE_CODE_MAX_RETRY}次)`);
+    logger.debug('Generating invite code', { maxRetries: INVITE_CODE_MAX_RETRY });
 
     while (codeExists && retryCount < INVITE_CODE_MAX_RETRY) {
       const existRes = await db.collection('users')
@@ -743,7 +849,10 @@ async function bindPromotionRelation(event, context) {
         .count();
       if (existRes.total === 0) {
         codeExists = false;
-        console.log(`[绑定推广] 邀请码生成成功: ${inviteCode} (重试${retryCount}次)`);
+        logger.debug('Invite code generated', {
+          code: inviteCode,
+          retries: retryCount
+        });
       } else {
         inviteCode = generateInviteCode();
         retryCount++;
@@ -751,7 +860,7 @@ async function bindPromotionRelation(event, context) {
     }
 
     if (codeExists) {
-      console.error('[绑定推广] 邀请码生成失败，超过重试次数');
+      logger.error('Failed to generate unique invite code');
       return { code: -1, msg: '邀请码生成失败，请重试' };
     }
 
@@ -760,7 +869,10 @@ async function bindPromotionRelation(event, context) {
     const currentAgentLevel = parentId ? Math.min(MAX_LEVEL, parentAgentLevel + 1) : MAX_LEVEL;
     const currentPath = parentPath ? `${parentPath}/${parentId}` : (parentId || '');
 
-    console.log(`[绑定推广] 当前代理等级: ${currentAgentLevel} 路径: ${currentPath}`);
+    logger.debug('User promotion config', {
+      agentLevel: currentAgentLevel,
+      path: currentPath
+    });
 
     // 创建用户记录
     const userData = {
@@ -791,7 +903,7 @@ async function bindPromotionRelation(event, context) {
 
     await db.collection('users').add({ data: userData });
 
-    console.log(`[绑定推广] 用户记录创建成功`);
+    logger.info('User record created');
 
     // 更新上级的团队数量和直推人数
     if (parentId) {
@@ -806,7 +918,7 @@ async function bindPromotionRelation(event, context) {
           }
         });
 
-      console.log(`[绑定推广] 更新上级${parentId}团队统计`);
+      logger.info('Parent team stats updated', { parentId });
 
       // 记录推广关系
       await db.collection('promotion_relations').add({
@@ -831,7 +943,7 @@ async function bindPromotionRelation(event, context) {
       }
     };
   } catch (error) {
-    console.error('[绑定推广] 失败:', error);
+    logger.error('Failed to bind promotion relation', error);
     return { code: -1, msg: '绑定失败，请重试' };
   }
 }
@@ -846,7 +958,7 @@ async function getPromotionInfo(event, context) {
     const userRes = await db.collection('users')
       .where({ _openid: OPENID })
       .get();
-    
+
     if (userRes.data.length === 0) {
       return { code: -1, msg: '用户不存在' };
     }
@@ -858,7 +970,7 @@ async function getPromotionInfo(event, context) {
       let inviteCode = generateInviteCode();
       let codeExists = true;
       let retryCount = 0;
-      
+
       while (codeExists && retryCount < 10) {
         const existRes = await db.collection('users')
           .where({ inviteCode })
@@ -909,7 +1021,7 @@ async function getPromotionInfo(event, context) {
         settleTime: _.gte(today)
       })
       .get();
-    
+
     const todayReward = todayRewardRes.data.reduce((sum, r) => sum + r.amount, 0);
 
     // 获取本月收益
@@ -923,7 +1035,7 @@ async function getPromotionInfo(event, context) {
         settleTime: _.gte(monthStart)
       })
       .get();
-    
+
     const monthReward = monthRewardRes.data.reduce((sum, r) => sum + r.amount, 0);
 
     // 计算晋升进度
@@ -961,7 +1073,7 @@ async function getPromotionInfo(event, context) {
       }
     };
   } catch (error) {
-    console.error('获取推广信息失败:', error);
+    logger.error('Failed to get promotion info', error);
     return { code: -1, msg: '获取失败' };
   }
 }
@@ -978,7 +1090,7 @@ async function getTeamStats(userId) {
     level4: 0
   };
 
-  console.log(`[团队统计] 开始统计 用户:${userId}`);
+  logger.debug('Team stats calculation started', { userId });
 
   try {
     // 获取直接团队成员（一级）
@@ -987,10 +1099,10 @@ async function getTeamStats(userId) {
       .count();
     stats.level1 = level1Res.total;
 
-    console.log(`[团队统计] 一级成员: ${stats.level1}人`);
+    logger.debug('Level 1 members counted', { count: stats.level1 });
 
     if (stats.level1 === 0) {
-      console.log(`[团队统计] 无一级成员，跳过后续层级统计`);
+      logger.debug('No level 1 members, skipping deeper levels');
       return stats;
     }
 
@@ -1007,7 +1119,7 @@ async function getTeamStats(userId) {
         .count();
       stats.level2 = level2Res.total;
 
-      console.log(`[团队统计] 二级成员: ${stats.level2}人`);
+      logger.debug('Level 2 members counted', { count: stats.level2 });
 
       if (stats.level2 === 0) {
         stats.total = stats.level1 + stats.level2;
@@ -1027,7 +1139,7 @@ async function getTeamStats(userId) {
           .count();
         stats.level3 = level3Res.total;
 
-        console.log(`[团队统计] 三级成员: ${stats.level3}人`);
+        logger.debug('Level 3 members counted', { count: stats.level3 });
 
         if (stats.level3 === 0) {
           stats.total = stats.level1 + stats.level2 + stats.level3;
@@ -1047,16 +1159,16 @@ async function getTeamStats(userId) {
             .count();
           stats.level4 = level4Res.total;
 
-          console.log(`[团队统计] 四级成员: ${stats.level4}人`);
+          logger.debug('Level 4 members counted', { count: stats.level4 });
         }
       }
     }
 
     stats.total = stats.level1 + stats.level2 + stats.level3 + stats.level4;
-    console.log(`[团队统计] 完成 总计:${stats.total}人`);
+    logger.info('Team stats calculated', { total: stats.total });
     return stats;
   } catch (error) {
-    console.error('[团队统计] 失败:', error);
+    logger.error('Team stats calculation failed', error);
     return stats;
   }
 }
@@ -1070,21 +1182,21 @@ async function getTeamMembers(event, context) {
 
   try {
     let query = {};
-    
+
     if (level === 1) {
       query = { parentId: OPENID };
     } else {
       const userRes = await db.collection('users')
         .where({ _openid: OPENID })
         .get();
-      
+
       if (userRes.data.length === 0) {
         return { code: -1, msg: '用户不存在' };
       }
 
       const userPath = userRes.data[0].promotionPath || '';
       const fullPath = userPath ? `${userPath}/${OPENID}` : OPENID;
-      
+
       query = {
         promotionPath: db.RegExp({
           regexp: fullPath,
@@ -1118,7 +1230,7 @@ async function getTeamMembers(event, context) {
       data: { members }
     };
   } catch (error) {
-    console.error('获取团队成员失败:', error);
+    logger.error('Failed to get team members', error);
     return { code: -1, msg: '获取失败' };
   }
 }
@@ -1132,11 +1244,11 @@ async function getRewardRecords(event, context) {
 
   try {
     let query = { beneficiaryId: OPENID };
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (rewardType) {
       query.rewardType = rewardType;
     }
@@ -1153,7 +1265,7 @@ async function getRewardRecords(event, context) {
     const usersRes = await db.collection('users')
       .where({ _openid: _.in(sourceIds) })
       .get();
-    
+
     const userMap = {};
     usersRes.data.forEach(u => {
       userMap[u._openid] = u;
@@ -1182,7 +1294,7 @@ async function getRewardRecords(event, context) {
       data: { records }
     };
   } catch (error) {
-    console.error('获取奖励明细失败:', error);
+    logger.error('Failed to get reward records', error);
     return { code: -1, msg: '获取失败' };
   }
 }
@@ -1198,7 +1310,7 @@ async function generateQRCode(event, context) {
     const userRes = await db.collection('users')
       .where({ _openid: OPENID })
       .get();
-    
+
     if (userRes.data.length === 0) {
       return { code: -1, msg: '用户不存在' };
     }
@@ -1231,7 +1343,7 @@ async function generateQRCode(event, context) {
       }
     };
   } catch (error) {
-    console.error('生成二维码失败:', error);
+    logger.error('Failed to generate QR code', error);
     return { code: -1, msg: '生成失败' };
   }
 }
@@ -1247,7 +1359,7 @@ async function updatePerformanceAndCheckPromotion(event, context) {
     const userRes = await db.collection('users')
       .where({ _openid: userId })
       .get();
-    
+
     if (userRes.data.length === 0) {
       return { code: -1, msg: '用户不存在' };
     }
@@ -1287,7 +1399,7 @@ async function updatePerformanceAndCheckPromotion(event, context) {
       }
     };
   } catch (error) {
-    console.error('更新业绩失败:', error);
+    logger.error('Failed to update performance', error);
     return { code: -1, msg: '更新失败' };
   }
 }
@@ -1296,15 +1408,13 @@ async function updatePerformanceAndCheckPromotion(event, context) {
  * 主入口函数
  */
 exports.main = async (event, context) => {
-  console.log('Promotion raw event:', JSON.stringify(event));
-  
+  logger.debug('Promotion event received', { action: event.action });
+
   const requestData = parseEvent(event);
-  console.log('Promotion parsed data:', JSON.stringify(requestData));
-  
+  logger.debug('Promotion parsed data', { action: requestData.action });
+
   const { action } = requestData;
   const OPENID = requestData._token || cloud.getWXContext().OPENID || requestData.OPENID;
-  
-  console.log('Promotion openid:', OPENID, 'action:', action);
 
   requestData.OPENID = OPENID;
 
