@@ -83,6 +83,20 @@
 				"navigationBarTitleText": "商品编辑",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/orders/list/index",
+			"style": {
+				"navigationBarTitleText": "订单管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/orders/detail/index",
+			"style": {
+				"navigationBarTitleText": "订单详情",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

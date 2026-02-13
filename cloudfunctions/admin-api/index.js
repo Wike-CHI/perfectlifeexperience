@@ -37,6 +37,12 @@ exports.main = async (event, context) => {
         return await deleteProductAdmin(data, wxContext)
       case 'getCategories':
         return await getCategoriesAdmin()
+      case 'getOrders':
+        return await getOrdersAdmin(data)
+      case 'getOrderDetail':
+        return await getOrderDetailAdmin(data)
+      case 'updateOrderStatus':
+        return await updateOrderStatusAdmin(data, wxContext)
       default:
         return {
           code: 400,
@@ -274,4 +280,115 @@ async function getCategoriesAdmin() {
     console.error('Get categories error:', error);
     return { code: 500, msg: error.message };
   };
+}
+
+// Order functions
+async function getOrdersAdmin(data) {
+  try {
+    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (keyword) {
+      query.orderNo = db.RegExp({
+        regexp: keyword,
+        options: 'i'
+      });
+    }
+
+    if (startDate || endDate) {
+      query.createTime = {};
+      if (startDate) query.createTime.$gte = new Date(startDate);
+      if (endDate) query.createTime.$lte = new Date(endDate);
+    }
+
+    const [ordersResult, countResult] = await Promise.all([
+      db.collection('orders')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('orders').where(query).count()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        list: ordersResult.data,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Get orders error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+async function getOrderDetailAdmin(data) {
+  try {
+    const { id } = data;
+
+    const orderResult = await db.collection('orders').doc(id).get();
+
+    if (!orderResult.data) {
+      return { code: 404, msg: '订单不存在' };
+    }
+
+    // Get user info
+    const userResult = await db.collection('users')
+      .where({ _openid: orderResult.data._openid })
+      .limit(1)
+      .get();
+
+    return {
+      code: 0,
+      data: {
+        order: orderResult.data,
+        user: userResult.data[0] || null
+      }
+    };
+  } catch (error) {
+    console.error('Get order detail error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+async function updateOrderStatusAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { orderId, status } = data;
+
+    const updateData = {
+      status,
+      updateTime: new Date()
+    };
+
+    if (status === 'paid') updateData.payTime = new Date();
+    else if (status === 'shipping') updateData.shipTime = new Date();
+    else if (status === 'completed') updateData.completeTime = new Date();
+
+    await db.collection('orders').doc(orderId).update({
+      data: updateData
+    });
+
+    await logOperation(adminInfo.id, 'updateOrderStatus', { orderId, status });
+
+    return {
+      code: 0,
+      msg: '订单状态更新成功'
+    };
+  } catch (error) {
+    console.error('Update order status error:', error);
+    return { code: 500, msg: error.message };
+  }
 }
