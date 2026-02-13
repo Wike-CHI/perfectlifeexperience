@@ -1,6 +1,29 @@
 const cloud = require('wx-server-sdk');
 const db = cloud.database();
 const _ = db.command;
+const bcrypt = require('bcryptjs');
+
+// 密码哈希配置
+const SALT_ROUNDS = 10;
+
+/**
+ * Hash password using bcrypt
+ * @param {string} plainPassword - Plain text password
+ * @returns {Promise<string>} Hashed password
+ */
+async function hashPassword(plainPassword) {
+  return await bcrypt.hash(plainPassword, SALT_ROUNDS);
+}
+
+/**
+ * Verify password against hash
+ * @param {string} plainPassword - Plain text password to verify
+ * @param {string} hashedPassword - Hashed password from database
+ * @returns {Promise<boolean>} True if password matches
+ */
+async function verifyPassword(plainPassword, hashedPassword) {
+  return await bcrypt.compare(plainPassword, hashedPassword);
+}
 
 /**
  * Verify admin credentials and return admin user
@@ -17,8 +40,9 @@ async function verifyAdmin(username, password) {
 
     const admin = admins[0];
 
-    // In production, use bcrypt.compare for password verification
-    if (admin.password !== password) {
+    // ✅ 使用 bcrypt 验证密码
+    const isValid = await verifyPassword(password, admin.password);
+    if (!isValid) {
       return { success: false, message: '密码错误' };
     }
 
@@ -78,4 +102,10 @@ async function logOperation(adminId, action, details) {
   }
 }
 
-module.exports = { verifyAdmin, hasPermission, logOperation };
+module.exports = {
+  verifyAdmin,
+  hasPermission,
+  logOperation,
+  hashPassword,
+  verifyPassword
+};

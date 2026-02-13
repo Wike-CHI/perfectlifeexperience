@@ -1,0 +1,10 @@
+{
+  "name": "admin-migration-hash-passwords",
+  "version": "1.0.0",
+  "description": "Migration script to hash existing admin passwords",
+  "main": "hash_existing_passwords.js",
+  "dependencies": {
+    "wx-server-sdk": "latest",
+    "bcryptjs": "^5.1.1"
+  }
+}

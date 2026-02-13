@@ -4,6 +4,7 @@
   "description": "Admin API for Dashboard",
   "main": "index.js",
   "dependencies": {
-    "wx-server-sdk": "latest"
+    "wx-server-sdk": "latest",
+    "bcryptjs": "^5.1.1"
   }
 }
