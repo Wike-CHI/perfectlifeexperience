@@ -445,13 +445,17 @@ async function calculatePromotionReward(event, context) {
     return { code: 0, msg: '订单金额无效', data: { rewards: [] } };
   }
 
+  // 开启事务（确保奖励记录原子性）
+  const transaction = await db.startTransaction();
+
   try {
     // 获取买家信息
-    const buyerRes = await db.collection('users')
+    const buyerRes = await transaction.collection('users')
       .where({ _openid: buyerId })
       .get();
 
     if (buyerRes.data.length === 0) {
+      await transaction.rollback();
       logger.error('Buyer not found', { buyerId });
       return { code: -1, msg: '买家信息不存在' };
     }
@@ -461,6 +465,7 @@ async function calculatePromotionReward(event, context) {
 
     // 如果没有推广路径，直接返回
     if (!promotionPath) {
+      await transaction.rollback();
       logger.info('No promotion relationship');
       return { code: 0, msg: '无推广关系', data: { rewards: [] } };
     }
@@ -469,8 +474,8 @@ async function calculatePromotionReward(event, context) {
     const parentChain = promotionPath.split('/').filter(id => id).reverse();
     logger.debug('Promotion chain', { length: parentChain.length });
 
-    // 记录推广订单
-    await db.collection('promotion_orders').add({
+    // 记录推广订单（事务内）
+    await transaction.collection('promotion_orders').add({
       data: {
         orderId,
         buyerId,
@@ -482,8 +487,8 @@ async function calculatePromotionReward(event, context) {
       }
     });
 
-    // 批量获取上级链用户信息
-    const usersRes = await db.collection('users')
+    // 批量获取上级链用户信息（事务内）
+    const usersRes = await transaction.collection('users')
       .where({ _openid: _.in(parentChain) })
       .get();
 
@@ -543,7 +548,7 @@ async function calculatePromotionReward(event, context) {
           amount: commissionAmount,
           rewardType: 'commission',
           position
-        });
+        }, transaction);
         rewards.push({
           beneficiaryId,
           type: 'commission',
@@ -572,7 +577,7 @@ async function calculatePromotionReward(event, context) {
             amount: repurchaseAmount,
             rewardType: 'repurchase',
             position
-          });
+          }, transaction);
           rewards.push({
             beneficiaryId,
             type: 'repurchase',
@@ -621,7 +626,7 @@ async function calculatePromotionReward(event, context) {
               amount: managementAmount,
               rewardType: 'management',
               position
-            });
+            }, transaction);
             rewards.push({
               beneficiaryId,
               type: 'management',
@@ -656,7 +661,7 @@ async function calculatePromotionReward(event, context) {
             rewardType: 'nurture',
             position: 0, // 导师不计入层级
             relatedBeneficiaryId: beneficiaryId // 关联的实际受益人
-          });
+          }, transaction);
           rewards.push({
             beneficiaryId: mentorId,
             type: 'nurture',
@@ -671,7 +676,10 @@ async function calculatePromotionReward(event, context) {
     }
 
     // 更新买家订单计数（用于判断复购）
-    await updateBuyerOrderCount(buyerId);
+    await updateBuyerOrderCount(buyerId, transaction);
+
+    // 提交事务
+    await transaction.commit();
 
     logger.info('Reward calculation completed', {
       rewardsCount: rewards.length
@@ -683,13 +691,23 @@ async function calculatePromotionReward(event, context) {
       data: { rewards }
     };
   } catch (error) {
-    logger.error('Reward calculation failed', error);
+    // 回滚事务
+    if (transaction) {
+      try {
+        await transaction.rollback();
+        logger.error('Reward calculation transaction rolled back', error);
+      } catch (rollbackError) {
+        logger.error('Failed to rollback transaction', rollbackError);
+      }
+    } else {
+      logger.error('Reward calculation failed', error);
+    }
     return { code: -1, msg: '计算失败' };
   }
 }
 
 /**
- * 创建奖励记录
+ * 创建奖励记录（支持事务）
  */
 async function createRewardRecord({
   orderId,
@@ -701,8 +719,17 @@ async function createRewardRecord({
   rewardType,
   position,
   relatedBeneficiaryId
-}) {
-  await db.collection('reward_records').add({
+}, transaction = null) {
+  // 使用事务或普通数据库连接
+  const dbConn = transaction || db;
+  const collection = transaction
+    ? transaction.collection('reward_records')
+    : db.collection('reward_records');
+  const usersCollection = transaction
+    ? transaction.collection('users')
+    : db.collection('users');
+
+  await collection.add({
     data: {
       orderId,
       beneficiaryId,
@@ -721,7 +748,7 @@ async function createRewardRecord({
   });
 
   // 更新用户的待结算奖励
-  await db.collection('users')
+  await usersCollection
     .where({ _openid: beneficiaryId })
     .update({
       data: {
@@ -733,12 +760,14 @@ async function createRewardRecord({
 }
 
 /**
- * 更新买家订单计数
+ * 更新买家订单计数（支持事务）
  */
-async function updateBuyerOrderCount(buyerId) {
+async function updateBuyerOrderCount(buyerId, transaction = null) {
   try {
+    const dbConn = transaction || db;
+
     // 统计买家历史订单数
-    const orderCount = await db.collection('orders')
+    const orderCount = await dbConn.collection('orders')
       .where({
         _openid: buyerId,
         status: _.in(['paid', 'shipping', 'completed'])
@@ -746,7 +775,7 @@ async function updateBuyerOrderCount(buyerId) {
       .count();
 
     // 更新用户表中的订单计数
-    await db.collection('users')
+    await dbConn.collection('users')
       .where({ _openid: buyerId })
       .update({
         data: {
