@@ -50,6 +50,7 @@ const handleLogin = async () => {
   }
 
   try {
+    // 直接调用管理员登录
     const res = await app.callFunction({
       name: 'admin-api',
       data: {
@@ -68,7 +69,7 @@ const handleLogin = async () => {
         uni.redirectTo({ url: '/pages/dashboard/index' });
       }, 1000);
     } else {
-      uni.showToast({ title: res.result.msg, icon: 'none' });
+      uni.showToast({ title: res.result.msg || '登录失败', icon: 'none' });
     }
   } catch (error) {
     console.error('Login error:', error);
