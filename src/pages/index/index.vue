@@ -332,11 +332,11 @@ const loadData = async () => {
     
     // 获取热销商品
     const hotRes = await getProducts({ page: 1, limit: 4 });
-    hotProducts.value = hotRes.map(p => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
-    
+    hotProducts.value = hotRes.map((p: any) => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
+
     // 获取新品
     const newRes = await getProducts({ page: 1, limit: 6 });
-    newProducts.value = newRes.filter(p => p.isNew).map(p => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
+    newProducts.value = newRes.filter((p: any) => p.isNew).map((p: any) => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
     
   } catch (error) {
     console.error('加载数据失败:', error);

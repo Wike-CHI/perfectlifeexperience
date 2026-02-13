@@ -56,9 +56,9 @@
       </view>
 
       <view v-else class="member-list">
-        <view 
-          v-for="member in filteredMembers" 
-          :key="member.id"
+        <view
+          v-for="member in filteredMembers"
+          :key="member._id || member.inviteCode"
           class="member-item"
         >
           <image class="member-avatar" :src="member.avatarUrl || '/static/logo.png'" mode="aspectFill" />
@@ -74,14 +74,14 @@
                 </view>
               </view>
             </view>
-            <text class="member-time">{{ formatTime(member.createTime) }}</text>
+            <text class="member-time">{{ formatTime(member.createTime || '') }}</text>
             <view class="member-stats" v-if="member.performance">
               <text class="stats-text">销售额 ¥{{ formatPrice(member.performance.totalSales) }}</text>
               <text class="stats-text" v-if="member.performance.directCount">直推 {{ member.performance.directCount }}人</text>
             </view>
           </view>
           <view class="member-level">
-            <text class="level-tag">{{ getLevelText(member.level) }}</text>
+            <text class="level-tag">{{ getLevelText(member.agentLevel) }}</text>
           </view>
         </view>
       </view>
@@ -127,7 +127,7 @@ const filteredMembers = computed(() => {
   if (currentLevel.value === 0) {
     return members.value;
   }
-  return members.value.filter(m => m.level === currentLevel.value);
+  return members.value.filter(m => m.agentLevel === currentLevel.value);
 });
 
 const loadTeamStats = async () => {
@@ -191,7 +191,8 @@ const formatTime = (time: Date | string) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const getLevelText = (level: number) => {
+const getLevelText = (level: number | undefined) => {
+  if (level === undefined || level === 0) return '成员';
   const texts: Record<number, string> = {
     1: '一级',
     2: '二级',

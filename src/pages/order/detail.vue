@@ -217,11 +217,12 @@ const payOrder = async () => {
 
     uni.hideLoading();
 
-    if (result.success && result.data?.payParams) {
+    if (result.code === 0 && result.data?.payParams) {
       // 调起微信支付
       const payParams = result.data.payParams;
       uni.requestPayment({
         provider: 'wxpay',
+        orderInfo: '', // UniApp requires this field but WeChat Pay doesn't use it
         timeStamp: payParams.timeStamp,
         nonceStr: payParams.nonceStr,
         package: payParams.package,
@@ -235,8 +236,8 @@ const payOrder = async () => {
           // 刷新订单详情
           loadOrderDetail(order.value._id!);
         },
-        fail: (err) => {
-          if (err.errMsg.includes('cancel')) {
+        fail: (err: any) => {
+          if (err.errMsg?.includes('cancel')) {
             uni.showToast({
               title: '已取消支付',
               icon: 'none'
@@ -248,10 +249,10 @@ const payOrder = async () => {
             });
           }
         }
-      });
+      } as any);
     } else {
       // 微信支付创建失败，显示错误信息
-      const errorMsg = result.message || '创建支付失败';
+      const errorMsg = result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,

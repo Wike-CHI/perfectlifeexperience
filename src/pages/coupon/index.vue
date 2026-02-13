@@ -141,7 +141,7 @@ const loadMyCoupons = async () => {
   try {
     const res = await getMyCoupons();
     myCoupons.value = res;
-    unusedCount.value = res.filter(c => c.status === 'unused').length;
+    unusedCount.value = res.filter((c: any) => c.status === 'unused').length;
   } catch (error) {
     console.error('加载我的优惠券失败:', error);
   }

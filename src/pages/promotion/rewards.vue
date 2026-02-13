@@ -57,9 +57,9 @@
       </view>
 
       <view v-else class="record-list">
-        <view 
-          v-for="record in records" 
-          :key="record.id"
+        <view
+          v-for="record in records"
+          :key="record._id || `${record.orderId}-${record.level}`"
           class="record-item"
         >
           <view class="record-left">
@@ -78,7 +78,7 @@
                 </view>
               </view>
               <text class="record-desc">来自 {{ record.sourceUser?.nickName || '好友' }}</text>
-              <text class="record-time">{{ formatTime(record.createTime) }}</text>
+              <text class="record-time">{{ formatTime(record.createTime || '') }}</text>
             </view>
           </view>
           <view class="record-right">

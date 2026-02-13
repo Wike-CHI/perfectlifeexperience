@@ -513,7 +513,7 @@ const payWithBalanceProcess = async (orderId: string) => {
 
     uni.hideLoading();
 
-    if (res.success) {
+    if (res.code === 0) {
       uni.showToast({
         title: '支付成功',
         icon: 'success'
@@ -528,7 +528,7 @@ const payWithBalanceProcess = async (orderId: string) => {
     } else {
       uni.showModal({
         title: '支付失败',
-        content: res.message,
+        content: res.msg,
         showCancel: false
       });
     }
@@ -561,11 +561,12 @@ const payWithWechatProcess = async (orderId: string) => {
 
     uni.hideLoading();
 
-    if (result.success && result.data?.payParams) {
+    if (result.code === 0 && result.data?.payParams) {
       // 调起微信支付
       const payParams = result.data.payParams;
       uni.requestPayment({
         provider: 'wxpay',
+        orderInfo: '', // UniApp requires this field but WeChat Pay doesn't use it
         timeStamp: payParams.timeStamp,
         nonceStr: payParams.nonceStr,
         package: payParams.package,
@@ -583,8 +584,8 @@ const payWithWechatProcess = async (orderId: string) => {
             });
           }, 1500);
         },
-        fail: (err) => {
-          if (err.errMsg.includes('cancel')) {
+        fail: (err: any) => {
+          if (err.errMsg?.includes('cancel')) {
             uni.showToast({
               title: '已取消支付',
               icon: 'none'
@@ -602,10 +603,10 @@ const payWithWechatProcess = async (orderId: string) => {
             });
           }, 1500);
         }
-      });
+      } as any);
     } else {
       // 微信支付创建失败
-      const errorMsg = result.message || '创建支付失败';
+      const errorMsg = result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,

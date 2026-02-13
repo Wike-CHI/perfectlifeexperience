@@ -231,7 +231,7 @@ const switchDeliveryType = (type: 'pickup' | 'delivery') => {
 const loadCategories = async () => {
   try {
     const res = await getCategories();
-    categories.value = res.filter(c => c.name !== '全部');
+    categories.value = res.filter((c: any) => c.name !== '全部');
   } catch (error) {
     console.error('加载分类失败:', error);
   }

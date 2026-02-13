@@ -1,10 +1,3 @@
-// ==================== 类型导入 ====================
-
-/**
- * 导入微信云开发完整类型定义
- */
-/// <reference types="../types/wx-cloud.d.ts" />
-
 // ==================== 类型定义 ====================
 
 // 微信用户信息
@@ -27,7 +20,18 @@ export interface WxCloudEnv {
  * 微信云开发 SDK（声明式）
  */
 declare const wx: {
-  cloud: WxCloud;
+  cloud: {
+    init: (options: { env: string; traceUser?: boolean }) => void;
+    callFunction: (options: { name: string; data?: Record<string, unknown> }) => Promise<{
+      result: any;
+      errMsg: string;
+    }>;
+    uploadFile: (options: { cloudPath: string; filePath: string }) => Promise<{
+      fileID: string;
+      statusCode: number;
+      errMsg: string;
+    }>;
+  };
 };
 
 // ==================== 环境配置 ====================
