@@ -1,7 +1,7 @@
 {
-  "name": "test-helper",
+  "name": "migration",
   "version": "1.0.0",
-  "description": "测试辅助云函数",
+  "description": "Database migration functions",
   "main": "index.js",
   "dependencies": {
     "wx-server-sdk": "~2.6.3"
