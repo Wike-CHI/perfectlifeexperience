@@ -1,6 +1,9 @@
 import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon } from '@/types';
 import { callFunction } from '@/utils/cloudbase';
 
+// 重新导出 callFunction 供外部使用
+export { callFunction };
+
 declare const wx: any;
 
 // ==================== 商品相关 API ====================

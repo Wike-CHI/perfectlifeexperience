@@ -152,7 +152,7 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin } from '@/utils/api';
-import { getUserOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
+import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
 import type { UserInfo } from '@/types';
 
 // 数据
@@ -210,7 +210,7 @@ const handleLogin = async () => {
   uni.showLoading({ title: '登录中...' });
   try {
     // 1. 确保云开发登录态有效
-    let openid = getUserOpenid();
+    let openid = getCachedOpenid();
     if (!openid) {
       openid = await checkCloudLogin();
     }

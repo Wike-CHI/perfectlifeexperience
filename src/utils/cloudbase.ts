@@ -155,14 +155,20 @@ export const recordLoginTime = (): void => {
   console.log('登录时间已记录');
 };
 
-// ==================== OpenID 获取 ====================
+// ==================== 获取缓存的 OpenID ====================
 
 /**
- * 获取用户 OpenID
+ * 获取缓存的用户 OpenID（同步方法）
  */
-export const getUserOpenid = (): string | null => {
+export const getCachedOpenid = (): string | null => {
   return userOpenid;
 };
+
+/**
+ * 检查登录状态并获取 OpenID（别名）
+ * 等同于 getUserOpenid
+ */
+export const checkLogin = getUserOpenid;
 
 // ==================== 登录状态检查 ====================
 
@@ -303,6 +309,8 @@ export default {
   checkEnvironment,
   initCloudBase,
   getUserOpenid,
+  getCachedOpenid,
+  checkLogin,
   recordLoginTime,
   logoutCloudBase,
   isLoginExpired,
