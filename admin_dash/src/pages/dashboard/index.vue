@@ -95,7 +95,7 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 .dashboard-overview {
   padding: $spacing-lg;
@@ -112,8 +112,15 @@ onMounted(() => {
   background: $bg-card;
   padding: $spacing-lg;
   border-radius: $radius-md;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 4px 16px rgba($color-deep-brown, 0.08);
+  border: 1px solid rgba($color-amber-gold, 0.15);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba($color-deep-brown, 0.15);
+    border-color: rgba($color-amber-gold, 0.3);
+  }
 
   .label {
     font-size: 12px;
@@ -125,59 +132,85 @@ onMounted(() => {
   .value {
     font-family: $font-family-mono;
     font-size: 28px;
-    font-weight: 600;
-    color: $color-obsidian-black;
+    font-weight: 700;
+    background: linear-gradient(135deg, $color-deep-brown, $color-amber-gold);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin-bottom: $spacing-xs;
   }
   .trend {
     font-size: 12px;
-    &.up { color: $color-success-green; }
-    &.down { color: $color-error-red; }
+    font-weight: 500;
+    &.up {
+      color: $color-sage-green;
+    }
+    &.down {
+      color: $color-error-red;
+    }
   }
 }
 
 .section-title {
-  font-family: $font-family-heading;
+  font-family: 'Playfair Display', 'PingFang SC', serif;
   font-size: 20px;
   margin-bottom: $spacing-md;
-  color: $color-obsidian-black;
+  color: $color-deep-brown;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .task-list {
   background: $bg-card;
   border-radius: $radius-md;
   overflow: hidden;
-  
+  box-shadow: 0 2px 8px rgba($color-deep-brown, 0.06);
+  border: 1px solid rgba($color-amber-gold, 0.1);
+
   .task-item {
     display: flex;
     align-items: center;
     padding: $spacing-md $spacing-lg;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    
+    border-bottom: 1px solid rgba($color-deep-brown, 0.05);
+    transition: background-color 0.2s ease;
+
     &:last-child { border-bottom: none; }
+
+    &:hover {
+      background-color: rgba($color-amber-gold, 0.03);
+    }
 
     .task-name {
       flex: 1;
       font-weight: 500;
+      color: $text-primary;
     }
     .task-count {
-      background: $color-amber-gold;
+      background: $gradient-warm;
       color: white;
-      padding: 2px 8px;
-      border-radius: 10px;
+      padding: 4px 10px;
+      border-radius: 12px;
       font-size: 12px;
+      font-weight: 600;
       margin-right: $spacing-md;
+      box-shadow: 0 2px 4px rgba($color-amber-gold, 0.2);
     }
     .task-action {
-      border: 1px solid $text-secondary;
+      border: 1px solid rgba($color-deep-brown, 0.2);
       background: none;
-      padding: 4px 12px;
+      padding: 6px 14px;
       border-radius: $radius-sm;
       cursor: pointer;
       font-size: 12px;
+      transition: all 0.2s ease;
+      color: $text-secondary;
+
       &:hover {
-        background: $text-secondary;
+        background: $gradient-warm;
+        border-color: transparent;
         color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba($color-amber-gold, 0.2);
       }
     }
   }

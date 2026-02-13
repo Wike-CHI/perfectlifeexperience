@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**大友元气精酿啤酒在线点单小程序** - A WeChat Mini Program for craft beer ordering with a comprehensive promotion/referral system.
+**大友元气精酿啤酒在线点单小程序** - A WeChat Mini Program for craft beer ordering with a comprehensive promotion/referral system featuring a sophisticated dual-track (agent level + star level) reward structure.
 
 **Tech Stack:**
 - **Framework**: UniApp (Vue 3 + TypeScript)
 - **Backend**: Tencent CloudBase (Cloud Functions + NoSQL Database)
 - **Cloud Environment**: `cloud1-6gmp2q0y3171c353`
 - **WeChat AppID**: `wx4a0b93c3660d1404`
+- **Runtime**: Node.js 16.13 for cloud functions
 
 ## Key Architecture Concepts
 
@@ -225,10 +226,11 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 
 ### Cloud Function Deployment
 
-Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent CloudBase console or CLI tools to deploy:
+Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent CloudBase console or MCP tools:
 - Ensure `index.js` exports `exports.main`
 - Runtime is set at creation and cannot be changed
 - Use `cloud.DYNAMIC_CURRENT_ENV` for environment detection
+- Environment variables configured per function in CloudBase console
 
 ### Mini Program Release
 
@@ -237,12 +239,178 @@ Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent Cloud
 3. Submit for review
 4. Version management handled by WeChat platform
 
+## Key Configuration Files
+
+### Frontend Configuration
+- **`src/pages.json`** - UniApp page routing, tabBar, and navigation bar config
+- **`src/manifest.json`** - Platform-specific configurations (WeChat AppID, permissions)
+- **`vite.config.ts`** - Vite build configuration with UniApp plugin
+- **`tsconfig.json`** - TypeScript paths (`@/*` maps to `src/*`)
+
+### Backend Configuration
+- Each cloud function has its own `package.json` for dependencies
+- Environment variables configured in CloudBase console per function
+- **`cloudfunctions/promotion/config.json`** - Promotion thresholds and ratios
+
+## Important Code Patterns
+
+### Cloud Function Action Router
+
+All cloud functions use an action-based routing pattern:
+
+```javascript
+exports.main = async (event, context) => {
+  const { action, data } = event;
+  const wxContext = cloud.getWXContext();
+
+  switch (action) {
+    case 'actionName':
+      return await handleActionName(data, wxContext);
+    default:
+      return { code: 400, msg: `Unknown action: ${action}` };
+  }
+};
+```
+
+### Database Query Patterns
+
+```javascript
+// Always use cloud.DYNAMIC_CURRENT_ENV
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+
+// Command operators for complex queries
+const _ = db.command;
+
+// Example: Query with multiple conditions
+.where({
+  _openid: openid,
+  status: _.in(['pending', 'paid']),
+  createTime: _.gte(new Date(startDate))
+})
+```
+
+### Error Handling Pattern
+
+```javascript
+try {
+  // database operation
+  return { success: true, data: result };
+} catch (error) {
+  console.error('Operation failed:', error);
+  return { success: false, message: error.message };
+}
+```
+
+## WeChat Pay Integration
+
+### Payment Flow
+1. Frontend calls `wechatpay` cloud function with `action: 'createPayment'`
+2. Cloud function generates payment parameters via WeChat Pay V3 API
+3. Frontend receives payment params and calls `wx.requestPayment()`
+4. WeChat notifies backend via HTTP trigger callback
+5. Backend verifies signature, decrypts data, updates order status
+
+### Key Environment Variables for Payment
+- `WX_PAY_MCH_ID` - Merchant ID
+- `WX_PAY_SERIAL_NO` - Certificate serial number
+- `WX_PAY_PRIVATE_KEY` - Merchant private key (PEM format)
+- `WX_PAY_API_V3_KEY` - API v3 secret key
+- `WX_PAY_NOTIFY_URL` - HTTP trigger URL for callbacks
+
+See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
+
+## Development Workflow
+
+### Adding New Features
+
+1. **Frontend Changes**:
+   - Update types in `src/types/index.ts` if needed
+   - Add API methods to `src/utils/api.ts`
+   - Create/modify pages or components
+   - Update `src/pages.json` for new pages
+
+2. **Backend Changes**:
+   - Create new cloud function directory under `cloudfunctions/`
+   - Implement `index.js` with `exports.main`
+   - Add dependencies in `package.json`
+   - Deploy via CloudBase console or MCP tools
+
+3. **Database Schema Changes**:
+   - Update documentation in `docs/`
+   - Run migrations using `migration` cloud function
+   - Update indexes as documented in `docs/migration/DATABASE_INDEX_GUIDE.md`
+
+### Testing Strategy
+
+1. **Unit Testing**:
+   - Cloud functions: `cloudfunctions/promotion/test.test.js`
+   - Use `test-helper` cloud function for database queries
+
+2. **Integration Testing**:
+   - Use WeChat Developer Tools for frontend
+   - Test promotion calculations with various user hierarchies
+   - Verify monthly reset logic
+
+3. **Performance Testing**:
+   - Monitor cloud function execution time in console
+   - Check database query performance
+   - Test with realistic data volumes
+
+## Security Considerations
+
+### OpenID Propagation
+- All cloud functions receive `OPENID` via `wxContext.OPENID`
+- Never trust frontend-provided user IDs
+- Always use `wxContext` for authentication
+
+### Rate Limiting
+- IP throttling implemented in `promotion` cloud function
+- 24-hour window for duplicate registration detection
+- Maximum 3 registrations per IP per day
+
+### Data Validation
+- Validate all user inputs at cloud function boundary
+- Use database schema validation where applicable
+- Sanitize data before storage
+
+## Troubleshooting
+
+### Common Issues
+
+**Cloud Function Timeouts**:
+- Check execution time in CloudBase console
+- Optimize database queries with indexes
+- Consider async processing for long operations
+
+**Login Issues**:
+- Verify CloudBase environment ID in `src/utils/cloudbase.ts`
+- Check 7-day cache expiration logic
+- Review `login` cloud function logs
+
+**Promotion Calculation Errors**:
+- Verify user `promotionPath` format
+- Check agent level calculations (max 4 levels deep)
+- Review performance tracking for month tag mismatches
+
+**WeChat Pay Failures**:
+- Verify merchant certificate and private key
+- Check HTTP trigger callback URL
+- Review payment signature verification logs
+
+## Documentation References
+
+- `docs/README.md` - Complete documentation index
+- `docs/system/PROMOTION_SYSTEM.md` - Promotion system deep dive
+- `docs/deployment/DEPLOYMENT_GUIDE.md` - Deployment procedures
+- `docs/migration/DATABASE_MIGRATION_GUIDE.md` - Schema changes
+
 ## Recent Changes (Feb 2026)
 
+- **WeChat Pay Integration**: Added `wechatpay` cloud function with V3 API support
 - **UI/UX Optimization**: Promotion center redesigned with Oriental Aesthetics theme
 - **SVG Icons**: Added SVG icon system replacing emoji
-- **Admin System**: Initialized admin dashboard structure
+- **Admin System**: Initialized admin dashboard with authentication
 - **Order Management**: Enhanced order management cloud functions
-- **Documentation**: Added comprehensive design optimization summary
+- **Documentation**: Comprehensive design and deployment documentation
 
-See `OPTIMIZATION_SUMMARY.md` for complete design audit details.
+See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit details.

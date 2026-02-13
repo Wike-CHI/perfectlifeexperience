@@ -78,7 +78,7 @@ const fetchStats = async () => {
 </script>
 
 <style lang="scss" scoped>
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 .promotion-overview-page {
   padding: $spacing-lg;

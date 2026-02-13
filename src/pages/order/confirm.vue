@@ -542,19 +542,97 @@ const payWithBalanceProcess = async (orderId: string) => {
   }
 };
 
-// 微信支付流程
+// 微信支付流程 - 接入真实微信支付
 const payWithWechatProcess = async (orderId: string) => {
-  uni.showToast({
-    title: '订单创建成功',
-    icon: 'success'
-  });
+  try {
+    uni.showLoading({ title: '正在创建支付...' });
 
-  // 跳转到订单详情进行微信支付
-  setTimeout(() => {
-    uni.redirectTo({
-      url: `/pages/order/detail?id=${orderId}`
+    // 获取用户 openid
+    const openid = uni.getStorageSync('openid');
+
+    // 调用微信支付云函数
+    const result = await callFunction('wechatpay', {
+      action: 'createPayment',
+      data: {
+        orderId,
+        openid
+      }
     });
-  }, 1500);
+
+    uni.hideLoading();
+
+    if (result.success && result.data?.payParams) {
+      // 调起微信支付
+      const payParams = result.data.payParams;
+      uni.requestPayment({
+        provider: 'wxpay',
+        timeStamp: payParams.timeStamp,
+        nonceStr: payParams.nonceStr,
+        package: payParams.package,
+        signType: payParams.signType as 'MD5' | 'RSA',
+        paySign: payParams.paySign,
+        success: () => {
+          uni.showToast({
+            title: '支付成功',
+            icon: 'success'
+          });
+          // 跳转到订单详情
+          setTimeout(() => {
+            uni.redirectTo({
+              url: `/pages/order/detail?id=${orderId}`
+            });
+          }, 1500);
+        },
+        fail: (err) => {
+          if (err.errMsg.includes('cancel')) {
+            uni.showToast({
+              title: '已取消支付',
+              icon: 'none'
+            });
+          } else {
+            uni.showToast({
+              title: '支付失败',
+              icon: 'none'
+            });
+          }
+          // 跳转到订单详情，用户可以重新支付
+          setTimeout(() => {
+            uni.redirectTo({
+              url: `/pages/order/detail?id=${orderId}`
+            });
+          }, 1500);
+        }
+      });
+    } else {
+      // 微信支付创建失败
+      const errorMsg = result.message || '创建支付失败';
+      uni.showModal({
+        title: '支付失败',
+        content: errorMsg,
+        showCancel: false,
+        success: () => {
+          // 跳转到订单详情
+          uni.redirectTo({
+            url: `/pages/order/detail?id=${orderId}`
+          });
+        }
+      });
+    }
+  } catch (error: any) {
+    uni.hideLoading();
+    console.error('微信支付失败:', error);
+    uni.showModal({
+      title: '支付失败',
+      content: error.message || '请稍后重试',
+      showCancel: false,
+      success: () => {
+        // 跳转到订单详情
+        uni.redirectTo({
+          url: `/pages/order/detail?id=${orderId}`
+        });
+      }
+    });
+  }
 };
 
 // 生命周期

@@ -1,162 +1,148 @@
 <template>
-  <view class="container">
-    <view class="header">
-      <h1 class="title">Perfect Life</h1>
-      <text class="subtitle">Admin Portal</text>
-    </view>
+  <view class="admin-welcome">
+    <view class="welcome-container">
+      <view class="logo-section">
+        <image class="logo" src="/static/logo.png" mode="aspectFit" />
+        <text class="title">大友元气精酿啤酒</text>
+        <text class="subtitle">后台管理系统</text>
+      </view>
 
-    <view class="card login-card">
-      <div class="status-indicator" :class="{ connected: isConnected }">
-        <span class="dot"></span>
-        {{ isConnected ? 'System Online' : 'Connecting...' }}
-      </div>
+      <view class="action-section">
+        <button class="action-btn primary" @click="goToAdminLogin">
+          <text>管理员登录</text>
+        </button>
+        <button class="action-btn secondary" @click="goToDashboard">
+          <text>进入控制台</text>
+        </button>
+      </view>
 
-      <button class="btn btn-primary" @click="enterDashboard">
-        Enter Dashboard
-      </button>
-      
-      <div class="links">
-        <text class="link" @click="goToLogin">Login as different user</text>
-      </div>
-    </view>
-
-    <view class="footer">
-      <text class="copyright">© 2026 Perfect Life Experience</text>
+      <view class="info-section">
+        <text class="info-text">Powered by CloudBase + UniApp</text>
+        <text class="version">v1.0.0</text>
+      </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { checkEnvironment, initCloudBase } from '@/utils/cloudbase'
+import { onLoad } from '@dcloudio/uni-app';
 
-const isConnected = ref(false)
+onLoad(() => {
+  console.log('Admin Home Loaded');
+});
 
-const enterDashboard = () => {
-  uni.navigateTo({
-    url: '/pages/dashboard/index'
-  })
-}
+const goToAdminLogin = () => {
+  uni.navigateTo({ url: '/pages/admin/login/index' });
+};
 
-const goToLogin = () => {
-  uni.navigateTo({
-    url: '/pages/login/index'
-  });
-}
-
-onMounted(async () => {
-  if (checkEnvironment()) {
-    const success = await initCloudBase();
-    isConnected.value = success;
-  }
-})
+const goToDashboard = () => {
+  uni.navigateTo({ url: '/pages/dashboard/index' });
+};
 </script>
 
-<style lang="scss" scoped>
-@import '@/styles/variables.scss';
-
-.container {
-  padding: 40rpx;
-  background-color: $bg-primary;
+<style scoped>
+.admin-welcome {
   min-height: 100vh;
+  background: linear-gradient(135deg, #1A1A1A 0%, #0D0D0D 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+}
+
+.welcome-container {
+  width: 100%;
+  max-width: 600rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 60rpx;
 }
 
-.header {
+.logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.logo {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background: #FFFFFF;
+  padding: 8rpx;
+  box-shadow: 0 8px 32px rgba(201, 169, 98, 0.2);
+}
+
+.title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #C9A962;
+  letter-spacing: 2rpx;
   text-align: center;
-  margin-bottom: 60rpx;
-
-  .title {
-    font-family: $font-family-heading;
-    font-size: 48rpx;
-    color: $color-amber-gold;
-    margin-bottom: 10rpx;
-  }
-  .subtitle {
-    font-family: $font-family-mono;
-    font-size: 24rpx;
-    color: rgba(255, 255, 255, 0.5);
-    letter-spacing: 4px;
-    text-transform: uppercase;
-  }
 }
 
-.login-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 60rpx;
-  border-radius: $radius-lg;
+.subtitle {
+  font-size: 28rpx;
+  color: rgba(245, 245, 240, 0.6);
+  letter-spacing: 1rpx;
+}
+
+.action-section {
   width: 100%;
-  max-width: 400px;
   display: flex;
   flex-direction: column;
-  gap: $spacing-lg;
+  gap: 24rpx;
 }
 
-.status-indicator {
+.action-btn {
+  width: 100%;
+  height: 96rpx;
+  border-radius: 16rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-family: $font-family-mono;
-  font-size: 12px;
-  color: $text-secondary;
-  margin-bottom: $spacing-md;
-
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: $color-charcoal-grey;
-  }
-
-  &.connected {
-    color: $color-success-green;
-    .dot { background-color: $color-success-green; }
-  }
-}
-
-.btn {
-  width: 100%;
-  padding: 24rpx;
-  border-radius: $radius-md;
-  border: none;
-  font-family: $font-family-body;
-  font-size: 16px;
+  font-size: 32rpx;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &.btn-primary {
-    background: $color-amber-gold;
-    color: $bg-primary;
-    &:hover {
-      background: lighten($color-amber-gold, 10%);
-    }
-  }
+  border: none;
+  margin: 0;
 }
 
-.links {
-  text-align: center;
-  margin-top: $spacing-sm;
-  .link {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
-    text-decoration: underline;
-    cursor: pointer;
-    &:hover { color: $color-amber-gold; }
-  }
+.primary {
+  background: linear-gradient(135deg, #C9A962 0%, #B8984A 100%);
+  color: #1A1A1A;
+  box-shadow: 0 8px 24px rgba(201, 169, 98, 0.3);
 }
 
-.footer {
-  margin-top: 60rpx;
-  .copyright {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.3);
-  }
+.primary:active {
+  opacity: 0.9;
+}
+
+.secondary {
+  background: transparent;
+  color: #C9A962;
+  border: 2rpx solid rgba(201, 169, 98, 0.3);
+}
+
+.secondary:active {
+  background: rgba(201, 169, 98, 0.1);
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.info-text {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+}
+
+.version {
+  font-size: 22rpx;
+  color: rgba(245, 245, 240, 0.3);
 }
 </style>

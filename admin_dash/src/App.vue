@@ -12,20 +12,23 @@ onHide(() => {
 </script>
 
 <style lang="scss">
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 /* Global Styles */
 body {
-  font-family: $font-family-body;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+               $font-family-body, -apple-system, sans-serif;
   background-color: $bg-content;
   color: $text-primary;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: $font-family-heading;
+  font-family: 'Playfair Display', 'PingFang SC', serif;
   font-weight: 700;
   color: $color-obsidian-black;
+  letter-spacing: 0.5px;
 }
 
 .mono {
@@ -34,17 +37,18 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Custom Scrollbar for Web */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f1f1; 
+  background: rgba($color-deep-brown, 0.05);
 }
 ::-webkit-scrollbar-thumb {
-  background: #ccc; 
-  border-radius: 4px;
+  background: $color-amber-gold;
+  border-radius: 5px;
+  border: 2px solid $bg-content;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #999; 
+  background: $color-amber-dark;
 }
 </style>

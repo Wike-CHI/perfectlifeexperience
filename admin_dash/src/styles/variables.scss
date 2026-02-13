@@ -1,10 +1,21 @@
 // Colors
 $color-obsidian-black: #1A1A1A;
-$color-amber-gold: #C9A962;
+$color-deep-brown: #3D2914;      // 主品牌色 - 深棕色
+$color-amber-gold: #C9A962;       // 强调色 - 琥珀金
+$color-amber-light: #D4B978;
+$color-amber-dark: #B8984A;
 $color-antique-white: #FAF9F7;
 $color-charcoal-grey: #4A4A4A;
+$color-bronze: #D4A574;          // 次级强调 - 青铜
+$color-copper: #B8860B;           // 三级强调 - 铜
+$color-sage-green: #7A9A8E;       // 成功状态 - 鼠尾草绿
 $color-success-green: #5B7A6E;
 $color-error-red: #B54A3F;
+
+// Enhanced Gradients
+$gradient-primary: linear-gradient(135deg, $color-deep-brown 0%, $color-amber-gold 100%);
+$gradient-warm: linear-gradient(135deg, $color-amber-gold 0%, $color-bronze 100%);
+$gradient-sidebar: linear-gradient(180deg, $color-deep-brown 0%, #2a1a0a 100%);
 
 // Backgrounds
 $bg-primary: $color-obsidian-black;

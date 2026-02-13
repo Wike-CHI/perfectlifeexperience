@@ -2,8 +2,9 @@
   <view class="login-container">
     <view class="login-card">
       <view class="logo-section">
-        <text class="logo-title">Perfect Life</text>
-        <text class="logo-subtitle">Admin Dashboard</text>
+        <image src="/static/logo.png" class="logo-image" mode="aspectFit" />
+        <text class="logo-title">大友元气精酿啤酒</text>
+        <text class="logo-subtitle">管理后台登录</text>
       </view>
 
       <view class="form-section">
@@ -79,11 +80,11 @@ const handleLogin = async () => {
 </script>
 
 <style lang="scss" scoped>
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, $bg-primary 0%, #2a2a2a 100%);
+  background: linear-gradient(135deg, $color-deep-brown 0%, $color-amber-gold 200%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -93,27 +94,38 @@ const handleLogin = async () => {
 .login-card {
   width: 100%;
   max-width: 400px;
-  background-color: $bg-card;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
   border-radius: $radius-lg;
   padding: $spacing-xl * 1.5;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(61, 41, 20, 0.3);
+  border: 1px solid rgba($color-amber-gold, 0.2);
 }
 
 .logo-section {
   text-align: center;
   margin-bottom: $spacing-xl * 2;
+
+  .logo-image {
+    width: 80px;
+    height: 80px;
+    margin-bottom: $spacing-md;
+    filter: drop-shadow(0 0 15px rgba($color-amber-gold, 0.4));
+  }
 }
 
 .logo-title {
-  font-family: $font-family-heading;
-  font-size: 32px;
-  color: $color-amber-gold;
+  font-family: 'PingFang SC', $font-family-heading, serif;
+  font-size: 24px;
+  color: $color-deep-brown;
   display: block;
   margin-bottom: $spacing-xs;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .logo-subtitle {
-  font-family: $font-family-mono;
+  font-family: 'PingFang SC', $font-family-mono, monospace;
   font-size: 12px;
   color: $text-secondary;
   letter-spacing: 2px;
@@ -134,17 +146,20 @@ const handleLogin = async () => {
   .input {
     width: 100%;
     height: 48px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: rgba($color-deep-brown, 0.03);
+    border: 1px solid rgba($color-deep-brown, 0.15);
     border-radius: $radius-md;
     padding: 0 $spacing-md;
     color: $text-primary;
     font-size: 14px;
     box-sizing: border-box;
+    transition: all 0.3s ease;
 
     &:focus {
       border-color: $color-amber-gold;
+      box-shadow: 0 0 0 3px rgba($color-amber-gold, 0.1);
       outline: none;
+      background-color: rgba($color-deep-brown, 0.05);
     }
   }
 

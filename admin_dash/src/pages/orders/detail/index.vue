@@ -199,7 +199,7 @@ const updateStatus = async (status: string) => {
 </script>
 
 <style lang="scss" scoped>
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 .order-detail-page {
   padding: $spacing-lg;

@@ -3,19 +3,20 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo-container">
-        <h1 class="logo-text">Perfect Life</h1>
-        <p class="logo-sub">ADMINISTRATION</p>
+        <image src="/static/logo.png" class="logo-image" mode="aspectFit" />
+        <h1 class="logo-text">大友元气精酿啤酒</h1>
+        <p class="logo-sub">管理后台</p>
       </div>
 
       <nav class="nav-menu">
-        <div 
-          v-for="item in menuItems" 
-          :key="item.path" 
+        <div
+          v-for="item in menuItems"
+          :key="item.path"
           class="nav-item"
           :class="{ active: currentPath === item.path }"
           @click="navigateTo(item.path)"
         >
-          <span class="icon">{{ item.icon }}</span>
+          <IconSvg :name="item.icon" :size="20" class="nav-icon" />
           <span class="label">{{ item.label }}</span>
         </div>
       </nav>
@@ -38,8 +39,12 @@
           <span class="crumb active">Overview</span>
         </div>
         <div class="header-actions">
-          <button class="action-btn">🔔</button>
-          <button class="action-btn">⚙️</button>
+          <button class="action-btn" aria-label="Notifications">
+            <IconSvg name="bell" :size="18" />
+          </button>
+          <button class="action-btn" aria-label="Settings">
+            <IconSvg name="cog" :size="18" />
+          </button>
         </div>
       </header>
 
@@ -52,17 +57,18 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import IconSvg from './IconSvg.vue';
 
 // Mock current path for now, in real app use route
 const currentPath = ref('/dashboard');
 
 const menuItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-  { label: 'Products', path: '/products/list', icon: '🍺' },
-  { label: 'Orders', path: '/orders/list', icon: '📦' },
-  { label: 'Users', path: '/users', icon: '👥' },
-  { label: 'Promotion', path: '/promotion/overview', icon: '🚀' },
-  { label: 'Finance', path: '/finance', icon: '💰' },
+  { label: 'Dashboard', path: '/dashboard', icon: 'chart-bar' },
+  { label: 'Products', path: '/products/list', icon: 'cube' },
+  { label: 'Orders', path: '/orders/list', icon: 'package' },
+  { label: 'Users', path: '/users', icon: 'users' },
+  { label: 'Promotion', path: '/promotion/overview', icon: 'rocket' },
+  { label: 'Finance', path: '/finance', icon: 'currency-dollar' },
 ];
 
 const navigateTo = (path: string) => {
@@ -72,7 +78,7 @@ const navigateTo = (path: string) => {
 </script>
 
 <style lang="scss" scoped>
-@import "@/styles/variables.scss";
+@use "@/styles/variables.scss" as *;
 
 .main-layout {
   display: flex;
@@ -84,7 +90,7 @@ const navigateTo = (path: string) => {
 
 .sidebar {
   width: 260px;
-  background-color: $bg-primary;
+  background: $gradient-sidebar;
   color: $text-inverse;
   display: flex;
   flex-direction: column;
@@ -94,15 +100,27 @@ const navigateTo = (path: string) => {
 
   .logo-container {
     margin-bottom: $spacing-xl * 2;
-    .logo-text {
-      font-family: $font-family-heading;
-      font-size: 24px;
-      color: $color-amber-gold;
-      margin: 0;
-      letter-spacing: 1px;
+    text-align: center;
+
+    .logo-image {
+      width: 100px;
+      height: 100px;
+      margin-bottom: $spacing-md;
+      filter: drop-shadow(0 0 20px rgba($color-amber-gold, 0.3));
     }
+
+    .logo-text {
+      font-family: 'PingFang SC', $font-family-heading, serif;
+      font-size: 18px;
+      color: $color-amber-gold;
+      margin: 0 0 $spacing-xs 0;
+      letter-spacing: 1px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
     .logo-sub {
-      font-family: $font-family-mono;
+      font-family: 'PingFang SC', $font-family-mono, monospace;
       font-size: 10px;
       color: rgba(255, 255, 255, 0.5);
       letter-spacing: 2px;
@@ -132,17 +150,18 @@ const navigateTo = (path: string) => {
 
       &.active {
         opacity: 1;
-        background-color: rgba($color-amber-gold, 0.15);
+        background: $gradient-warm;
         border-left: 3px solid $color-amber-gold;
+        box-shadow: inset 0 0 20px rgba(201, 169, 98, 0.05);
         .label {
           color: $color-amber-gold;
           font-weight: 600;
         }
       }
 
-      .icon {
+      .nav-icon {
         margin-right: $spacing-md;
-        font-size: 18px;
+        color: $color-amber-gold;
       }
       .label {
         font-family: $font-family-body;
@@ -219,10 +238,16 @@ const navigateTo = (path: string) => {
       .action-btn {
         background: none;
         border: none;
-        font-size: 18px;
+        padding: $spacing-sm;
         cursor: pointer;
         opacity: 0.6;
-        &:hover { opacity: 1; }
+        transition: all 0.2s ease;
+        border-radius: $radius-sm;
+
+        &:hover {
+          opacity: 1;
+          background-color: rgba($color-amber-gold, 0.1);
+        }
       }
     }
   }

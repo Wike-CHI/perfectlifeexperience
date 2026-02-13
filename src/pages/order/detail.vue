@@ -105,7 +105,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice } from '@/utils/api';
+import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction } from '@/utils/api';
 import type { Order } from '@/types';
 
 // 数据
@@ -201,36 +201,72 @@ const cancelOrder = () => {
   });
 };
 
-// 支付订单
-const payOrder = () => {
-  uni.showModal({
-    title: '模拟支付',
-    content: `支付金额: ¥${formatPrice(order.value.totalAmount || 0)}`,
-    success: async (res) => {
-      if (res.confirm) {
-        try {
-          // 更新订单状态为已支付
-          await updateOrderStatus(order.value._id!, 'paid');
+// 支付订单 - 接入真实微信支付
+const payOrder = async () => {
+  try {
+    uni.showLoading({ title: '正在创建支付...' });
 
+    // 调用微信支付云函数
+    const result = await callFunction('wechatpay', {
+      action: 'createPayment',
+      data: {
+        orderId: order.value._id,
+        openid: order.value._openid || uni.getStorageSync('openid')
+      }
+    });
+
+    uni.hideLoading();
+
+    if (result.success && result.data?.payParams) {
+      // 调起微信支付
+      const payParams = result.data.payParams;
+      uni.requestPayment({
+        provider: 'wxpay',
+        timeStamp: payParams.timeStamp,
+        nonceStr: payParams.nonceStr,
+        package: payParams.package,
+        signType: payParams.signType as 'MD5' | 'RSA',
+        paySign: payParams.paySign,
+        success: () => {
           uni.showToast({
             title: '支付成功',
             icon: 'success'
           });
-
           // 刷新订单详情
           loadOrderDetail(order.value._id!);
-
-          // 注意：推广奖励统一在订单完成时结算，支付成功时不触发
-          // 这样可以避免退货时需要追回已发放的奖励
-        } catch (error) {
-          uni.showToast({
-            title: '支付失败',
-            icon: 'none'
-          });
+        },
+        fail: (err) => {
+          if (err.errMsg.includes('cancel')) {
+            uni.showToast({
+              title: '已取消支付',
+              icon: 'none'
+            });
+          } else {
+            uni.showToast({
+              title: '支付失败',
+              icon: 'none'
+            });
+          }
         }
-      }
+      });
+    } else {
+      // 微信支付创建失败，显示错误信息
+      const errorMsg = result.message || '创建支付失败';
+      uni.showModal({
+        title: '支付失败',
+        content: errorMsg,
+        showCancel: false
+      });
     }
-  });
+  } catch (error: any) {
+    uni.hideLoading();
+    console.error('支付失败:', error);
+    uni.showModal({
+      title: '支付失败',
+      content: error.message || '请稍后重试',
+      showCancel: false
+    });
+  }
 };
 
 // 确认收货
