@@ -9,7 +9,7 @@ todos:
     content: 使用[tcb]创建9个数据库集合（categories, products, users, orders, coupons, user_coupons, promotions, wallets, wallet_transactions）
     status: completed
   - id: sync-menu-data
-    content: 使用[tcb]同步本地menu_data.json商品数据到云端categories和products集合
+    content: 使用[tcb]同步商品数据到云端categories和products集合（已完成初始化）
     status: completed
     dependencies:
       - create-collections
@@ -30,7 +30,7 @@ todos:
 
 1. **云函数部署**: 部署7个云函数（login, wallet, coupon, promotion, rewardSettlement, hello, initData），支持用户登录、钱包管理、优惠券、推广系统和奖励结算
 2. **数据库集合创建**: 创建9个集合（categories, products, users, orders, coupons, user_coupons, promotions, wallets, wallet_transactions），存储商品、用户、订单、优惠券和钱包数据
-3. **商品数据同步**: 将本地menu_data.json中的"鲜啤外带"和"增味啤"两类商品数据同步到云端categories和products集合
+3. **商品数据管理**: 商品数据存储在云端 categories 和 products 集合，通过 product 云函数进行查询和管理
 4. **部署验证**: 验证所有云函数和数据库集合状态，确保服务可用
 
 ## 技术栈
@@ -69,9 +69,9 @@ todos:
 | wallet_transactions | 钱包交易记录 |
 
 
-### 数据同步策略
+### 数据管理策略
 
-从`src/data/menu_data.json`读取商品数据，转换为云端数据格式后批量写入categories和products集合。
+商品数据存储在云端数据库的 categories 和 products 集合中，通过 product 云函数提供 API 查询服务。前端通过 `src/utils/api.ts` 调用云函数获取数据。
 
 ## 目录结构
 
@@ -98,9 +98,6 @@ cloudfunctions/
 └── hello/              # [DEPLOY] 示例云函数
     ├── index.js
     └── package.json
-
-src/data/
-└── menu_data.json      # [READ] 商品数据源
 ```
 
 ## Agent Extensions

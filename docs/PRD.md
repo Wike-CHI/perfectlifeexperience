@@ -646,11 +646,9 @@ src/
 │   ├── coupon/          # 优惠券分包
 │   └── promotion/       # 推广分包
 ├── utils/               # 工具函数
-│   ├── api.ts           # API封装
+│   ├── api.ts           # API封装（调用云函数）
 │   ├── cloudbase.ts     # 云开发配置
 │   └── index.ts         # 通用工具
-├── data/                # 静态数据
-│   └── menu_data.json   # 商品数据
 ├── static/              # 静态资源
 │   ├── img/            # 图片
 │   └── tabbar/         # TabBar图标

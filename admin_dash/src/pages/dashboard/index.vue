@@ -53,39 +53,20 @@ const formatTaskName = (type: string) => {
 
 const fetchDashboardData = async () => {
   try {
-    // Attempt to call admin-api
+    // Call admin-api
     const res = await app.callFunction({
       name: 'admin-api',
       data: { action: 'getDashboardData' }
     });
-    
+
     if (res.result && res.result.code === 0) {
       stats.value = res.result.data;
     } else {
-      console.warn('Using mock data due to API failure');
-      // Fallback to mock data if function not deployed yet
-      stats.value = {
-        todaySales: 12800,
-        todayOrders: 45,
-        totalUsers: 1205,
-        pendingTasks: [
-          { type: 'shipment', count: 12 },
-          { type: 'withdrawal', count: 5 }
-        ]
-      };
+      throw new Error(res.result?.msg || 'Failed to fetch dashboard data');
     }
   } catch (e) {
     console.error('Failed to fetch dashboard data:', e);
-    // Fallback to mock data
-     stats.value = {
-        todaySales: 12800,
-        todayOrders: 45,
-        totalUsers: 1205,
-        pendingTasks: [
-          { type: 'shipment', count: 12 },
-          { type: 'withdrawal', count: 5 }
-        ]
-      };
+    throw e;
   }
 };
 

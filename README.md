@@ -88,11 +88,8 @@
 │   │   └── mine.vue              # 我的优惠券
 │   ├── utils/                     # 工具函数
 │   │   ├── cloudbase.ts          # 云开发配置
-│   │   ├── api.ts                # API 接口封装
-│   │   ├── menuData.ts           # 菜单数据处理
+│   │   ├── api.ts                # API 接口封装（调用云函数）
 │   │   └── index.ts              # 通用工具
-│   ├── data/                      # 静态数据
-│   │   └── menu_data.json        # 啤酒菜单数据
 │   ├── static/                    # 静态资源
 │   │   ├── img/                  # 图片资源
 │   │   └── tabbar/               # TabBar 图标
@@ -105,6 +102,7 @@
 │   ├── hello/                    # 示例云函数
 │   ├── initData/                 # 数据初始化
 │   ├── login/                    # 登录相关
+│   ├── product/                  # 商品相关
 │   └── wallet/                   # 钱包相关
 ├── vite.config.ts                 # Vite 配置
 ├── tsconfig.json                  # TypeScript 配置

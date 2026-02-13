@@ -1,16 +1,7 @@
 import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon } from '@/types';
-import { localProducts, localCategories } from '@/utils/menuData';
 import { callFunction } from '@/utils/cloudbase';
 
 declare const wx: any;
-
-// 获取数据库实例 - 微信小程序使用 wx.cloud
-// const getDb = () => {
-//   if (typeof wx !== 'undefined' && wx.cloud) {
-//     return wx.cloud.database();
-//   }
-//   throw new Error('云开发未初始化');
-// };
 
 // ==================== 商品相关 API ====================
 
@@ -22,73 +13,113 @@ export const getProducts = async (params?: {
   limit?: number;
   sort?: string;
 }) => {
-  const { category, keyword, page = 1, limit = 20, sort = 'createTime' } = params || {};
-
-  let result = [...localProducts];
-
-  if (category) {
-    result = result.filter(p => p.category === category);
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
   }
 
-  // ✅ 添加关键词验证和清理（防 ReDoS）
-  if (keyword) {
-    // ✅ 导入验证工具（需要创建）
-    // const { validateAndCleanKeyword } = require('@/utils/validator');
+  try {
+    const res = await callFunction('product', {
+      action: 'getProducts',
+      data: params || {}
+    });
 
-    // 1. 长度验证
-    if (keyword.length > 100) {
-      throw new Error('搜索关键词长度不能超过100');
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
     }
-
-    // 2. 移除正则特殊字符（防止 ReDoS）
-    const specialChars = /[.*+?^${}()|[\]\\]/g;
-    const safeKeyword = keyword.replace(specialChars, '');
-
-    // 3. 使用清理后的关键词进行搜索
-    const reg = new RegExp(safeKeyword, 'i');
-    result = result.filter(p => reg.test(p.name));
+    throw new Error((res as any).result?.msg || '获取商品列表失败');
+  } catch (error) {
+    console.error('获取商品列表失败:', error);
+    throw error;
   }
-
-  // 排序
-  result.sort((a, b) => {
-    if (sort === 'price') {
-      return a.price - b.price;
-    } else if (sort === 'sales') {
-      return b.sales - a.sales;
-    } else {
-      // 默认按创建时间
-      return new Date(b.createTime!).getTime() - new Date(a.createTime!).getTime();
-    }
-  });
-
-  // 分页
-  const start = (page - 1) * limit;
-  const end = start + limit;
-  return result.slice(start, end);
 };
 
 // 获取商品详情
 export const getProductDetail = async (id: string) => {
-  const product = localProducts.find(p => p._id === id);
-  if (!product) throw new Error('商品不存在');
-  return product;
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getProductDetail',
+      data: { id }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取商品详情失败');
+  } catch (error) {
+    console.error('获取商品详情失败:', error);
+    throw error;
+  }
 };
 
 // 获取热门商品
 export const getHotProducts = async (limitCount = 6) => {
-  return localProducts.filter(p => p.isHot).slice(0, limitCount);
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getHotProducts',
+      data: { limit: limitCount }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取热门商品失败');
+  } catch (error) {
+    console.error('获取热门商品失败:', error);
+    throw error;
+  }
 };
 
 // 获取新品
 export const getNewProducts = async (limitCount = 6) => {
-  return localProducts.filter(p => p.isNew).slice(0, limitCount);
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getNewProducts',
+      data: { limit: limitCount }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取新品失败');
+  } catch (error) {
+    console.error('获取新品失败:', error);
+    throw error;
+  }
 };
 
 // ==================== 分类相关 API ====================
 
 // 获取分类列表
 export const getCategories = async () => {
-  return localCategories;
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getCategories'
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取分类列表失败');
+  } catch (error) {
+    console.error('获取分类列表失败:', error);
+    throw error;
+  }
 };
 
 // ==================== 购物车相关 API ====================
@@ -105,14 +136,14 @@ export const getCartItems = async () => {
 export const addToCart = async (item: Omit<CartItem, '_id' | '_openid'>) => {
   const cartItems = await getCartItems();
   // 查找是否存在相同商品且规格一致的记录
-  const existingIndex = cartItems.findIndex(p => 
+  const existingIndex = cartItems.findIndex(p =>
     p.productId === item.productId && p.specs === item.specs
   );
 
   if (existingIndex > -1) {
     cartItems[existingIndex].quantity += item.quantity;
     // 如果价格变了（虽然同一个规格一般价格不变，但为了保险），也可以更新下
-    cartItems[existingIndex].price = item.price; 
+    cartItems[existingIndex].price = item.price;
     cartItems[existingIndex].updateTime = new Date();
   } else {
     cartItems.push({
@@ -122,7 +153,7 @@ export const addToCart = async (item: Omit<CartItem, '_id' | '_openid'>) => {
     });
   }
   uni.setStorageSync(CART_KEY, JSON.stringify(cartItems));
-  return { _id: 'mock_id', stats: { updated: 1 } };
+  return { _id: cartItems[existingIndex > -1 ? existingIndex : cartItems.length - 1]._id, stats: { updated: 1 } };
 };
 
 // 更新购物车商品数量
@@ -734,212 +765,115 @@ export const getWalletTransactions = async (page = 1, limit = 20) => {
 
 // ==================== 优惠券相关 API ====================
 
-// 本地优惠券模板数据（模拟）
-const localCouponTemplates: CouponTemplate[] = [
-  {
-    _id: 'coupon_001',
-    name: '新用户专享券',
-    type: 'no_threshold',
-    value: 500,
-    minAmount: 0,
-    totalCount: 1000,
-    receivedCount: 0,
-    limitPerUser: 1,
-    startTime: new Date('2025-01-01'),
-    endTime: new Date('2025-12-31'),
-    validDays: 30,
-    applicableScope: 'all',
-    description: '新用户注册即可领取，全场通用',
-    isActive: true,
-    createTime: new Date()
-  },
-  {
-    _id: 'coupon_002',
-    name: '满减券',
-    type: 'amount',
-    value: 1000,
-    minAmount: 5000,
-    totalCount: 500,
-    receivedCount: 0,
-    limitPerUser: 3,
-    startTime: new Date('2025-01-01'),
-    endTime: new Date('2025-12-31'),
-    validDays: 14,
-    applicableScope: 'all',
-    description: '满50元可用，全场通用',
-    isActive: true,
-    createTime: new Date()
-  },
-  {
-    _id: 'coupon_003',
-    name: '精酿啤酒节折扣券',
-    type: 'discount',
-    value: 85,
-    minAmount: 3000,
-    totalCount: 200,
-    receivedCount: 0,
-    limitPerUser: 2,
-    startTime: new Date('2025-01-01'),
-    endTime: new Date('2025-06-30'),
-    validDays: 7,
-    applicableScope: 'all',
-    description: '满30元享8.5折优惠',
-    isActive: true,
-    createTime: new Date()
-  },
-  {
-    _id: 'coupon_004',
-    name: 'VIP专享券',
-    type: 'amount',
-    value: 2000,
-    minAmount: 10000,
-    totalCount: 100,
-    receivedCount: 0,
-    limitPerUser: 1,
-    startTime: new Date('2025-01-01'),
-    endTime: new Date('2025-12-31'),
-    validDays: 30,
-    applicableScope: 'all',
-    description: '满100元减20元，VIP用户专享',
-    isActive: true,
-    createTime: new Date()
-  }
-];
-
 const COUPON_KEY = 'local_coupons';
-const COUPON_TEMPLATE_KEY = 'local_coupon_templates';
 
 // 获取优惠券模板列表
 export const getCouponTemplates = async () => {
-  // 优先从本地存储获取
-  const templatesJson = uni.getStorageSync(COUPON_TEMPLATE_KEY);
-  if (templatesJson) {
-    return JSON.parse(templatesJson) as CouponTemplate[];
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
   }
-  // 首次使用初始化数据
-  uni.setStorageSync(COUPON_TEMPLATE_KEY, JSON.stringify(localCouponTemplates));
-  return localCouponTemplates;
+
+  try {
+    const res = await callFunction('coupon', {
+      action: 'getTemplates'
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取优惠券模板失败');
+  } catch (error) {
+    console.error('获取优惠券模板失败:', error);
+    throw error;
+  }
 };
 
 // 获取我的优惠券列表
 export const getMyCoupons = async (status?: 'unused' | 'used' | 'expired') => {
-  const couponsJson = uni.getStorageSync(COUPON_KEY);
-  let coupons: UserCoupon[] = couponsJson ? JSON.parse(couponsJson) : [];
-  
-  // 更新过期状态
-  const now = new Date();
-  coupons = coupons.map(coupon => {
-    if (coupon.status === 'unused' && new Date(coupon.expireTime) < now) {
-      coupon.status = 'expired';
-    }
-    return coupon;
-  });
-  uni.setStorageSync(COUPON_KEY, JSON.stringify(coupons));
-  
-  // 按状态筛选
-  if (status) {
-    coupons = coupons.filter(c => c.status === status);
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
   }
-  
-  // 获取模板信息
-  const templates = await getCouponTemplates();
-  coupons = coupons.map(coupon => ({
-    ...coupon,
-    template: templates.find(t => t._id === coupon.templateId)
-  }));
-  
-  // 按领取时间倒序
-  return coupons.sort((a, b) => new Date(b.receiveTime).getTime() - new Date(a.receiveTime).getTime());
+
+  try {
+    const res = await callFunction('coupon', {
+      action: 'getMyCoupons',
+      data: { status }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取我的优惠券失败');
+  } catch (error) {
+    console.error('获取我的优惠券失败:', error);
+    throw error;
+  }
 };
 
 // 领取优惠券
 export const receiveCoupon = async (templateId: string) => {
-  const templates = await getCouponTemplates();
-  const template = templates.find(t => t._id === templateId);
-  
-  if (!template) {
-    throw new Error('优惠券不存在');
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
   }
-  
-  if (!template.isActive) {
-    throw new Error('优惠券已停用');
+
+  try {
+    const res = await callFunction('coupon', {
+      action: 'receiveCoupon',
+      data: { templateId }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '领取优惠券失败');
+  } catch (error) {
+    console.error('领取优惠券失败:', error);
+    throw error;
   }
-  
-  const now = new Date();
-  if (now < new Date(template.startTime) || now > new Date(template.endTime)) {
-    throw new Error('不在领取时间范围内');
-  }
-  
-  if (template.receivedCount >= template.totalCount) {
-    throw new Error('优惠券已领完');
-  }
-  
-  // 检查用户领取限制
-  const myCoupons = await getMyCoupons();
-  const receivedCount = myCoupons.filter(c => c.templateId === templateId).length;
-  if (receivedCount >= template.limitPerUser) {
-    throw new Error('已达到领取上限');
-  }
-  
-  // 创建用户优惠券
-  const newCoupon: UserCoupon = {
-    _id: `user_coupon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    templateId,
-    status: 'unused',
-    receiveTime: new Date(),
-    expireTime: new Date(Date.now() + template.validDays * 24 * 60 * 60 * 1000)
-  };
-  
-  // 保存到本地
-  const couponsJson = uni.getStorageSync(COUPON_KEY);
-  const coupons: UserCoupon[] = couponsJson ? JSON.parse(couponsJson) : [];
-  coupons.push(newCoupon);
-  uni.setStorageSync(COUPON_KEY, JSON.stringify(coupons));
-  
-  // 更新模板领取数量
-  template.receivedCount++;
-  uni.setStorageSync(COUPON_TEMPLATE_KEY, JSON.stringify(templates));
-  
-  return { _id: newCoupon._id };
 };
 
 // 获取订单可用优惠券
 export const getAvailableCoupons = async (orderAmount: number) => {
-  const coupons = await getMyCoupons('unused');
-  const now = new Date();
-  
-  return coupons.filter(coupon => {
-    if (!coupon.template) return false;
-    if (new Date(coupon.expireTime) < now) return false;
-    if (coupon.template.minAmount && orderAmount < coupon.template.minAmount) return false;
-    return true;
-  });
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('coupon', {
+      action: 'getAvailableCoupons',
+      data: { orderAmount }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '获取可用优惠券失败');
+  } catch (error) {
+    console.error('获取可用优惠券失败:', error);
+    throw error;
+  }
 };
 
 // 使用优惠券
 export const useCoupon = async (couponId: string, orderNo: string) => {
-  const couponsJson = uni.getStorageSync(COUPON_KEY);
-  const coupons: UserCoupon[] = couponsJson ? JSON.parse(couponsJson) : [];
-  
-  const coupon = coupons.find(c => c._id === couponId);
-  if (!coupon) {
-    throw new Error('优惠券不存在');
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
   }
-  
-  if (coupon.status !== 'unused') {
-    throw new Error('优惠券状态异常');
+
+  try {
+    const res = await callFunction('coupon', {
+      action: 'useCoupon',
+      data: { couponId, orderNo }
+    });
+
+    if ((res as any).result && (res as any).result.code === 0) {
+      return (res as any).result.data;
+    }
+    throw new Error((res as any).result?.msg || '使用优惠券失败');
+  } catch (error) {
+    console.error('使用优惠券失败:', error);
+    throw error;
   }
-  
-  if (new Date(coupon.expireTime) < new Date()) {
-    throw new Error('优惠券已过期');
-  }
-  
-  coupon.status = 'used';
-  coupon.useTime = new Date();
-  coupon.orderNo = orderNo;
-  
-  uni.setStorageSync(COUPON_KEY, JSON.stringify(coupons));
-  return { stats: { updated: 1 } };
 };
 
 // 计算优惠券优惠金额
@@ -1005,42 +939,7 @@ export const bindPromotionRelation = async (parentInviteCode: string, userInfo: 
 // 获取推广信息
 export const getPromotionInfo = async (): Promise<PromotionInfo> => {
   if (typeof wx === 'undefined' || !wx.cloud) {
-    // 返回模拟数据
-    return {
-      inviteCode: 'MOCK1234',
-      starLevel: 0,
-      agentLevel: 4,
-      starLevelName: '普通会员',
-      agentLevelName: '四级代理',
-      totalReward: 0,
-      pendingReward: 0,
-      todayReward: 0,
-      monthReward: 0,
-      commissionReward: 0,
-      repurchaseReward: 0,
-      managementReward: 0,
-      nurtureReward: 0,
-      performance: {
-        totalSales: 0,
-        monthSales: 0,
-        monthTag: '2026-02',
-        directCount: 0,
-        teamCount: 0
-      },
-      promotionProgress: {
-        currentLevel: 0,
-        nextLevel: 1,
-        salesProgress: { current: 0, target: 2000000, percent: 0 },
-        countProgress: { current: 0, target: 30, percent: 0 }
-      },
-      teamStats: {
-        total: 0,
-        level1: 0,
-        level2: 0,
-        level3: 0,
-        level4: 0
-      }
-    };
+    throw new Error('当前环境不支持云开发');
   }
 
   try {
@@ -1058,7 +957,7 @@ export const getPromotionInfo = async (): Promise<PromotionInfo> => {
 // 获取团队成员列表
 export const getTeamMembers = async (level: number = 1, page: number = 1, limit: number = 20) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
-    return { members: [] };
+    throw new Error('当前环境不支持云开发');
   }
 
   try {
@@ -1082,7 +981,7 @@ export const getTeamMembers = async (level: number = 1, page: number = 1, limit:
 // 获取奖励明细
 export const getRewardRecords = async (status?: string, page: number = 1, limit: number = 20, rewardType?: string) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
-    return { records: [] };
+    throw new Error('当前环境不支持云开发');
   }
 
   try {
@@ -1107,7 +1006,7 @@ export const getRewardRecords = async (status?: string, page: number = 1, limit:
 // 生成推广二维码
 export const generatePromotionQRCode = async (page?: string) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
-    return { qrCodeUrl: '', inviteCode: 'MOCK1234' };
+    throw new Error('当前环境不支持云开发');
   }
 
   try {
@@ -1129,7 +1028,7 @@ export const generatePromotionQRCode = async (page?: string) => {
 // 计算订单推广奖励（订单完成后调用）
 export const calculatePromotionReward = async (orderId: string, buyerId: string, orderAmount: number) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
-    return { rewards: [] };
+    throw new Error('当前环境不支持云开发');
   }
 
   try {
