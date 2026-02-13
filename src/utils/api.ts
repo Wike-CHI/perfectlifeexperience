@@ -23,15 +23,29 @@ export const getProducts = async (params?: {
   sort?: string;
 }) => {
   const { category, keyword, page = 1, limit = 20, sort = 'createTime' } = params || {};
-  
+
   let result = [...localProducts];
 
   if (category) {
     result = result.filter(p => p.category === category);
   }
 
+  // ✅ 添加关键词验证和清理（防 ReDoS）
   if (keyword) {
-    const reg = new RegExp(keyword, 'i');
+    // ✅ 导入验证工具（需要创建）
+    // const { validateAndCleanKeyword } = require('@/utils/validator');
+
+    // 1. 长度验证
+    if (keyword.length > 100) {
+      throw new Error('搜索关键词长度不能超过100');
+    }
+
+    // 2. 移除正则特殊字符（防止 ReDoS）
+    const specialChars = /[.*+?^${}()|[\]\\]/g;
+    const safeKeyword = keyword.replace(specialChars, '');
+
+    // 3. 使用清理后的关键词进行搜索
+    const reg = new RegExp(safeKeyword, 'i');
     result = result.filter(p => reg.test(p.name));
   }
 
