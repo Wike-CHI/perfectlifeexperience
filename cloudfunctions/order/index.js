@@ -15,6 +15,9 @@ const logger = createLogger('order');
 // ✅ 引入验证工具
 const { validateAmount, validateObject } = require('../common/validator');
 
+// ✅ 引入统一响应工具
+const { success, error, ErrorCodes } = require('../common/response');
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -249,10 +252,7 @@ async function createOrder(openid, orderData) {
     const validation = validateObject(orderData.items, '购物车数据');
     if (!validation.result) {
       logger.warn('Invalid cart data', validation.error);
-      return {
-        success: false,
-        message: validation.error
-      };
+      return error(ErrorCodes.INVALID_PARAMS, validation.error);
     }
 
     // 购物车数据完整性验证
@@ -262,26 +262,25 @@ async function createOrder(openid, orderData) {
       logger.warn('Cart validation failed', {
         errors: cartValidation.errors
       });
-      return {
-        success: false,
-        message: cartValidation.errors[0] || '购物车数据异常',
-        data: {
+      return error(
+        ErrorCodes.CART_INVALID,
+        cartValidation.errors[0] || '购物车数据异常',
+        {
           errors: cartValidation.errors,
           validatedItems: cartValidation.validatedItems
         }
-      };
+      );
     }
 
     // 使用验证后的数据创建订单
     const order = {
       ...orderData,
-      items: cartValidation.validatedItems, // 使用服务器验证后的数据
-      totalAmount: cartValidation.serverTotalAmount, // 使用服务器计算的总金额
+      items: cartValidation.validatedItems,
+      totalAmount: cartValidation.serverTotalAmount,
       _openid: openid,
       createTime: new Date(),
       status: 'pending',
       updateTime: new Date(),
-      // 客户端提交的原始金额（用于审计）
       clientSubmittedAmount: orderData.totalAmount,
       amountValidationPassed: true
     };
@@ -295,18 +294,17 @@ async function createOrder(openid, orderData) {
       amount: cartValidation.serverTotalAmount
     });
 
-    return {
-      success: true,
-      orderId: res._id,
-      message: '订单创建成功',
-      data: {
+    return success(
+      {
+        orderId: res._id,
         validatedItems: cartValidation.validatedItems,
         serverTotalAmount: cartValidation.serverTotalAmount
-      }
-    };
-  } catch (error) {
-    logger.error('Failed to create order', error);
-    throw error;
+      },
+      '订单创建成功'
+    );
+  } catch (err) {
+    logger.error('Failed to create order', err);
+    return error(ErrorCodes.DATABASE_ERROR, '订单创建失败', err.message);
   }
 }
 
@@ -326,14 +324,10 @@ async function getOrders(openid, status) {
       .orderBy('createTime', 'desc')
       .get();
 
-    return {
-      success: true,
-      orders: res.data,
-      message: '获取订单成功'
-    };
-  } catch (error) {
-    logger.error('Failed to get orders', error);
-    throw error;
+    return success({ orders: res.data }, '获取订单成功');
+  } catch (err) {
+    logger.error('Failed to get orders', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取订单失败', err.message);
   }
 }
 
@@ -361,7 +355,7 @@ async function updateOrderStatus(openid, orderId, status) {
 
     if (updateResult.stats.updated === 0) {
       logger.warn('Order not found for update', { orderId });
-      return { success: false, message: '订单不存在' };
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
     }
 
     logger.info('Order status updated', { orderId, status });
@@ -383,13 +377,10 @@ async function updateOrderStatus(openid, orderId, status) {
       }
     }
 
-    return {
-      success: true,
-      message: '订单状态更新成功'
-    };
-  } catch (error) {
-    logger.error('Failed to update order status', error);
-    throw error;
+    return success(null, '订单状态更新成功');
+  } catch (err) {
+    logger.error('Failed to update order status', err);
+    return error(ErrorCodes.DATABASE_ERROR, '订单状态更新失败', err.message);
   }
 }
 
@@ -570,8 +561,8 @@ async function settleOrderReward(buyerId, orderId, orderAmount) {
       });
     }
 
-  } catch (error) {
-    logger.error('Reward settlement error', error);
+  } catch (err) {
+    logger.error('Reward settlement error', err);
   }
 }
 
@@ -614,7 +605,7 @@ exports.main = async (event, context) => {
 
   if (!openid) {
     logger.warn('Unauthorized access attempt');
-    return { success: false, message: '未登录' };
+    return error(ErrorCodes.NOT_LOGIN, '未登录');
   }
 
   logger.info('Order action', { action });
@@ -633,10 +624,10 @@ exports.main = async (event, context) => {
         return await payWithBalance(openid, data);
       default:
         logger.warn('Unknown action', { action });
-        return { success: false, message: '未知操作' };
+        return error(ErrorCodes.UNKNOWN_ERROR, '未知操作');
     }
-  } catch (error) {
-    logger.error('Order function failed', error);
-    return { success: false, error: error.message };
+  } catch (err) {
+    logger.error('Order function failed', err);
+    return error(ErrorCodes.UNKNOWN_ERROR, '订单操作失败', err.message);
   }
 };
