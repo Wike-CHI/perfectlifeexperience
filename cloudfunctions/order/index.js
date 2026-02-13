@@ -533,21 +533,22 @@ async function settleOrderReward(buyerId, orderId, orderAmount) {
   try {
     logger.info('Reward settlement started', { buyerId, orderId, amount: orderAmount });
 
-    const promotion = require('../promotion/index.js');
-
-    // 调用推广系统计算奖励
-    const result = await promotion.exports.main(
-      {
+    // 通过云函数调用推广系统计算奖励
+    const result = await cloud.callFunction({
+      name: 'promotion',
+      data: {
         action: 'calculateReward',
         orderId,
         buyerId,
         orderAmount,
         isRepurchase: await checkIsRepurchase(buyerId)
-      },
-      {}
-    );
+      }
+    });
 
-    if (result.code === 0) {
+    // cloud.callFunction 返回 { result: {...} }
+    const promotionResult = result.result;
+
+    if (promotionResult && promotionResult.code === 0) {
       // 标记订单奖励已结算
       await db.collection('orders')
         .doc(orderId)
@@ -560,12 +561,12 @@ async function settleOrderReward(buyerId, orderId, orderAmount) {
 
       logger.info('Reward settlement completed', {
         orderId,
-        rewardsCount: result.data.rewards.length
+        rewardsCount: promotionResult.data?.rewards?.length || 0
       });
     } else {
       logger.error('Reward settlement failed', {
         orderId,
-        reason: result.msg
+        reason: promotionResult?.msg || 'Unknown error'
       });
     }
 
