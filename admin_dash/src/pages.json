@@ -111,6 +111,13 @@
 				"navigationBarTitleText": "编辑公告",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/promotion/overview/index",
+			"style": {
+				"navigationBarTitleText": "推广概览",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

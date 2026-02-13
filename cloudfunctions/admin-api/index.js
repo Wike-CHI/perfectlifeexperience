@@ -51,6 +51,8 @@ exports.main = async (event, context) => {
         return await updateAnnouncementAdmin(data, wxContext)
       case 'deleteAnnouncement':
         return await deleteAnnouncementAdmin(data, wxContext)
+      case 'getPromotionStats':
+        return await getPromotionStatsAdmin(data)
       default:
         return {
           code: 400,
@@ -92,22 +94,81 @@ async function adminLogin(data) {
 }
 
 async function getDashboardData(data) {
-  // Mock data for now, will be replaced in later tasks
-  return {
-    code: 0,
-    data: {
-      todaySales: 12800,
-      todayOrders: 45,
-      monthSales: 150000,
-      monthOrders: 380,
-      totalUsers: 1205,
-      pendingTasks: [
-        { type: 'shipment', count: 12 },
-        { type: 'withdrawal', count: 5 }
-      ],
-      recentOrders: []
-    }
-  };
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [todayOrdersResult, monthOrdersResult, usersResult, pendingShipments, recentOrdersData] = await Promise.all([
+      db.collection('orders').where({
+        createTime: _.gte(today),
+        status: _.in(['paid', 'shipping', 'completed'])
+      }).get(),
+
+      db.collection('orders').where({
+        createTime: _.gte(new Date(today.getFullYear(), today.getMonth(), 1)),
+        status: _.in(['paid', 'shipping', 'completed'])
+      }).get(),
+
+      db.collection('users').count(),
+
+      db.collection('orders').where({ status: 'shipping' }).count(),
+
+      db.collection('orders')
+        .orderBy('createTime', 'desc')
+        .limit(10)
+        .get()
+    ]);
+
+    const todaySales = todayOrdersResult.data.reduce((sum, order) => sum + order.totalAmount, 0);
+    const monthSales = monthOrdersResult.data.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    return {
+      code: 0,
+      data: {
+        todaySales,
+        todayOrders: todayOrdersResult.data.length,
+        monthSales,
+        monthOrders: monthOrdersResult.data.length,
+        totalUsers: usersResult.total,
+        pendingTasks: [
+          { type: 'shipment', count: pendingShipments.total },
+          { type: 'withdrawal', count: 0 }
+        ],
+        recentOrders: recentOrdersData.data
+      }
+    };
+  } catch (error) {
+    console.error('Get dashboard data error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// Promotion functions
+async function getPromotionStatsAdmin(data) {
+  try {
+    const [totalPromoters, totalTeams, totalRewards, recentOrders] = await Promise.all([
+      db.collection('users').where({ starLevel: _.gte(1) }).count(),
+      db.collection('promotion_relations').count(),
+      db.collection('reward_records').count(),
+      db.collection('promotion_orders')
+        .orderBy('createTime', 'desc')
+        .limit(10)
+        .get()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        totalPromoters: totalPromoters.total,
+        totalTeams: totalTeams.total,
+        totalRewards: totalRewards.total,
+        recentOrders: recentOrders.data
+      }
+    };
+  } catch (error) {
+    console.error('Get promotion stats error:', error);
+    return { code: 500, msg: error.message };
+  }
 }
 
 // Product functions

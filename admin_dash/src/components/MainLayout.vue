@@ -59,9 +59,9 @@ const currentPath = ref('/dashboard');
 const menuItems = [
   { label: 'Dashboard', path: '/dashboard', icon: '📊' },
   { label: 'Products', path: '/products/list', icon: '🍺' },
-  { label: 'Orders', path: '/orders', icon: '📦' },
+  { label: 'Orders', path: '/orders/list', icon: '📦' },
   { label: 'Users', path: '/users', icon: '👥' },
-  { label: 'Promotion', path: '/promotion', icon: '🚀' },
+  { label: 'Promotion', path: '/promotion/overview', icon: '🚀' },
   { label: 'Finance', path: '/finance', icon: '💰' },
 ];
 
