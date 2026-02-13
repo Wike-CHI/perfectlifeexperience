@@ -78,11 +78,11 @@ const starLevelName = computed(() => starLevelNames[props.starLevel]);
 // 代理徽章样式
 const agentBadgeStyle = computed(() => {
   const gradients: Record<AgentLevel, string> = {
-    0: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)',
-    1: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    2: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    3: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    4: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    0: 'linear-gradient(135deg, #3D2914 0%, #C9A962 100%)', // HQ: 深棕色到琥珀金
+    1: 'linear-gradient(135deg, #C9A962 0%, #B8860B 100%)', // 一级: 琥珀金到铜色
+    2: 'linear-gradient(135deg, #D4A574 0%, #A8A8A8 100%)', // 二级: 青铜到暖银
+    3: 'linear-gradient(135deg, #CD7F32 0%, #8B7355 100%)', // 三级: 青铜加深棕
+    4: 'linear-gradient(135deg, #6B5B4F 0%, #4A4A4A 100%)' // 四级: 暖炭灰
   };
   return {
     background: gradients[props.agentLevel]
@@ -92,10 +92,10 @@ const agentBadgeStyle = computed(() => {
 // 星级徽章样式
 const starBadgeStyle = computed(() => {
   const gradients: Record<StarLevel, string> = {
-    0: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)',
-    1: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    2: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    3: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)'
+    0: 'linear-gradient(135deg, #D4D4D4 0%, #BDBDBD 100%)', // 普通: 中性灰
+    1: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)', // 铜牌: 青铜色
+    2: 'linear-gradient(135deg, #E8E8E8 0%, #C0C0C0 100%)', // 银牌: 暖银色
+    3: 'linear-gradient(135deg, #FFD700 0%, #C9A962 100%)' // 金牌: 黄金到琥珀金
   };
   return {
     background: gradients[props.starLevel]

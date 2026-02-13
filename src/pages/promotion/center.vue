@@ -109,7 +109,7 @@
             <text class="stat-item" v-if="teamStats.level1">一级 {{ teamStats.level1 }}</text>
             <text class="stat-item" v-if="teamStats.level2">二级 {{ teamStats.level2 }}</text>
           </view>
-          <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+          <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
         </view>
       </view>
 
@@ -123,7 +123,7 @@
             <text class="menu-subtitle">查看收益记录</text>
           </view>
         </view>
-        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
 
       <view class="menu-item" @click="goToQRCode">
@@ -136,7 +136,7 @@
             <text class="menu-subtitle">分享给好友</text>
           </view>
         </view>
-        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
 
       <view class="menu-item" @click="goToRewardRules">
@@ -149,7 +149,7 @@
             <text class="menu-subtitle">四重分润详解</text>
           </view>
         </view>
-        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
 
       <view class="menu-item" @click="goToStarRules">
@@ -162,7 +162,7 @@
             <text class="menu-subtitle">升级条件与权益</text>
           </view>
         </view>
-        <uni-icons type="right" size="16" color="#9B8B7F"></uni-icons>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
     </view>
 
@@ -326,9 +326,21 @@ onShow(() => {
 </script>
 
 <style scoped>
+:root {
+  --color-primary: #3D2914;
+  --color-gold: #C9A962;
+  --color-bronze: #D4A574;
+  --color-obsidian: #1A1A1A;
+  --color-charcoal: #4A4A4A;
+  --color-cream: #FAF9F7;
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
 .container {
   min-height: 100vh;
-  background-color: #FDF8F3;
+  background-color: #FAF9F7;
   padding-bottom: 40rpx;
 }
 
@@ -345,8 +357,9 @@ onShow(() => {
   left: 0;
   right: 0;
   height: 400rpx;
-  background: linear-gradient(180deg, #3D2914 0%, #5D3924 100%);
+  background: linear-gradient(180deg, #3D2914 0%, #5D3924 60%, #C9A962 100%);
   border-radius: 0 0 40rpx 40rpx;
+  opacity: 0.95;
 }
 
 .stats-grid {
@@ -359,25 +372,31 @@ onShow(() => {
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10rpx);
   border-radius: 20rpx;
   padding: 24rpx 12rpx;
   text-align: center;
-  border: 1rpx solid rgba(255, 255, 255, 0.1);
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
+  box-shadow: 0 4rpx 16rpx rgba(61, 41, 20, 0.25);
+  transition: all 0.3s ease;
 }
 
 .stat-value {
   display: block;
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #D4A574;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #FFD700;
   margin-bottom: 8rpx;
+  font-family: var(--font-mono);
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
 }
 
 .stat-label {
   font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  letter-spacing: 0.3rpx;
 }
 
 /* 收益分类统计 */
@@ -386,7 +405,8 @@ onShow(() => {
   margin: 0 30rpx 30rpx;
   padding: 32rpx;
   border-radius: 24rpx;
-  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .section-title {
@@ -394,9 +414,10 @@ onShow(() => {
 }
 
 .section-title text {
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 600;
-  color: #3D2914;
+  color: #1A1A1A;
+  letter-spacing: 0.5rpx;
 }
 
 .category-grid {
@@ -409,8 +430,15 @@ onShow(() => {
   display: flex;
   align-items: center;
   padding: 20rpx;
-  background: #FDF8F3;
+  background: linear-gradient(135deg, #FAF9F7 0%, #F5F0E8 100%);
   border-radius: 16rpx;
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
+  transition: all 0.3s ease;
+}
+
+.category-item:active {
+  transform: translateY(-2rpx);
+  box-shadow: 0 4rpx 12rpx rgba(61, 41, 20, 0.1);
 }
 
 .category-icon {
@@ -427,19 +455,19 @@ onShow(() => {
 }
 
 .category-icon.commission {
-  background: linear-gradient(135deg, #0052D9 0%, #00A1FF 100%);
+  background: linear-gradient(135deg, #3D2914 0%, #C9A962 100%);
 }
 
 .category-icon.repurchase {
-  background: linear-gradient(135deg, #00A870 0%, #4CD964 100%);
+  background: linear-gradient(135deg, #5B7A6E 0%, #7A9A8E 100%);
 }
 
 .category-icon.management {
-  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+  background: linear-gradient(135deg, #B8860B 0%, #D4A574 100%);
 }
 
 .category-icon.nurture {
-  background: linear-gradient(135deg, #FF6B00 0%, #FFB800 100%);
+  background: linear-gradient(135deg, #B8860B 0%, #C9A962 100%);
 }
 
 .category-info {
@@ -449,14 +477,17 @@ onShow(() => {
 
 .category-label {
   font-size: 24rpx;
-  color: #6B5B4F;
-  margin-bottom: 4rpx;
+  color: #4A4A4A;
+  margin-bottom: 6rpx;
+  font-weight: 500;
+  letter-spacing: 0.2rpx;
 }
 
 .category-value {
   font-size: 28rpx;
-  font-weight: 600;
-  color: #3D2914;
+  font-weight: 700;
+  color: #1A1A1A;
+  font-family: var(--font-mono);
 }
 
 /* 邀请码卡片 */
@@ -465,7 +496,8 @@ onShow(() => {
   margin: 0 30rpx 30rpx;
   padding: 40rpx;
   border-radius: 24rpx;
-  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
+  border: 1rpx solid rgba(201, 169, 98, 0.15);
 }
 
 .invite-header {
@@ -478,31 +510,42 @@ onShow(() => {
 .invite-title {
   font-size: 32rpx;
   font-weight: 600;
-  color: #3D2914;
+  color: #1A1A1A;
+  letter-spacing: 0.5rpx;
 }
 
 .invite-code {
-  background: linear-gradient(135deg, #FDF8F3 0%, #F5F0E8 100%);
-  border: 2rpx dashed #D4A574;
+  background: linear-gradient(135deg, #FAF9F7 0%, #F5F0E8 100%);
+  border: 2rpx dashed #C9A962;
   border-radius: 16rpx;
   padding: 40rpx;
   text-align: center;
   margin-bottom: 20rpx;
+  position: relative;
+  box-shadow: inset 0 2rpx 8rpx rgba(201, 169, 98, 0.1);
+  transition: all 0.3s ease;
+}
+
+.invite-code:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 2rpx 12rpx rgba(201, 169, 98, 0.15);
 }
 
 .code-text {
   display: block;
   font-size: 56rpx;
-  font-weight: bold;
-  color: #3D2914;
+  font-weight: 700;
+  color: #1A1A1A;
   letter-spacing: 8rpx;
   margin-bottom: 12rpx;
-  font-family: 'DIN Alternate', monospace;
+  font-family: 'Manrope', monospace;
+  text-shadow: 0 2rpx 4rpx rgba(201, 169, 98, 0.2);
 }
 
 .copy-hint {
   font-size: 24rpx;
-  color: #9B8B7F;
+  color: #C9A962;
+  font-weight: 500;
 }
 
 .invite-desc {
@@ -519,8 +562,9 @@ onShow(() => {
   background: #FFFFFF;
   margin: 0 30rpx 30rpx;
   border-radius: 24rpx;
-  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
   overflow: hidden;
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .menu-item {
@@ -529,6 +573,12 @@ onShow(() => {
   align-items: center;
   padding: 32rpx;
   border-bottom: 1rpx solid #F5F0E8;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.menu-item:active {
+  background-color: #FAF9F7;
+  transform: scale(0.99);
 }
 
 .menu-item:last-child {
@@ -551,23 +601,23 @@ onShow(() => {
 }
 
 .menu-icon.team {
-  background: rgba(212, 165, 116, 0.15);
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.2) 0%, rgba(201, 169, 98, 0.15) 100%);
 }
 
 .menu-icon.reward {
-  background: rgba(6, 214, 160, 0.15);
+  background: linear-gradient(135deg, rgba(91, 122, 110, 0.2) 0%, rgba(122, 154, 142, 0.15) 100%);
 }
 
 .menu-icon.qrcode {
-  background: rgba(255, 176, 133, 0.15);
+  background: linear-gradient(135deg, rgba(184, 134, 11, 0.2) 0%, rgba(212, 165, 116, 0.15) 100%);
 }
 
 .menu-icon.rules {
-  background: rgba(0, 82, 217, 0.1);
+  background: linear-gradient(135deg, rgba(61, 41, 20, 0.15) 0%, rgba(201, 169, 98, 0.12) 100%);
 }
 
 .menu-icon.star {
-  background: rgba(255, 193, 7, 0.1);
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.2) 0%, rgba(184, 134, 11, 0.15) 100%);
 }
 
 .icon-svg {
@@ -582,14 +632,17 @@ onShow(() => {
 
 .menu-title {
   font-size: 30rpx;
-  font-weight: 500;
-  color: #3D2914;
+  font-weight: 600;
+  color: #1A1A1A;
   margin-bottom: 8rpx;
+  letter-spacing: 0.3rpx;
 }
 
 .menu-subtitle {
   font-size: 24rpx;
-  color: #9B8B7F;
+  color: #6B5B4F;
+  font-weight: 400;
+  letter-spacing: 0.2rpx;
 }
 
 .menu-right {
@@ -605,10 +658,12 @@ onShow(() => {
 
 .stat-item {
   font-size: 22rpx;
-  color: #9B8B7F;
-  background: #F5F0E8;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
+  color: #6B5B4F;
+  background: linear-gradient(135deg, #FAF9F7 0%, #F5F0E8 100%);
+  padding: 6rpx 14rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(201, 169, 98, 0.15);
+  font-weight: 500;
 }
 
 /* 规则说明 */
@@ -617,7 +672,8 @@ onShow(() => {
   margin: 0 30rpx;
   padding: 40rpx;
   border-radius: 24rpx;
-  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .rules-title {
@@ -627,7 +683,8 @@ onShow(() => {
 .rules-title text {
   font-size: 32rpx;
   font-weight: 600;
-  color: #3D2914;
+  color: #1A1A1A;
+  letter-spacing: 0.5rpx;
 }
 
 .rule-item {
@@ -643,23 +700,25 @@ onShow(() => {
 .rule-num {
   width: 36rpx;
   height: 36rpx;
-  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
+  background: linear-gradient(135deg, #C9A962 0%, #B8860B 100%);
   color: #FFFFFF;
   font-size: 22rpx;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 20rpx;
   flex-shrink: 0;
+  box-shadow: 0 2rpx 8rpx rgba(201, 169, 98, 0.3);
 }
 
 .rule-text {
   flex: 1;
   font-size: 26rpx;
-  color: #6B5B4F;
-  line-height: 1.6;
+  color: #4A4A4A;
+  line-height: 1.7;
+  letter-spacing: 0.2rpx;
 }
 
 /* 安全区域 */

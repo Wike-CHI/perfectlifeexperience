@@ -209,12 +209,19 @@ const payOrder = () => {
     success: async (res) => {
       if (res.confirm) {
         try {
+          // 更新订单状态为已支付
           await updateOrderStatus(order.value._id!, 'paid');
+
           uni.showToast({
             title: '支付成功',
             icon: 'success'
           });
+
+          // 刷新订单详情
           loadOrderDetail(order.value._id!);
+
+          // 注意：推广奖励统一在订单完成时结算，支付成功时不触发
+          // 这样可以避免退货时需要追回已发放的奖励
         } catch (error) {
           uni.showToast({
             title: '支付失败',

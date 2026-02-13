@@ -1,15 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" class="icon-svg">
-  <g fill="none" stroke="#6B5B4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <!-- 齬币链路 -->
-    <circle cx="8" cy="16" r="2" fill="#6B5B4F"/>
-    <circle cx="16" cy="16" r="2" fill="#6B5B4F"/>
-    <circle cx="24" cy="16" r="2" fill="#6B5B4F"/>
-    <!-- 用户图标 -->
-    <circle cx="16" cy="8" r="7" fill="none" stroke="#6B5B4F" stroke-width="2"/>
-    <circle cx="13" cy="11" r="2.5" fill="none" stroke="#6B5B4F" stroke-width="2"/>
-    <circle cx="19" cy="11" r="2.5" fill="none" stroke="#6B5B4F" stroke-width="2"/>
-    <!-- 用户连接线 -->
-    <path d="M16 8 L13 8" stroke="#6B5B4F" stroke-width="2"/>
-    <path d="M24 8 L19 11" stroke="#6B5B4F" stroke-width="2"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="mechGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C9A962;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D4A574;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#C9A962;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#D4A574;stop-opacity:0.6" />
+    </linearGradient>
+  </defs>
+
+  <!-- 分销层级结构 -->
+  <!-- 顶层 - 总公司 -->
+  <circle cx="24" cy="8" r="5" fill="url(#mechGradient)"/>
+  <path d="M22 6 L26 6 M24 4 L24 7" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- 连接线 - 从总公司到一级代理 -->
+  <path d="M24 13 L24 16 L14 16 L14 20" stroke="url(#lineGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M24 16 L34 16 L34 20" stroke="url(#lineGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- 一级代理 -->
+  <circle cx="14" cy="24" r="4" fill="url(#mechGradient)" opacity="0.9"/>
+  <circle cx="34" cy="24" r="4" fill="url(#mechGradient)" opacity="0.9"/>
+
+  <!-- 连接线 - 从一级到二级代理 -->
+  <path d="M14 28 L14 32" stroke="url(#lineGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M34 28 L34 32" stroke="url(#lineGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- 二级代理 -->
+  <circle cx="10" cy="36" r="3" fill="url(#mechGradient)" opacity="0.7"/>
+  <circle cx="18" cy="36" r="3" fill="url(#mechGradient)" opacity="0.7"/>
+  <circle cx="30" cy="36" r="3" fill="url(#mechGradient)" opacity="0.7"/>
+  <circle cx="38" cy="36" r="3" fill="url(#mechGradient)" opacity="0.7"/>
+
+  <!-- 装饰箭头 - 表示收益流动 -->
+  <path d="M6 42 L10 40 L10 44 Z" fill="#C9A962" opacity="0.4"/>
+  <path d="M42 42 L38 40 L38 44 Z" fill="#D4A574" opacity="0.4"/>
 </svg>

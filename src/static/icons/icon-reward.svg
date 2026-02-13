@@ -1,9 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <rect x="6" y="20" width="36" height="24" rx="3" fill="#06D6A0" opacity="0.9"/>
-  <path d="M24 20V44" stroke="#FFFFFF" stroke-width="2.5" opacity="0.5"/>
-  <path d="M6 20H42" stroke="#FFFFFF" stroke-width="2" opacity="0.3"/>
-  <path d="M24 20C24 20 18 12 12 12C6 12 6 20 12 22C18 24 24 20 24 20Z" fill="#05B384"/>
-  <path d="M24 20C24 20 30 12 36 12C42 12 42 20 36 22C30 24 24 20 24 20Z" fill="#05B384"/>
-  <circle cx="24" cy="20" r="4" fill="#047A5F"/>
-  <path d="M12 30L13.5 33L17 33.5L14.5 36L15 39.5L12 38L9 39.5L9.5 36L7 33.5L10.5 33L12 30Z" fill="#FFFFFF" opacity="0.6"/>
+  <defs>
+    <linearGradient id="rewardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C9A962;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D4A574;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect x="6" y="20" width="36" height="24" rx="3" fill="url(#rewardGradient)" opacity="0.95"/>
+  <path d="M24 20V44" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7"/>
+  <path d="M6 20H42" stroke="#FFFFFF" stroke-width="2" opacity="0.5"/>
+  <path d="M24 20C24 20 18 12 12 12C6 12 6 20 12 22C18 24 24 20 24 20Z" fill="#FFD700"/>
+  <path d="M24 20C24 20 30 12 36 12C42 12 48 20 36 22C30 24 24 20 24 20Z" fill="#FFD700" opacity="0.9"/>
+  <circle cx="24" cy="20" r="4" fill="#FFFFFF" opacity="0.3"/>
+  <path d="M12 30L13.5 33L17 33.5L14.5 36L15 39.5L12 38L9 39.5L9.5 36L7 33.5L10.5 33L12 30Z" fill="#C9A962" opacity="0.8"/>
 </svg>

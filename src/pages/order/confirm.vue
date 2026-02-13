@@ -76,10 +76,25 @@
           <text class="check-icon" v-if="paymentMethod === 'wechat'">&#xe6ad;</text>
           <text class="uncheck-circle" v-else></text>
         </view>
-        <view class="payment-item" @click="paymentMethod = 'balance'" :class="{ active: paymentMethod === 'balance' }">
+        <view
+          class="payment-item"
+          @click="selectBalancePayment"
+          :class="{
+            active: paymentMethod === 'balance',
+            disabled: !isBalanceSufficient
+          }"
+        >
           <view class="payment-left">
             <text class="payment-icon balance">&#xe6b8;</text>
-            <text class="payment-name">余额支付</text>
+            <view class="payment-info">
+              <text class="payment-name">余额支付</text>
+              <text class="balance-amount" v-if="!balanceLoading">
+                可用余额: ¥{{ formatPrice(walletBalance) }}
+              </text>
+              <text class="balance-tip" v-if="!isBalanceSufficient && paymentMethod === 'balance'">
+                余额不足（还差 ¥{{ formatPrice(finalAmount - walletBalance) }}）
+              </text>
+            </view>
           </view>
           <text class="check-icon" v-if="paymentMethod === 'balance'">&#xe6ad;</text>
           <text class="uncheck-circle" v-else></text>
@@ -197,7 +212,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon } from '@/utils/api';
+import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction } from '@/utils/api';
 import type { CartItem, Address, OrderItem, UserCoupon } from '@/types';
 
 // 数据
@@ -215,6 +230,26 @@ const isDirectBuy = ref(false);
 const availableCoupons = ref<UserCoupon[]>([]);
 const selectedCoupon = ref<UserCoupon | null>(null);
 const couponPopupVisible = ref(false);
+
+// 钱包余额
+const walletBalance = ref(0);
+const balanceLoading = ref(false);
+
+// 获取钱包余额
+const loadWalletBalance = async () => {
+  try {
+    balanceLoading.value = true;
+    const res = await getWalletBalance();
+    if (res.code === 0) {
+      walletBalance.value = res.data.balance || 0;
+      console.log('钱包余额:', walletBalance.value);
+    }
+  } catch (error) {
+    console.error('获取钱包余额失败:', error);
+  } finally {
+    balanceLoading.value = false;
+  }
+};
 
 // 计算属性
 const orderItems = computed(() => {
@@ -265,6 +300,11 @@ const canSubmit = computed(() => {
     return basicCheck && selectedAddress.value !== null;
   }
   return basicCheck;
+});
+
+// 检查余额是否充足
+const isBalanceSufficient = computed(() => {
+  return walletBalance.value >= (finalAmount.value || 0);
 });
 
 // 加载购物车数据
@@ -387,11 +427,23 @@ const formatDate = (date?: Date | string) => {
 // 提交订单
 const submitOrder = async () => {
   if (!canSubmit.value) return;
-  
+
   if (loading.value) return;
   loading.value = true;
-  
+
   try {
+    // 余额支付检查
+    if (paymentMethod.value === 'balance') {
+      if (!isBalanceSufficient.value) {
+        uni.showToast({
+          title: `余额不足，还差 ¥${formatPrice(finalAmount.value - walletBalance.value)}`,
+          icon: 'none'
+        });
+        loading.value = false;
+        return;
+      }
+    }
+
     const orderData = {
       products: orderItems.value,
       totalAmount: finalAmount.value,
@@ -403,9 +455,9 @@ const submitOrder = async () => {
       deliveryType: deliveryType.value,
       shippingFee: shippingFee.value
     };
-    
+
     const res = await createOrder(orderData);
-    
+
     // 如果有使用优惠券，核销优惠券
     if (selectedCoupon.value && res._id) {
       try {
@@ -414,24 +466,19 @@ const submitOrder = async () => {
         console.error('核销优惠券失败:', error);
       }
     }
-    
+
     // 如果是直接购买，清除临时数据
     if (isDirectBuy.value) {
       uni.removeStorageSync('temp_order_items');
     }
-    
-    uni.showToast({
-      title: '订单创建成功',
-      icon: 'success'
-    });
-    
-    // 跳转到支付页面或订单详情
-    setTimeout(() => {
-      uni.redirectTo({
-        url: `/pages/order/detail?id=${res._id}`
-      });
-    }, 1500);
-    
+
+    // 根据支付方式执行不同的支付流程
+    if (paymentMethod.value === 'balance') {
+      await payWithBalanceProcess(res._id);
+    } else {
+      await payWithWechatProcess(res._id);
+    }
+
   } catch (error) {
     uni.showToast({
       title: '创建订单失败',
@@ -442,6 +489,74 @@ const submitOrder = async () => {
   }
 };
 
+// 选择余额支付
+const selectBalancePayment = () => {
+  if (!isBalanceSufficient.value) {
+    uni.showToast({
+      title: `余额不足，还差 ¥${formatPrice(finalAmount.value - walletBalance.value)}`,
+      icon: 'none'
+    });
+    return;
+  }
+  paymentMethod.value = 'balance';
+};
+
+// 余额支付流程
+const payWithBalanceProcess = async (orderId: string) => {
+  try {
+    uni.showLoading({ title: '支付中...' });
+
+    const res = await callFunction('order', {
+      action: 'payWithBalance',
+      data: { orderId }
+    });
+
+    uni.hideLoading();
+
+    if (res.success) {
+      uni.showToast({
+        title: '支付成功',
+        icon: 'success'
+      });
+
+      // 跳转到订单详情
+      setTimeout(() => {
+        uni.redirectTo({
+          url: `/pages/order/detail?id=${orderId}`
+        });
+      }, 1500);
+    } else {
+      uni.showModal({
+        title: '支付失败',
+        content: res.message,
+        showCancel: false
+      });
+    }
+  } catch (error) {
+    uni.hideLoading();
+    console.error('余额支付失败:', error);
+    uni.showToast({
+      title: '支付失败',
+      icon: 'none'
+    });
+  }
+};
+
+// 微信支付流程
+const payWithWechatProcess = async (orderId: string) => {
+  uni.showToast({
+    title: '订单创建成功',
+    icon: 'success'
+  });
+
+  // 跳转到订单详情进行微信支付
+  setTimeout(() => {
+    uni.redirectTo({
+      url: `/pages/order/detail?id=${orderId}`
+    });
+  }, 1500);
+};
+
 // 生命周期
 onLoad((options) => {
   if (options?.mode === 'direct') {
@@ -449,6 +564,7 @@ onLoad((options) => {
   }
   loadCartData();
   loadDefaultAddress();
+  loadWalletBalance();
 });
 
 // 监听地址选择
@@ -709,6 +825,12 @@ uni.$on('selectAddress', (address: Address) => {
   padding: 20rpx;
   border: 2rpx solid #F5F0E8;
   border-radius: 12rpx;
+  transition: all 0.3s;
+}
+
+.payment-item.disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .payment-item.active {
@@ -738,6 +860,22 @@ uni.$on('selectAddress', (address: Address) => {
 .payment-name {
   font-size: 28rpx;
   color: #3D2914;
+}
+
+.payment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.balance-amount {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.balance-tip {
+  font-size: 24rpx;
+  color: #ff4d4f;
 }
 
 .uncheck-circle {

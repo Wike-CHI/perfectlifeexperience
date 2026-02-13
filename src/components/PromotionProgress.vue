@@ -119,8 +119,8 @@ const formatAmount = (amount: number): string => {
 
 .progress-level {
   font-size: 24rpx;
-  color: #0052D9;
-  font-weight: 500;
+  color: #3D2914;
+  font-weight: 600;
 }
 
 .max-level-tip {
@@ -143,8 +143,8 @@ const formatAmount = (amount: number): string => {
 
 .tip-text {
   font-size: 28rpx;
-  color: #FFB800;
-  font-weight: 500;
+  color: #C9A962;
+  font-weight: 600;
 }
 
 .progress-content {
@@ -197,11 +197,11 @@ const formatAmount = (amount: number): string => {
 }
 
 .sales-fill {
-  background: linear-gradient(90deg, #0052D9 0%, #00A870 100%);
+  background: linear-gradient(90deg, #C9A962 0%, #D4A574 100%);
 }
 
 .count-fill {
-  background: linear-gradient(90deg, #FFB800 0%, #FF6B00 100%);
+  background: linear-gradient(90deg, #B8860B 0%, #C9A962 100%);
 }
 
 .progress-percent {
@@ -219,9 +219,10 @@ const formatAmount = (amount: number): string => {
 
 .promotion-tip .tip-text {
   font-size: 22rpx;
-  color: #0052D9;
-  background: rgba(0, 82, 217, 0.08);
+  color: #3D2914;
+  background: rgba(201, 169, 98, 0.12);
   padding: 8rpx 20rpx;
   border-radius: 20rpx;
+  font-weight: 500;
 }
 </style>

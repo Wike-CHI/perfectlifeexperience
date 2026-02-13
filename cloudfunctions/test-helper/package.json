@@ -1,0 +1,6 @@
+{
+  "name": "test-helper",
+  "version": "1.0.0",
+  "description": "测试辅助云函数",
+  "main": "index.js"
+}
