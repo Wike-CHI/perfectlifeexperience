@@ -102,6 +102,19 @@ function isTimestampValid(timestamp) {
 }
 
 /**
+ * 判断订单类型
+ * @param {string} outTradeNo - 商户订单号
+ * @returns {'order'|'recharge'} 订单类型
+ */
+function getOrderType(outTradeNo) {
+  // DY 开头为商品订单，RC 开头为充值订单
+  if (outTradeNo.startsWith('RC')) {
+    return 'recharge';
+  }
+  return 'order';
+}
+
+/**
  * 处理支付成功回调
  * 更新订单状态等业务逻辑
  */
@@ -114,6 +127,15 @@ async function handlePaymentSuccess(transaction, db) {
   } = transaction;
   
   try {
+    // 根据订单号前缀判断订单类型
+    const orderType = getOrderType(out_trade_no);
+    
+    if (orderType === 'recharge') {
+      // 充值订单处理
+      return await handleRechargeSuccess(transaction, db);
+    }
+    
+    // 商品订单处理
     // 查询订单
     const orderRes = await db.collection('orders')
       .where({
@@ -163,10 +185,140 @@ async function handlePaymentSuccess(transaction, db) {
   }
 }
 
+/**
+ * 处理充值支付成功回调
+ * 更新充值订单状态并增加钱包余额
+ */
+async function handleRechargeSuccess(transaction, db) {
+  const {
+    out_trade_no,      // 商户订单号
+    transaction_id,    // 微信支付订单号
+    amount,            // 支付金额
+    payer              // 支付者信息
+  } = transaction;
+  
+  const _ = db.command;
+  
+  try {
+    // 1. 查询充值订单
+    const orderRes = await db.collection('recharge_orders')
+      .where({
+        orderNo: out_trade_no
+      })
+      .get();
+    
+    if (orderRes.data.length === 0) {
+      console.error(`充值订单不存在: ${out_trade_no}`);
+      return { success: false, message: '充值订单不存在' };
+    }
+    
+    const rechargeOrder = orderRes.data[0];
+    
+    // 2. 检查订单状态，避免重复处理
+    if (rechargeOrder.status === 'paid') {
+      console.log(`充值订单已处理: ${out_trade_no}`);
+      return { success: true, message: '充值订单已处理' };
+    }
+    
+    // 3. 验证金额
+    if (rechargeOrder.amount !== amount.total) {
+      console.error(`充值金额不匹配: 订单${rechargeOrder.amount}分, 支付${amount.total}分`);
+      return { success: false, message: '充值金额不匹配' };
+    }
+    
+    // 4. 开启事务处理
+    const transactionDb = await db.startTransaction();
+    
+    try {
+      // 4.1 更新充值订单状态
+      await transactionDb.collection('recharge_orders')
+        .doc(rechargeOrder._id)
+        .update({
+          data: {
+            status: 'paid',
+            payTime: new Date(),
+            transactionId: transaction_id,
+            updateTime: new Date()
+          }
+        });
+      
+      // 4.2 计算总到账金额（本金 + 赠送）
+      const totalAmount = rechargeOrder.amount + (rechargeOrder.giftAmount || 0);
+      
+      // 4.3 更新钱包余额
+      const walletRes = await transactionDb.collection('user_wallets')
+        .where({
+          _openid: rechargeOrder._openid
+        })
+        .get();
+      
+      if (walletRes.data.length === 0) {
+        // 创建钱包
+        await transactionDb.collection('user_wallets').add({
+          data: {
+            _openid: rechargeOrder._openid,
+            balance: totalAmount,
+            totalRecharge: rechargeOrder.amount,
+            totalGift: rechargeOrder.giftAmount || 0,
+            updateTime: new Date()
+          }
+        });
+      } else {
+        // 更新钱包余额
+        await transactionDb.collection('user_wallets')
+          .doc(walletRes.data[0]._id)
+          .update({
+            data: {
+              balance: _.inc(totalAmount),
+              totalRecharge: _.inc(rechargeOrder.amount),
+              totalGift: _.inc(rechargeOrder.giftAmount || 0),
+              updateTime: new Date()
+            }
+          });
+      }
+      
+      // 4.4 记录交易流水
+      const title = rechargeOrder.giftAmount > 0 
+        ? `充值¥${(rechargeOrder.amount / 100).toFixed(0)}（赠¥${(rechargeOrder.giftAmount / 100).toFixed(0)}）`
+        : `钱包充值`;
+      
+      await transactionDb.collection('wallet_transactions').add({
+        data: {
+          _openid: rechargeOrder._openid,
+          type: 'recharge',
+          amount: rechargeOrder.amount,
+          giftAmount: rechargeOrder.giftAmount || 0,
+          totalAmount: totalAmount,
+          title: title,
+          status: 'success',
+          createTime: new Date(),
+          orderNo: out_trade_no
+        }
+      });
+      
+      // 提交事务
+      await transactionDb.commit();
+      
+      console.log(`充值支付成功: ${out_trade_no}, 到账金额: ${totalAmount}分`);
+      
+      return { success: true, message: '充值成功' };
+    } catch (txError) {
+      // 回滚事务
+      await transactionDb.rollback();
+      throw txError;
+    }
+  } catch (error) {
+    console.error('处理充值支付成功回调失败:', error);
+    return { success: false, message: error.message };
+  }
+}
+
 module.exports = {
   parseNotify,
   buildSuccessResponse,
   buildFailResponse,
   isTimestampValid,
-  handlePaymentSuccess
+  handlePaymentSuccess,
+  handleRechargeSuccess,
+  getOrderType
 };

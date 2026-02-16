@@ -579,11 +579,17 @@ const payWithWechatProcess = async (orderId: string) => {
 
     uni.hideLoading();
 
+    // callFunction 返回格式: { code: 0, msg: 'success', data: 云函数返回值 }
+    // 云函数返回值格式: { success: true, data: { payParams: {...} } }
+    const wechatpayResult = result.data as { success: boolean; data?: { payParams: any } };
+    
+    console.log('[支付调试] callFunction 返回:', result);
+    console.log('[支付调试] wechatpayResult:', wechatpayResult);
+
     // 检查支付创建是否成功
-    // 云函数返回格式: { success: true, data: { payParams: {...} } }
-    if (result.success === true && result.data?.payParams) {
+    if (wechatpayResult.success === true && wechatpayResult.data?.payParams) {
       // 调起微信支付
-      const payParams = result.data.payParams;
+      const payParams = wechatpayResult.data.payParams;
       console.log('[支付调试] 调起微信支付，参数:', payParams);
       uni.requestPayment({
         provider: 'wxpay',
@@ -627,7 +633,7 @@ const payWithWechatProcess = async (orderId: string) => {
       } as any);
     } else {
       // 微信支付创建失败
-      const errorMsg = result.message || result.msg || '创建支付失败';
+      const errorMsg = (wechatpayResult as any).message || result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,

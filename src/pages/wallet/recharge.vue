@@ -81,7 +81,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { rechargeWallet } from '@/utils/api';
+import { createRechargePayment } from '@/utils/api';
+import { getCachedOpenid } from '@/utils/cloudbase';
 import { rechargeOptions, getGiftAmount, type RechargeOption } from '@/config/recharge';
 
 const selectedOption = ref<RechargeOption | null>(null);
@@ -150,7 +151,7 @@ const onCustomInput = (e: any) => {
   customAmount.value = value;
 };
 
-// 处理充值
+// 处理充值 - 接入微信支付
 const handleRecharge = async () => {
   const amount = currentAmount.value;
   
@@ -174,21 +175,66 @@ const handleRecharge = async () => {
 
   loading.value = true;
   try {
+    // 获取 openid
+    const openid = getCachedOpenid();
+    if (!openid) {
+      uni.showToast({
+        title: '请先登录',
+        icon: 'none'
+      });
+      return;
+    }
+
     // 转换为分
     const amountInCents = Math.round(amount * 100);
     const giftInCents = Math.round(gift * 100);
+
+    uni.showLoading({ title: '正在创建支付...' });
+
+    // 创建充值支付订单
+    const result = await createRechargePayment(amountInCents, giftInCents, openid);
     
-    await rechargeWallet(amountInCents, giftInCents);
-    
-    uni.showToast({
-      title: `充值成功，到账¥${totalAmount.value}`,
-      icon: 'success'
-    });
-    
-    setTimeout(() => {
-      uni.navigateBack();
-    }, 1500);
+    uni.hideLoading();
+
+    console.log('[充值支付] 创建成功，调起微信支付:', result);
+
+    // 调起微信支付
+    uni.requestPayment({
+      provider: 'wxpay',
+      orderInfo: '',
+      timeStamp: result.payParams.timeStamp,
+      nonceStr: result.payParams.nonceStr,
+      package: result.payParams.package,
+      signType: result.payParams.signType as 'MD5' | 'RSA',
+      paySign: result.payParams.paySign,
+      success: () => {
+        uni.showToast({
+          title: `充值成功，到账¥${totalAmount.value}`,
+          icon: 'success'
+        });
+        
+        setTimeout(() => {
+          uni.navigateBack();
+        }, 1500);
+      },
+      fail: (err: any) => {
+        console.error('[充值支付] 支付失败:', err);
+        if (err.errMsg?.includes('cancel')) {
+          uni.showToast({
+            title: '已取消支付',
+            icon: 'none'
+          });
+        } else {
+          uni.showToast({
+            title: '支付失败，请重试',
+            icon: 'none'
+          });
+        }
+      }
+    } as any);
   } catch (error: any) {
+    uni.hideLoading();
+    console.error('[充值支付] 创建支付失败:', error);
     uni.showToast({
       title: error.message || '充值失败',
       icon: 'none'

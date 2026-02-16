@@ -738,7 +738,36 @@ export const getWalletBalance = async () => {
   }
 };
 
-// 充值
+// 创建充值支付订单（微信支付）
+export const createRechargePayment = async (amount: number, giftAmount: number = 0, openid: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('wechatpay', { 
+      action: 'createRechargePayment',
+      data: { amount, giftAmount, openid }
+    });
+    
+    if (res.code === 0 && res.data) {
+      // res.data 是云函数返回值 {success: true, data: {payParams: {...}}}
+      const wechatpayResult = res.data as { success: boolean; data?: { payParams: any; orderNo?: string } };
+      if (wechatpayResult.success && wechatpayResult.data?.payParams) {
+        return {
+          payParams: wechatpayResult.data.payParams,
+          orderNo: wechatpayResult.data.orderNo
+        };
+      }
+    }
+    throw new Error((res.data as any)?.message || res.msg || '创建充值支付失败');
+  } catch (error) {
+    console.error('创建充值支付失败:', error);
+    throw error;
+  }
+};
+
+// 充值（已废弃，请使用 createRechargePayment + 微信支付）
 export const rechargeWallet = async (amount: number, giftAmount: number = 0) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
     throw new Error('当前环境不支持云开发');

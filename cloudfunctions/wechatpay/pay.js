@@ -205,9 +205,10 @@ async function requestApi(method, path, body, config) {
 
 /**
  * 生成商户订单号
- * 格式：年月日时分秒 + 6位随机数
+ * 格式：前缀(可选) + 年月日时分秒 + 6位随机数
+ * @param {string} prefix - 订单号前缀，如 'RC' 表示充值，'DY' 表示商品订单
  */
-function generateOutTradeNo() {
+function generateOutTradeNo(prefix = 'DY') {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -217,7 +218,7 @@ function generateOutTradeNo() {
   const second = String(now.getSeconds()).padStart(2, '0');
   const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
   
-  return `${year}${month}${day}${hour}${minute}${second}${random}`;
+  return `${prefix}${year}${month}${day}${hour}${minute}${second}${random}`;
 }
 
 module.exports = {

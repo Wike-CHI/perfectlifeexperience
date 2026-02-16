@@ -209,6 +209,9 @@ exports.main = async (event, context) => {
       case 'createPayment':
         return await createPayment(data, config);
       
+      case 'createRechargePayment':
+        return await createRechargePayment(data, config);
+      
       case 'queryOrder':
         return await queryOrder(data, config);
       
@@ -235,6 +238,90 @@ exports.main = async (event, context) => {
     };
   }
 };
+
+/**
+ * 创建充值支付订单
+ */
+async function createRechargePayment(data, config) {
+  const { openid, amount, giftAmount = 0 } = data;
+
+  // 1. ✅ 参数验证
+  if (!openid || !amount) {
+    return {
+      success: false,
+      code: 'INVALID_PARAMS',
+      message: '缺少用户openid或充值金额'
+    };
+  }
+
+  // 2. ✅ 验证充值金额范围
+  if (amount < AMOUNT_LIMITS.MIN || amount > AMOUNT_LIMITS.MAX) {
+    return {
+      success: false,
+      code: 'INVALID_AMOUNT',
+      message: `充值金额异常: ${amount} 分`
+    };
+  }
+
+  // 3. 生成充值订单号（RC 开头）
+  const outTradeNo = generateOutTradeNo('RC');
+
+  try {
+    // 4. 创建充值订单记录
+    const rechargeOrderData = {
+      _openid: openid,
+      orderNo: outTradeNo,
+      amount: amount,
+      giftAmount: giftAmount,
+      status: 'pending',
+      createTime: new Date()
+    };
+
+    const orderRes = await db.collection('recharge_orders').add({
+      data: rechargeOrderData
+    });
+
+    const rechargeOrderId = orderRes._id;
+
+    console.log(`[充值订单] 创建成功: ${outTradeNo}, 金额: ${amount}分, 赠送: ${giftAmount}分`);
+
+    // 5. 调用微信支付统一下单
+    const orderResult = await jsapiOrder({
+      appid: config.appid,
+      mchid: config.mchid,
+      description: `大友元气-钱包充值`,
+      out_trade_no: outTradeNo,
+      notify_url: config.notifyUrl,
+      amount: {
+        total: amount,
+        currency: 'CNY'
+      },
+      payer: {
+        openid: openid
+      }
+    }, config);
+
+    // 6. 生成小程序支付参数
+    const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
+
+    return {
+      success: true,
+      data: {
+        orderId: rechargeOrderId,
+        orderNo: outTradeNo,
+        prepayId: orderResult.prepay_id,
+        payParams: payParams
+      }
+    };
+  } catch (error) {
+    console.error('创建充值支付订单失败:', error);
+    return {
+      success: false,
+      code: error.code || 'CREATE_RECHARGE_PAYMENT_FAILED',
+      message: error.message || '创建充值支付订单失败'
+    };
+  }
+}
 
 /**
  * 创建支付订单
