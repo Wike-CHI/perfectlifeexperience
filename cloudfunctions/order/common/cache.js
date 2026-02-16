@@ -4,7 +4,8 @@
  * 提供缓存和批量查询优化功能
  */
 
-const logger = require('./logger');
+const { createLogger } = require('./logger');
+const logger = createLogger('cache');
 
 /**
  * 简单内存缓存类
