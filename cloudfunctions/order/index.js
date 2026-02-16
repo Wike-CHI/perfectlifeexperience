@@ -26,6 +26,12 @@ const {
   OrderStatus
 } = require('./common/constants');
 
+// ✅ 引入缓存模块
+const {
+  userCache,
+  productCache
+} = require('./common/cache');
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -302,6 +308,11 @@ async function createOrder(openid, orderData) {
       amount: cartValidation.serverTotalAmount
     });
 
+    // 清除订单列表缓存（新订单会出现在 pending 列表）
+    userCache.delete(`orders_${openid}_all`);
+    userCache.delete(`orders_${openid}_pending`);
+    logger.debug('Order list cache cleared after creation', { openid });
+
     return success(
       {
         orderId: res._id,
@@ -318,6 +329,18 @@ async function createOrder(openid, orderData) {
 
 // Get orders
 async function getOrders(openid, status) {
+  // 构建缓存键（包含 openid 和 status）
+  const cacheKey = `orders_${openid}_${status || 'all'}`;
+
+  // 1. 尝试从缓存获取
+  const cached = userCache.get(cacheKey);
+  if (cached !== null) {
+    logger.debug('Orders cache hit', { openid, status });
+    return cached;
+  }
+
+  logger.debug('Orders cache miss, querying...', { openid, status });
+
   try {
     const query = {
       _openid: openid
@@ -332,7 +355,12 @@ async function getOrders(openid, status) {
       .orderBy('createTime', 'desc')
       .get();
 
-    return success({ orders: res.data }, '获取订单成功');
+    const result = success({ orders: res.data }, '获取订单成功');
+
+    // 2. 缓存结果（5分钟TTL - 订单状态可能变化）
+    userCache.set(cacheKey, result, 300000);
+
+    return result;
   } catch (err) {
     logger.error('Failed to get orders', err);
     return error(ErrorCodes.DATABASE_ERROR, '获取订单失败', err.message);
@@ -384,6 +412,14 @@ async function updateOrderStatus(openid, orderId, status) {
         }
       }
     }
+
+    // 清除该用户的所有订单列表缓存（订单状态变更后列表会变化）
+    const orderStatuses = ['all', 'pending', 'paid', 'shipping', 'completed', 'cancelled'];
+    orderStatuses.forEach(status => {
+      const cacheKey = `orders_${openid}_${status}`;
+      userCache.delete(cacheKey);
+    });
+    logger.debug('Order list cache cleared', { openid });
 
     return success(null, '订单状态更新成功');
   } catch (err) {

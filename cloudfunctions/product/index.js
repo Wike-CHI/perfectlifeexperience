@@ -6,6 +6,9 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// ✅ 引入缓存模块
+const { productCache, categoryCache } = require('./common/cache');
+
 /**
  * 初始化商品数据到云数据库
  * 用于首次部署时录入商品和分类数据
@@ -203,6 +206,15 @@ async function initDataToDatabase(data) {
 async function getProducts(params) {
   const { category, keyword, page = 1, limit = 20, sort = 'createTime' } = params || {};
 
+  // 构建缓存键（包含所有查询参数）
+  const cacheKey = `products_${category || 'all'}_${keyword || 'none'}_page${page}_limit${limit}_sort${sort}`;
+
+  // 1. 尝试从缓存获取
+  const cached = productCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
   try {
     // 构建查询条件
     const where = {};
@@ -255,12 +267,17 @@ async function getProducts(params) {
       data.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
     }
 
-    return {
+    const response = {
       code: 0,
       msg: 'success',
       data: data,
       total: countResult.total
     };
+
+    // 2. 缓存结果（1小时TTL - 商品数据变化较少）
+    productCache.set(cacheKey, response, 3600000);
+
+    return response;
   } catch (error) {
     console.error('获取商品列表失败:', error);
     return {
@@ -276,6 +293,14 @@ async function getProducts(params) {
 async function getProductDetail(data) {
   const { id } = data;
 
+  const cacheKey = `product_detail_${id}`;
+
+  // 1. 尝试从缓存获取
+  const cached = productCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
   try {
     const result = await db.collection('products')
       .doc(id)
@@ -288,11 +313,16 @@ async function getProductDetail(data) {
       };
     }
 
-    return {
+    const response = {
       code: 0,
       msg: 'success',
       data: result.data
     };
+
+    // 2. 缓存结果（1小时TTL）
+    productCache.set(cacheKey, response, 3600000);
+
+    return response;
   } catch (error) {
     console.error('获取商品详情失败:', error);
     return {
@@ -364,6 +394,14 @@ async function getNewProducts(data) {
  * 获取分类列表
  */
 async function getCategories() {
+  const cacheKey = 'categories_list';
+
+  // 1. 尝试从缓存获取
+  const cached = categoryCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
   try {
     const result = await db.collection('categories')
       .where({
@@ -372,11 +410,16 @@ async function getCategories() {
       .orderBy('sort', 'asc')
       .get();
 
-    return {
+    const response = {
       code: 0,
       msg: 'success',
       data: result.data || []
     };
+
+    // 2. 缓存结果（2小时TTL - 分类数据很少变化）
+    categoryCache.set(cacheKey, response, 7200000);
+
+    return response;
   } catch (error) {
     console.error('获取分类列表失败:', error);
     return {
@@ -419,6 +462,10 @@ async function fixCategoryIcons() {
       updatedCount++;
     }
 
+    // 清除分类缓存（分类数据已更新）
+    categoryCache.delete('categories_list');
+    console.log('分类缓存已清除');
+
     return {
       code: 0,
       msg: '分类图标修复成功',
@@ -431,6 +478,23 @@ async function fixCategoryIcons() {
       msg: error.message || '修复分类图标失败'
     };
   }
+}
+
+/**
+ * 清除商品相关缓存
+ * 在商品数据更新时调用此函数
+ */
+function clearProductCache(productId = null) {
+  if (productId) {
+    // 清除特定商品的缓存
+    productCache.delete(`product_detail_${productId}`);
+  } else {
+    // 清除所有商品相关缓存
+    productCache.clear();
+  }
+
+  // 如果分类更新了，也应该清除分类缓存
+  categoryCache.delete('categories_list');
 }
 
 // 云函数入口

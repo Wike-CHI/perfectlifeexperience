@@ -4,7 +4,8 @@
  * 提供缓存和批量查询优化功能
  */
 
-const logger = require('./logger');
+// Product cloud function does not use logger
+// const logger = require('./logger');
 
 /**
  * 简单内存缓存类
@@ -26,7 +27,7 @@ class QueryCache {
       value,
       expireAt: Date.now() + (ttl || this.defaultTTL)
     });
-    logger.debug('Cache set', { key, ttl: ttl || this.defaultTTL });
+    // logger.debug('Cache set', { key, ttl: ttl || this.defaultTTL });
   }
 
   /**
@@ -38,17 +39,17 @@ class QueryCache {
     const item = this.cache.get(key);
 
     if (!item) {
-      logger.debug('Cache miss', { key });
+      // logger.debug('Cache miss', { key });
       return null;
     }
 
     if (Date.now() > item.expireAt) {
-      logger.debug('Cache expired', { key });
+      // logger.debug('Cache expired', { key });
       this.cache.delete(key);
       return null;
     }
 
-    logger.debug('Cache hit', { key });
+    // logger.debug('Cache hit', { key });
     return item.value;
   }
 
@@ -58,7 +59,7 @@ class QueryCache {
    */
   delete(key) {
     this.cache.delete(key);
-    logger.debug('Cache deleted', { key });
+    // logger.debug('Cache deleted', { key });
   }
 
   /**
@@ -66,7 +67,7 @@ class QueryCache {
    */
   clear() {
     this.cache.clear();
-    logger.info('Cache cleared');
+    // logger.info('Cache cleared');
   }
 
   /**
@@ -135,11 +136,11 @@ async function batchGet(ids, collection, db, fields = null) {
 
   const result = await query.get();
 
-  logger.debug('Batch get', {
-    collection,
-    count: ids.length,
-    found: result.data.length
-  });
+  // logger.debug('Batch get', {
+  //   collection,
+  //   count: ids.length,
+  //   found: result.data.length
+  // });
 
   return result.data;
 }

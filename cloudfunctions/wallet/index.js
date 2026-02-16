@@ -12,6 +12,9 @@ const $ = db.command.aggregate;
 const { createLogger } = require('./common/logger');
 const logger = createLogger('wallet');
 
+// ✅ 引入缓存模块
+const { userCache } = require('./common/cache');
+
 // 集合名称
 const WALLETS_COLLECTION = 'user_wallets';
 const TRANSACTIONS_COLLECTION = 'wallet_transactions';
@@ -76,9 +79,22 @@ exports.main = async (event, context) => {
 
 // 获取余额
 async function getBalance(openid) {
+  const cacheKey = `wallet_balance_${openid}`;
+
+  // 1. 尝试从缓存获取
+  const cached = userCache.get(cacheKey);
+  if (cached !== null) {
+    logger.debug('Wallet balance cache hit', { openid });
+    return cached;
+  }
+
+  logger.debug('Wallet balance cache miss, querying...', { openid });
+
   const res = await db.collection(WALLETS_COLLECTION).where({
     _openid: openid
   }).get();
+
+  let result;
 
   if (res.data.length === 0) {
     // 如果没有钱包记录，初始化一个
@@ -92,7 +108,7 @@ async function getBalance(openid) {
     await db.collection(WALLETS_COLLECTION).add({
       data: initData
     });
-    return {
+    result = {
       code: 0,
       data: {
         balance: 0,
@@ -100,16 +116,21 @@ async function getBalance(openid) {
         totalGift: 0
       }
     };
+  } else {
+    result = {
+      code: 0,
+      data: {
+        balance: res.data[0].balance,
+        totalRecharge: res.data[0].totalRecharge || 0,
+        totalGift: res.data[0].totalGift || 0
+      }
+    };
   }
 
-  return {
-    code: 0,
-    data: {
-      balance: res.data[0].balance,
-      totalRecharge: res.data[0].totalRecharge || 0,
-      totalGift: res.data[0].totalGift || 0
-    }
-  };
+  // 2. 缓存结果（3分钟TTL - 余额可能变化）
+  userCache.set(cacheKey, result, 180000);
+
+  return result;
 }
 
 // 充值 (支持赠送金额)
@@ -180,6 +201,10 @@ async function recharge(openid, { amount, giftAmount = 0 }) {
 
     await transaction.commit();
 
+    // 清除余额缓存（充值后余额变化）
+    userCache.delete(`wallet_balance_${openid}`);
+    logger.debug('Wallet balance cache cleared after recharge', { openid });
+
     return {
       code: 0,
       msg: '充值成功',
@@ -198,14 +223,25 @@ async function recharge(openid, { amount, giftAmount = 0 }) {
 
 // 获取交易记录
 async function getTransactions(openid, { page = 1, limit = 20 }) {
+  const cacheKey = `wallet_transactions_${openid}_page${page}_limit${limit}`;
+
+  // 1. 尝试从缓存获取
+  const cached = userCache.get(cacheKey);
+  if (cached !== null) {
+    logger.debug('Wallet transactions cache hit', { openid, page });
+    return cached;
+  }
+
+  logger.debug('Wallet transactions cache miss, querying...', { openid, page });
+
   const skip = (page - 1) * limit;
-  
+
   const countResult = await db.collection(TRANSACTIONS_COLLECTION).where({
     _openid: openid
   }).count();
-  
+
   const total = countResult.total;
-  
+
   const res = await db.collection(TRANSACTIONS_COLLECTION).where({
     _openid: openid
   }).orderBy('createTime', 'desc')
@@ -213,7 +249,7 @@ async function getTransactions(openid, { page = 1, limit = 20 }) {
     .limit(limit)
     .get();
 
-  return {
+  const result = {
     code: 0,
     data: {
       list: res.data,
@@ -222,4 +258,9 @@ async function getTransactions(openid, { page = 1, limit = 20 }) {
       limit
     }
   };
+
+  // 2. 缓存结果（5分钟TTL - 交易记录历史变化较少）
+  userCache.set(cacheKey, result, 300000);
+
+  return result;
 }
