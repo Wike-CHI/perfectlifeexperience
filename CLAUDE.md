@@ -52,7 +52,18 @@ npm run build:mp-weixin
 
 # Type Checking
 npm run type-check
+
+# H5 Development (for web testing)
+npm run dev:h5
+
+# H5 Production Build
+npm run build:h5
 ```
+
+### Build Output Locations
+
+- **WeChat Mini Program**: `dist/build/mp-weixin/`
+- **H5**: `dist/build/h5/`
 
 ### Opening in WeChat Developer Tools
 
@@ -96,7 +107,11 @@ npm run type-check
 
 ### Backend (`cloudfunctions/`)
 
-Each cloud function exports `exports.main = async (event, context) => {}`
+Each cloud function:
+- Exports `exports.main = async (event, context) => {}`
+- Has its own `package.json` for dependencies
+- Must use `cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })`
+- Receives OPENID via `cloud.getWXContext().OPENID`
 
 - **`login/`** - User authentication
   - Gets OPENID from wxContext or exchanges code for openid/session_key
@@ -249,8 +264,16 @@ Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent Cloud
 
 ### Backend Configuration
 - Each cloud function has its own `package.json` for dependencies
+- **Dependencies**: Common ones include `wx-server-sdk`, `axios`
 - Environment variables configured in CloudBase console per function
 - **`cloudfunctions/promotion/config.json`** - Promotion thresholds and ratios
+
+### Type Definitions
+
+TypeScript types are defined in `src/types/`:
+- **`index.ts`** - Main business types (Product, Order, User, Cart, Coupon, etc.)
+- **`wx-cloud.d.ts`** - WeChat Cloud SDK declarations
+- Types are imported in components via `@/types`
 
 ## Important Code Patterns
 
@@ -325,15 +348,16 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 
 1. **Frontend Changes**:
    - Update types in `src/types/index.ts` if needed
-   - Add API methods to `src/utils/api.ts`
+   - Add API methods to `src/utils/api.ts` (follows `callFunction('functionName', { action, data })` pattern)
    - Create/modify pages or components
    - Update `src/pages.json` for new pages
 
 2. **Backend Changes**:
    - Create new cloud function directory under `cloudfunctions/`
-   - Implement `index.js` with `exports.main`
-   - Add dependencies in `package.json`
-   - Deploy via CloudBase console or MCP tools
+   - Implement `index.js` with `exports.main = async (event, context) => {}`
+   - Add `package.json` with dependencies (typically includes `wx-server-sdk`)
+   - Deploy via CloudBase console, MCP tools, or WeChat Developer Tools
+   - **Important**: Runtime cannot be changed after creation (default: Nodejs16.13)
 
 3. **Database Schema Changes**:
    - Update documentation in `docs/`
@@ -373,6 +397,30 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 - Use database schema validation where applicable
 - Sanitize data before storage
 
+## Important Notes
+
+### Cloud Function Runtime Constraints
+
+- **Runtime is immutable** after cloud function creation
+- If you need to change runtime, you must delete and recreate the function
+- Current runtime: **Nodejs16.13** (set during initial creation)
+- When creating new functions, explicitly specify runtime
+
+### NoSQL Database Constraints
+
+CloudBase NoSQL (MongoDB-like) has limitations:
+- **No native JOINs** - must denormalize data or make multiple queries
+- **Array operations limited** - array updates require special syntax
+- **Transaction support limited** - not available across collections
+- **Index limitations** - compound indexes have specific ordering requirements
+
+### WeChat Mini Program Specifics
+
+- **No native login required** - CloudBase provides silent login via OPENID
+- **Domain whitelist** - all API domains must be configured in WeChat MP backend
+- **Package size limit** - mini program code must be under 2MB (unzipped)
+- **Storage** - use `wx.cloud.uploadFile()` for images, not base64
+
 ## Troubleshooting
 
 ### Common Issues
@@ -391,6 +439,11 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 - Verify user `promotionPath` format
 - Check agent level calculations (max 4 levels deep)
 - Review performance tracking for month tag mismatches
+
+**Build/Compilation Errors**:
+- Clear `dist/` and `node_modules/` if experiencing odd build issues
+- Ensure all file paths referenced in code actually exist
+- Check that imports use proper aliases (`@/` for `src/`)
 
 **WeChat Pay Failures**:
 - Verify merchant certificate and private key
@@ -414,3 +467,10 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 - **Documentation**: Comprehensive design and deployment documentation
 
 See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit details.
+
+## Key Links & Resources
+
+- **CloudBase Console**: https://tcb.cloud.tencent.com/dev?envId=cloud1-6gmp2q0y3171c353
+- **WeChat Mini Program Backend**: https://mp.weixin.qq.com/
+- **UniApp Documentation**: https://uniapp.dcloud.net.cn/
+- **CloudBase Documentation**: https://docs.cloudbase.net/

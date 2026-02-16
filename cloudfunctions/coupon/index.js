@@ -179,27 +179,27 @@ async function getMyCoupons(openid, data) {
       whereCondition.status = status;
     }
   }
-  
-  const { data } = await db.collection('user_coupons')
+
+  const { data: userCoupons } = await db.collection('user_coupons')
     .where(whereCondition)
     .orderBy('receiveTime', 'desc')
     .get();
-  
+
   // 获取模板信息
-  const templateIds = [...new Set(data.map(item => item.templateId))];
+  const templateIds = [...new Set(userCoupons.map(item => item.templateId))];
   const { data: templates } = await db.collection('coupon_templates')
     .where({
       _id: _.in(templateIds)
     })
     .get();
-  
+
   const templateMap = {};
   templates.forEach(t => {
     templateMap[t._id] = t;
   });
-  
+
   // 合并数据并更新过期状态
-  const result = data.map(item => {
+  const result = userCoupons.map(item => {
     const isExpired = item.status === 'unused' && new Date(item.expireTime) < now;
     return {
       ...item,
@@ -207,10 +207,10 @@ async function getMyCoupons(openid, data) {
       status: isExpired ? 'expired' : item.status
     };
   });
-  
+
   // 批量更新过期状态
   const expiredIds = result
-    .filter(item => item.status === 'expired' && data.find(d => d._id === item._id).status !== 'expired')
+    .filter(item => item.status === 'expired' && userCoupons.find(d => d._id === item._id).status !== 'expired')
     .map(item => item._id);
   
   if (expiredIds.length > 0) {

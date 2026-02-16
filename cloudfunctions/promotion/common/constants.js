@@ -54,7 +54,7 @@ const OrderStatus = {
   PAID: 'paid',               // 已支付
   SHIPPING: 'shipping',         // 配送中
   COMPLETED: 'completed',       // 已完成
-  CANCELLED: 'cancelled'       // 已取消
+  CANCELLED: 'cancelled',       // 已取消
   REFUNDED: 'refunded'         // 已退款
 };
 

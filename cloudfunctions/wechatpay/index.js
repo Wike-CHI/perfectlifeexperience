@@ -68,29 +68,6 @@ const AMOUNT_LIMITS = {
   MAX: 5000000            // 50000元（5000000分）
 };
 
-const cloud = require('wx-server-sdk');
-
-cloud.init({
-  env: cloud.DYNAMIC_CURRENT_ENV
-});
-
-const db = cloud.database();
-const {
-  jsapiOrder,
-  queryOrderByOutTradeNo,
-  closeOrder,
-  generateMiniProgramPayParams,
-  generateOutTradeNo
-} = require('./pay');
-
-const {
-  parseNotify,
-  buildSuccessResponse,
-  buildFailResponse,
-  isTimestampValid,
-  handlePaymentSuccess
-} = require('./notify');
-
 // ==================== 工具函数 ====================
 
 /**

@@ -26,10 +26,13 @@ export const getProducts = async (params?: {
       data: params || {}
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      // res.data 是云函数返回值 {code: 0, msg: 'success', data: [...], total: 12}
+      // 需要返回 res.data.data 来获取商品数组
+      const result = res.data as { code: number; msg: string; data: any[]; total: number };
+      return result.data || [];
     }
-    throw new Error((res as any).result?.msg || '获取商品列表失败');
+    throw new Error(res.msg || '获取商品列表失败');
   } catch (error) {
     console.error('获取商品列表失败:', error);
     throw error;
@@ -48,10 +51,11 @@ export const getProductDetail = async (id: string) => {
       data: { id }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      const result = res.data as { code: number; msg: string; data: any };
+      return result.data;
     }
-    throw new Error((res as any).result?.msg || '获取商品详情失败');
+    throw new Error(res.msg || '获取商品详情失败');
   } catch (error) {
     console.error('获取商品详情失败:', error);
     throw error;
@@ -70,10 +74,11 @@ export const getHotProducts = async (limitCount = 6) => {
       data: { limit: limitCount }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      const result = res.data as { code: number; msg: string; data: any[] };
+      return result.data || [];
     }
-    throw new Error((res as any).result?.msg || '获取热门商品失败');
+    throw new Error(res.msg || '获取热门商品失败');
   } catch (error) {
     console.error('获取热门商品失败:', error);
     throw error;
@@ -92,10 +97,11 @@ export const getNewProducts = async (limitCount = 6) => {
       data: { limit: limitCount }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      const result = res.data as { code: number; msg: string; data: any[] };
+      return result.data || [];
     }
-    throw new Error((res as any).result?.msg || '获取新品失败');
+    throw new Error(res.msg || '获取新品失败');
   } catch (error) {
     console.error('获取新品失败:', error);
     throw error;
@@ -115,10 +121,11 @@ export const getCategories = async () => {
       action: 'getCategories'
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      const result = res.data as { code: number; msg: string; data: any[] };
+      return result.data || [];
     }
-    throw new Error((res as any).result?.msg || '获取分类列表失败');
+    throw new Error(res.msg || '获取分类列表失败');
   } catch (error) {
     console.error('获取分类列表失败:', error);
     throw error;
@@ -226,12 +233,11 @@ export const createOrder = async (order: Omit<Order, '_id' | '_openid' | 'orderN
       data: newOrder
     });
     
-    if ((res as any).result && (res as any).result.success) {
-      // 同时更新本地缓存以便快速显示（可选）
-      // ...
-      return { _id: (res as any).result.orderId };
+    if (res.code === 0 && res.data) {
+      // res.data 是订单云函数的返回值
+      return { _id: (res.data as any).orderId || (res.data as any)._id };
     }
-    throw new Error((res as any).result?.message || '创建订单失败');
+    throw new Error(res.msg || '创建订单失败');
   } catch (error) {
     console.error('创建订单失败:', error);
     // 降级到本地存储（如果云函数失败）- 但这会导致数据不一致，暂时只抛出错误
@@ -246,14 +252,17 @@ export const getOrders = async (status?: string) => {
       action: 'getOrders',
       data: { status }
     });
-    
-    if ((res as any).result && (res as any).result.success) {
-      const orders = (res as any).result.orders as Order[];
+
+    if (res.code === 0 && res.data) {
+      // res.data 是云函数返回的 {code: 0, msg: '...', data: {orders: [...]}}
+      const cloudFunctionData = res.data as { code: number; msg: string; data: { orders: Order[] } };
+      const orders = cloudFunctionData.data?.orders || [];
+
       // 更新本地缓存
       uni.setStorageSync(ORDER_KEY, JSON.stringify(orders));
       return orders;
     }
-    throw new Error((res as any).result?.message || '获取订单失败');
+    throw new Error(res.msg || '获取订单失败');
   } catch (error) {
     console.error('获取订单列表失败:', error);
     // 降级：从本地缓存读取
@@ -283,10 +292,10 @@ export const updateOrderStatus = async (id: string, status: Order['status']) => 
       data: { orderId: id, status }
     });
     
-    if ((res as any).result && (res as any).result.success) {
+    if (res.code === 0) {
       return { stats: { updated: 1 } };
     }
-    throw new Error((res as any).result?.message || '更新订单状态失败');
+    throw new Error(res.msg || '更新订单状态失败');
   } catch (error) {
     console.error('更新订单状态失败:', error);
     throw error;
@@ -301,10 +310,10 @@ export const cancelOrder = async (id: string) => {
       data: { orderId: id }
     });
     
-    if ((res as any).result && (res as any).result.success) {
+    if (res.code === 0) {
       return { stats: { updated: 1 } };
     }
-    throw new Error((res as any).result?.message || '取消订单失败');
+    throw new Error(res.msg || '取消订单失败');
   } catch (error) {
     console.error('取消订单失败:', error);
     throw error;
@@ -504,12 +513,12 @@ export const syncUserToCloud = async (wxProfile: WxUserProfile, openid: string):
       }
     });
     
-    if ((res as any).result && (res as any).result.success) {
+    if (res.code === 0 && res.data) {
       // 记录登录时间
       uni.setStorageSync(LOGIN_TIME_KEY, Date.now());
-      return (res as any).result;
+      return res.data;
     }
-    throw new Error((res as any).result?.message || '同步用户失败');
+    throw new Error(res.msg || '同步用户失败');
   } catch (error) {
     console.error('同步用户到云端失败:', error);
     throw error;
@@ -525,8 +534,8 @@ export const getCloudUserInfo = async (): Promise<CloudUserInfo | null> => {
       action: 'getUserInfo'
     });
     
-    if ((res as any).result && (res as any).result.success) {
-      return (res as any).result.userInfo;
+    if (res.code === 0 && res.data) {
+      return (res.data as any).userInfo || res.data;
     }
     return null;
   } catch (error) {
@@ -545,7 +554,7 @@ export const updateCloudUserInfo = async (updateData: Partial<CloudUserInfo>): P
       data: updateData
     });
     
-    return (res as any).result && (res as any).result.success;
+    return res.code === 0 && res.data !== undefined;
   } catch (error) {
     console.error('更新云端用户信息失败:', error);
     return false;
@@ -708,13 +717,15 @@ export const getWalletBalance = async () => {
     console.warn('当前环境不支持云开发，返回模拟数据');
     return { balance: 0 };
   }
-  
+
   try {
     const res = await callFunction('wallet', { action: 'getBalance' });
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      // res.data 是云函数返回的 {code: 0, data: {balance: ...}}
+      const walletData = (res.data as any).data || res.data;
+      return { balance: walletData.balance || 0 };
     }
-    throw new Error((res as any).result?.msg || '获取余额失败');
+    throw new Error(res.msg || '获取余额失败');
   } catch (error) {
     console.error('获取钱包余额失败:', error);
     // 降级处理
@@ -734,10 +745,10 @@ export const rechargeWallet = async (amount: number, giftAmount: number = 0) => 
       data: { amount, giftAmount }
     });
     
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '充值失败');
+    throw new Error(res.msg || '充值失败');
   } catch (error) {
     console.error('充值失败:', error);
     throw error;
@@ -756,10 +767,10 @@ export const getWalletTransactions = async (page = 1, limit = 20) => {
       data: { page, limit }
     });
     
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取交易记录失败');
+    throw new Error(res.msg || '获取交易记录失败');
   } catch (error) {
     console.error('获取交易记录失败:', error);
     throw error;
@@ -781,10 +792,10 @@ export const getCouponTemplates = async () => {
       action: 'getTemplates'
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取优惠券模板失败');
+    throw new Error(res.msg || '获取优惠券模板失败');
   } catch (error) {
     console.error('获取优惠券模板失败:', error);
     throw error;
@@ -803,10 +814,10 @@ export const getMyCoupons = async (status?: 'unused' | 'used' | 'expired') => {
       data: { status }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取我的优惠券失败');
+    throw new Error(res.msg || '获取我的优惠券失败');
   } catch (error) {
     console.error('获取我的优惠券失败:', error);
     throw error;
@@ -825,10 +836,10 @@ export const receiveCoupon = async (templateId: string) => {
       data: { templateId }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '领取优惠券失败');
+    throw new Error(res.msg || '领取优惠券失败');
   } catch (error) {
     console.error('领取优惠券失败:', error);
     throw error;
@@ -847,10 +858,10 @@ export const getAvailableCoupons = async (orderAmount: number) => {
       data: { orderAmount }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取可用优惠券失败');
+    throw new Error(res.msg || '获取可用优惠券失败');
   } catch (error) {
     console.error('获取可用优惠券失败:', error);
     throw error;
@@ -869,10 +880,10 @@ export const useCoupon = async (couponId: string, orderNo: string) => {
       data: { couponId, orderNo }
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '使用优惠券失败');
+    throw new Error(res.msg || '使用优惠券失败');
   } catch (error) {
     console.error('使用优惠券失败:', error);
     throw error;
@@ -929,10 +940,10 @@ export const bindPromotionRelation = async (parentInviteCode: string, userInfo: 
       deviceInfo
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '绑定失败');
+    throw new Error(res.msg || '绑定失败');
   } catch (error) {
     console.error('绑定推广关系失败:', error);
     throw error;
@@ -947,10 +958,11 @@ export const getPromotionInfo = async (): Promise<PromotionInfo> => {
 
   try {
     const res = await callFunction('promotion', { action: 'getInfo' });
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0 && res.data) {
+      // res.data 是云函数返回的 {code: 0, msg: '...', data: {...}}
+      return (res.data as any).data || res.data;
     }
-    throw new Error((res as any).result?.msg || '获取失败');
+    throw new Error(res.msg || '获取失败');
   } catch (error) {
     console.error('获取推广信息失败:', error);
     throw error;
@@ -971,10 +983,10 @@ export const getTeamMembers = async (level: number = 1, page: number = 1, limit:
       limit
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取失败');
+    throw new Error(res.msg || '获取失败');
   } catch (error) {
     console.error('获取团队成员失败:', error);
     throw error;
@@ -996,10 +1008,10 @@ export const getRewardRecords = async (status?: string, page: number = 1, limit:
       limit
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '获取失败');
+    throw new Error(res.msg || '获取失败');
   } catch (error) {
     console.error('获取奖励明细失败:', error);
     throw error;
@@ -1018,10 +1030,10 @@ export const generatePromotionQRCode = async (page?: string) => {
       page
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '生成失败');
+    throw new Error(res.msg || '生成失败');
   } catch (error) {
     console.error('生成二维码失败:', error);
     throw error;
@@ -1042,10 +1054,10 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
       orderAmount
     });
 
-    if ((res as any).result && (res as any).result.code === 0) {
-      return (res as any).result.data;
+    if (res.code === 0) {
+      return res.data;
     }
-    throw new Error((res as any).result?.msg || '计算失败');
+    throw new Error(res.msg || '计算失败');
   } catch (error) {
     console.error('计算奖励失败:', error);
     throw error;

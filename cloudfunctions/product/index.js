@@ -14,7 +14,35 @@ async function initDataToDatabase(data) {
   const { categories } = data;
 
   try {
-    // 1. 创建分类
+    console.log('开始初始化商品数据，分类数:', categories.length);
+
+    // 1. 先删除旧数据（避免 _id 冲突）
+    try {
+      const oldCategories = await db.collection('categories').get();
+      if (oldCategories.data.length > 0) {
+        console.log('删除旧分类数据...');
+        for (const cat of oldCategories.data) {
+          await db.collection('categories').doc(cat._id).remove();
+        }
+      }
+    } catch (error) {
+      console.log('删除旧分类数据失败或无数据:', error.message);
+    }
+
+    try {
+      const oldProducts = await db.collection('products').get();
+      if (oldProducts.data.length > 0) {
+        console.log('删除旧商品数据...');
+        for (const prod of oldProducts.data) {
+          await db.collection('products').doc(prod._id).remove();
+        }
+      }
+    } catch (error) {
+      console.log('删除旧商品数据失败或无数据:', error.message);
+    }
+
+    // 2. 创建分类（逐条添加）
+    console.log('开始添加分类数据...');
     const categoryRecords = categories.map((cat, index) => ({
       _id: `cat_${index}`,
       name: cat.name,
@@ -24,11 +52,28 @@ async function initDataToDatabase(data) {
       createTime: new Date()
     }));
 
-    await db.collection('categories').add({
-      data: categoryRecords
-    });
+    for (const cat of categoryRecords) {
+      try {
+        await db.collection('categories').add({
+          data: cat
+        });
+        console.log('添加分类成功:', cat.name);
+      } catch (error) {
+        console.error('添加分类失败:', cat.name, error);
+        // 尝试使用 doc().set() 替代
+        try {
+          await db.collection('categories').doc(cat._id).set({
+            data: cat
+          });
+          console.log('使用 set 添加分类成功:', cat.name);
+        } catch (error2) {
+          console.error('set 方法也失败:', error2);
+        }
+      }
+    }
 
-    // 2. 创建商品
+    // 3. 创建商品（逐条添加）
+    console.log('开始添加商品数据...');
     const productRecords = [];
     categories.forEach((cat, catIndex) => {
       cat.items.forEach((item, itemIndex) => {
@@ -104,17 +149,41 @@ async function initDataToDatabase(data) {
       });
     });
 
-    // 批量插入商品
-    await db.collection('products').add({
-      data: productRecords
-    });
+    // 逐条插入商品
+    let successCount = 0;
+    let failCount = 0;
+    for (const prod of productRecords) {
+      try {
+        await db.collection('products').add({
+          data: prod
+        });
+        console.log('添加商品成功:', prod.name);
+        successCount++;
+      } catch (error) {
+        console.error('添加商品失败:', prod.name, error);
+        // 尝试使用 doc().set() 替代
+        try {
+          await db.collection('products').doc(prod._id).set({
+            data: prod
+          });
+          console.log('使用 set 添加商品成功:', prod.name);
+          successCount++;
+        } catch (error2) {
+          console.error('set 方法也失败:', error2);
+          failCount++;
+        }
+      }
+    }
+
+    console.log(`初始化完成: 成功 ${successCount} 条, 失败 ${failCount} 条`);
 
     return {
       code: 0,
       msg: '商品数据初始化成功',
       data: {
         categories: categoryRecords.length,
-        products: productRecords.length
+        products: successCount,
+        failed: failCount
       }
     };
   } catch (error) {
@@ -317,6 +386,53 @@ async function getCategories() {
   }
 }
 
+/**
+ * 修复分类图标（临时使用，完成后可删除）
+ */
+async function fixCategoryIcons() {
+  try {
+    console.log('开始修复分类图标...');
+
+    // 获取所有分类
+    const categories = await db.collection('categories').get();
+
+    console.log('找到分类数:', categories.data.length);
+
+    // 更新每个分类的图标为 emoji
+    const iconMap = {
+      '鲜啤外带': '🍺',
+      '增味啤': '🍹'
+    };
+
+    let updatedCount = 0;
+    for (const cat of categories.data) {
+      const newIcon = iconMap[cat.name] || '🍺';
+
+      await db.collection('categories').doc(cat._id).update({
+        data: {
+          icon: newIcon,
+          iconType: 'emoji'
+        }
+      });
+
+      console.log(`更新分类 ${cat.name} 图标为: ${newIcon}`);
+      updatedCount++;
+    }
+
+    return {
+      code: 0,
+      msg: '分类图标修复成功',
+      data: { updated: updatedCount }
+    };
+  } catch (error) {
+    console.error('修复分类图标失败:', error);
+    return {
+      code: -1,
+      msg: error.message || '修复分类图标失败'
+    };
+  }
+}
+
 // 云函数入口
 exports.main = async (event, context) => {
   const { action, data } = event;
@@ -341,6 +457,9 @@ exports.main = async (event, context) => {
 
     case 'getCategories':
       return await getCategories();
+
+    case 'fixCategoryIcons':
+      return await fixCategoryIcons();
 
     default:
       return {

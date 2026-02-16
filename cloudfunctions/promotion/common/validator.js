@@ -30,7 +30,7 @@ const RULES = {
   // 金额验证（单位：分）
   amount: {
     min: 1,        // 0.01元
-    max: 500000000  // 50000元
+    max: 500000000,  // 50000元
     precision: 'integer'  // 必须是整数
   },
 

@@ -94,11 +94,8 @@
           :class="{ active: currentCategory === category.name }"
           @click="selectCategory(category.name)"
         >
-          <image 
-            class="nav-icon-img" 
-            :src="category.icon || '/static/logo.png'" 
-            mode="aspectFit"
-          />
+          <!-- 使用 SVG 图标 -->
+          <CategoryIcon :type="getCategoryIconType(category.name)" size="48rpx" />
           <text class="nav-text">{{ category.name }}</text>
         </view>
       </scroll-view>
@@ -198,10 +195,20 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getProducts, getCategories, addToCart as addToCartApi, formatPrice } from '@/utils/api';
 import type { Product, Category } from '@/types';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
+import CategoryIcon from '@/components/CategoryIcon.vue';
 
 // 数据
 const categories = ref<Category[]>([]);
 const products = ref<Product[]>([]);
+
+// 获取分类图标类型
+const getCategoryIconType = (categoryName: string): 'beer' | 'cocktail' => {
+  const iconMap: Record<string, 'beer' | 'cocktail'> = {
+    '鲜啤外带': 'beer',
+    '增味啤': 'cocktail'
+  };
+  return iconMap[categoryName] || 'beer';
+};
 const recommendProducts = ref<Product[]>([]);
 const currentCategory = ref('all');
 const sortBy = ref('default');
@@ -787,6 +794,7 @@ onPullDownRefresh(() => {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   white-space: normal;
 }
@@ -799,6 +807,7 @@ onPullDownRefresh(() => {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   white-space: normal;
 }

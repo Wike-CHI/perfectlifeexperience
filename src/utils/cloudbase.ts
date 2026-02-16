@@ -253,7 +253,9 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
     // 保持与 HTTP 调用一致的返回格式
     // wx.cloud.callFunction 返回 { result: ..., errMsg: ... }
     // 转换为 { code: ..., msg: ..., data: ... } 格式
-    if (res.errMsg) {
+
+    // 检查是否调用失败（errMsg 包含 fail 或 error）
+    if (res.errMsg && (res.errMsg.includes('fail') || res.errMsg.includes('error'))) {
       return {
         code: -1,
         msg: res.errMsg,
@@ -261,6 +263,7 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
       };
     }
 
+    // 成功时，errMsg 是 "cloud.callFunction:ok"，res.result 包含云函数返回值
     return {
       code: 0,
       msg: 'success',
