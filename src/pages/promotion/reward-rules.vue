@@ -86,8 +86,12 @@
           <text class="scenario-title">场景：银牌会员 + 二级代理</text>
           <view class="breakdown">
             <view class="breakdown-item">
+              <text class="breakdown-label">总公司收益</text>
+              <text class="breakdown-value">¥800 (80%)</text>
+            </view>
+            <view class="breakdown-item">
               <text class="breakdown-label">基础佣金</text>
-              <text class="breakdown-value">¥100 (10%)</text>
+              <text class="breakdown-value">¥60 (6%)</text>
             </view>
             <view class="breakdown-item">
               <text class="breakdown-label">复购奖励</text>
@@ -98,8 +102,8 @@
               <text class="breakdown-value">¥20 (2%)</text>
             </view>
             <view class="breakdown-item highlight-row">
-              <text class="breakdown-label">合计收益</text>
-              <text class="breakdown-value">¥150</text>
+              <text class="breakdown-label">代理收益</text>
+              <text class="breakdown-value">¥110</text>
             </view>
           </view>
         </view>
@@ -113,10 +117,10 @@
         <text class="section-title">温馨提示</text>
       </view>
       <view class="tips-list">
-        <text class="tip-item">• 基础佣金根据您的代理等级确定</text>
-        <text class="tip-item">• 复购奖励需要达到铜牌以上星级</text>
-        <text class="tip-item">• 团队管理奖需要达到银牌以上星级</text>
-        <text class="tip-item">• 育成津贴需要绑定导师关系</text>
+        <text class="tip-item">• 订单收益的80%归总公司所有</text>
+        <text class="tip-item">• 四级代理共享20%佣金池</text>
+        <text class="tip-item">• 基础佣金根据您的代理等级确定（1%-10%）</text>
+        <text class="tip-item">• 复购奖励、管理奖等从20%代理佣金池中扣除</text>
         <text class="tip-item">• 奖励在订单完成后自动结算到账户</text>
       </view>
     </view>
@@ -127,11 +131,18 @@
 // 四重分润类型
 const rewardTypes = [
   {
-    name: '基础佣金',
+    name: '代理佣金池',
     icon: '佣',
-    ratio: '5% - 20%',
-    desc: '根据代理等级确定',
+    ratio: '20% 总池',
+    desc: '四级代理共享',
     color: 'linear-gradient(135deg, #0052D9 0%, #00A1FF 100%)'
+  },
+  {
+    name: '基础佣金',
+    icon: '基',
+    ratio: '1% - 10%',
+    desc: '根据代理等级确定',
+    color: 'linear-gradient(135deg, #C9A962 0%, #D4A574 100%)'
   },
   {
     name: '复购奖励',
@@ -146,23 +157,16 @@ const rewardTypes = [
     ratio: '+2%',
     desc: '银牌以上星级专属',
     color: 'linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)'
-  },
-  {
-    name: '育成津贴',
-    icon: '育',
-    ratio: '+2%',
-    desc: '绑定导师关系后',
-    color: 'linear-gradient(135deg, #FF6B00 0%, #FFB800 100%)'
   }
 ];
 
 // 代理等级权益
 const agentLevels = [
-  { level: 0, name: 'HQ', ratio: '20%', condition: '总部直推' },
-  { level: 1, name: 'I级', ratio: '15%', condition: '一级代理' },
-  { level: 2, name: 'II级', ratio: '12%', condition: '二级代理' },
-  { level: 3, name: 'III级', ratio: '8%', condition: '三级代理' },
-  { level: 4, name: 'IV级', ratio: '5%', condition: '四级代理' }
+  { level: 0, name: '总公司', ratio: '80% 利润', condition: '公司收益' },
+  { level: 1, name: 'I级代理', ratio: '10%', condition: '一级代理' },
+  { level: 2, name: 'II级代理', ratio: '6%', condition: '二级代理' },
+  { level: 3, name: 'III级代理', ratio: '3%', condition: '三级代理' },
+  { level: 4, name: 'IV级代理', ratio: '1%', condition: '四级代理' }
 ];
 
 // 星级权益

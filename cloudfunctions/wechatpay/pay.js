@@ -145,7 +145,8 @@ async function requestApi(method, path, body, config) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': authorization
+        'Authorization': authorization,
+        'User-Agent': 'Mozilla/5.0 (compatible; WeChatPay-NodeJS/1.0)'
       }
     };
     

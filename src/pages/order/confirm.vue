@@ -213,6 +213,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction } from '@/utils/api';
+import { getCachedOpenid } from '@/utils/cloudbase';
 import type { CartItem, Address, OrderItem, UserCoupon } from '@/types';
 
 // 数据
@@ -458,10 +459,27 @@ const submitOrder = async () => {
 
     const res = await createOrder(orderData);
 
+    // 获取订单ID（兼容多种返回格式）
+    // api.ts 返回 { _id: res.data.orderId }，所以优先检查 res._id
+    const orderId = res._id || res.orderId || res.data?.orderId;
+    
+    console.log('[支付调试] 创建订单响应:', res);
+    console.log('[支付调试] 提取的 orderId:', orderId);
+    
+    // 检查订单是否创建成功
+    if (!orderId) {
+      uni.showToast({
+        title: '创建订单失败',
+        icon: 'none'
+      });
+      loading.value = false;
+      return;
+    }
+
     // 如果有使用优惠券，核销优惠券
-    if (selectedCoupon.value && res._id) {
+    if (selectedCoupon.value && orderId) {
       try {
-        await useCoupon(selectedCoupon.value._id!, res._id);
+        await useCoupon(selectedCoupon.value._id!, orderId);
       } catch (error) {
         console.error('核销优惠券失败:', error);
       }
@@ -474,9 +492,9 @@ const submitOrder = async () => {
 
     // 根据支付方式执行不同的支付流程
     if (paymentMethod.value === 'balance') {
-      await payWithBalanceProcess(res._id);
+      await payWithBalanceProcess(orderId);
     } else {
-      await payWithWechatProcess(res._id);
+      await payWithWechatProcess(orderId);
     }
 
   } catch (error) {
@@ -548,7 +566,7 @@ const payWithWechatProcess = async (orderId: string) => {
     uni.showLoading({ title: '正在创建支付...' });
 
     // 获取用户 openid
-    const openid = uni.getStorageSync('openid');
+    const openid = getCachedOpenid();
 
     // 调用微信支付云函数
     const result = await callFunction('wechatpay', {
@@ -561,9 +579,12 @@ const payWithWechatProcess = async (orderId: string) => {
 
     uni.hideLoading();
 
-    if (result.code === 0 && result.data?.payParams) {
+    // 检查支付创建是否成功
+    // 云函数返回格式: { success: true, data: { payParams: {...} } }
+    if (result.success === true && result.data?.payParams) {
       // 调起微信支付
       const payParams = result.data.payParams;
+      console.log('[支付调试] 调起微信支付，参数:', payParams);
       uni.requestPayment({
         provider: 'wxpay',
         orderInfo: '', // UniApp requires this field but WeChat Pay doesn't use it
@@ -606,7 +627,7 @@ const payWithWechatProcess = async (orderId: string) => {
       } as any);
     } else {
       // 微信支付创建失败
-      const errorMsg = result.msg || '创建支付失败';
+      const errorMsg = result.message || result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,

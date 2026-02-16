@@ -234,8 +234,13 @@ export const createOrder = async (order: Omit<Order, '_id' | '_openid' | 'orderN
     });
     
     if (res.code === 0 && res.data) {
-      // res.data 是订单云函数的返回值
-      return { _id: (res.data as any).orderId || (res.data as any)._id };
+      // res.data 是云函数返回值 {code: 0, msg: '...', data: {orderId: '...'}}
+      // 需要访问 res.data.data.orderId
+      const cloudResult = res.data as { code: number; msg: string; data: { orderId?: string } };
+      const orderId = cloudResult.data?.orderId;
+      console.log('[api.ts] createOrder 云函数返回:', cloudResult);
+      console.log('[api.ts] createOrder orderId:', orderId);
+      return { _id: orderId };
     }
     throw new Error(res.msg || '创建订单失败');
   } catch (error) {

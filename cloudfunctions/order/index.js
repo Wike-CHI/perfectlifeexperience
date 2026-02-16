@@ -121,7 +121,8 @@ async function validateCartItems(cartItems) {
     }
 
     // 2. 检查产品状态
-    if (product.status !== 'active') {
+    // 检查产品状态（只有明确设置为非active才认为是下架）
+    if (product.status && product.status !== 'active') {
       logger.warn('Product not available', {
         productId: product._id,
         status: product.status
@@ -262,15 +263,18 @@ async function createOrder(openid, orderData) {
       itemCount: orderData.items?.length
     });
 
+    // 兼容前端传递的 products 或 items 字段
+    const orderItems = orderData.items || orderData.products || [];
+    
     // 输入验证
-    const validation = validateObject(orderData.items, '购物车数据');
+    const validation = validateObject(orderItems, '购物车数据');
     if (!validation.result) {
       logger.warn('Invalid cart data', validation.error);
       return error(ErrorCodes.INVALID_PARAMS, validation.error);
     }
 
     // 购物车数据完整性验证
-    const cartValidation = await validateCartItems(orderData.items || []);
+    const cartValidation = await validateCartItems(orderItems);
 
     if (!cartValidation.valid) {
       logger.warn('Cart validation failed', {

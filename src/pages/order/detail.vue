@@ -106,6 +106,7 @@
 import { ref, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction } from '@/utils/api';
+import { getCachedOpenid } from '@/utils/cloudbase';
 import type { Order } from '@/types';
 
 // 数据
@@ -211,15 +212,18 @@ const payOrder = async () => {
       action: 'createPayment',
       data: {
         orderId: order.value._id,
-        openid: order.value._openid || uni.getStorageSync('openid')
+        openid: order.value._openid || getCachedOpenid()
       }
     });
 
     uni.hideLoading();
 
-    if (result.code === 0 && result.data?.payParams) {
+    // 检查支付创建是否成功
+    // 云函数返回格式: { success: true, data: { payParams: {...} } }
+    if (result.success === true && result.data?.payParams) {
       // 调起微信支付
       const payParams = result.data.payParams;
+      console.log('[支付调试] 调起微信支付，参数:', payParams);
       uni.requestPayment({
         provider: 'wxpay',
         orderInfo: '', // UniApp requires this field but WeChat Pay doesn't use it
@@ -252,7 +256,7 @@ const payOrder = async () => {
       } as any);
     } else {
       // 微信支付创建失败，显示错误信息
-      const errorMsg = result.msg || '创建支付失败';
+      const errorMsg = result.message || result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,
