@@ -99,13 +99,55 @@
       <view class="action-btn primary" v-if="order.status === 'shipping'" @click="confirmReceive">确认收货</view>
       <view class="action-btn secondary" v-if="order.status === 'completed'" @click="buyAgain">再次购买</view>
     </view>
+
+    <!-- 支付方式选择弹窗 -->
+    <view class="payment-popup" v-if="showPaymentPicker" @click="showPaymentPicker = false">
+      <view class="popup-mask"></view>
+      <view class="popup-content" @click.stop>
+        <view class="popup-header">
+          <text class="popup-title">选择支付方式</text>
+          <text class="popup-close" @click="showPaymentPicker = false">&#xe6b1;</text>
+        </view>
+        <view class="popup-body">
+          <view class="payment-item" @click="selectPaymentMethod('wechat')" :class="{ active: paymentMethod === 'wechat' }">
+            <view class="payment-left">
+              <text class="payment-icon wechat">&#xe6cb;</text>
+              <text class="payment-name">微信支付</text>
+            </view>
+            <text class="check-icon" v-if="paymentMethod === 'wechat'">&#xe6ad;</text>
+            <text class="uncheck-circle" v-else></text>
+          </view>
+          <view class="payment-item" @click="selectPaymentMethod('balance')" :class="{ active: paymentMethod === 'balance', disabled: !isBalanceSufficient }">
+            <view class="payment-left">
+              <text class="payment-icon balance">&#xe6b8;</text>
+              <view class="payment-info">
+                <text class="payment-name">余额支付</text>
+                <text class="balance-amount" v-if="!balanceLoading">
+                  可用余额: ¥{{ formatPrice(walletBalance) }}
+                </text>
+                <text class="balance-tip" v-if="!isBalanceSufficient">
+                  余额不足（还差 ¥{{ formatPrice((order.totalAmount || 0) - walletBalance) }}）
+                </text>
+              </view>
+            </view>
+            <text class="check-icon" v-if="paymentMethod === 'balance'">&#xe6ad;</text>
+            <text class="uncheck-circle" v-else></text>
+          </view>
+        </view>
+        <view class="popup-footer">
+          <view class="confirm-btn" @click="confirmPay">
+            <text class="confirm-text">确认支付 ¥{{ formatPrice(order.totalAmount || 0) }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction } from '@/utils/api';
+import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction, getWalletBalance } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import type { Order } from '@/types';
 
@@ -117,6 +159,30 @@ const order = ref<Partial<Order>>({
   status: 'pending',
   createTime: new Date()
 });
+
+// 支付方式选择
+const showPaymentPicker = ref(false);
+const paymentMethod = ref<'wechat' | 'balance'>('wechat');
+const walletBalance = ref(0);
+const balanceLoading = ref(false);
+
+// 检查余额是否充足
+const isBalanceSufficient = computed(() => {
+  return walletBalance.value >= (order.value.totalAmount || 0);
+});
+
+// 获取钱包余额
+const loadWalletBalance = async () => {
+  try {
+    balanceLoading.value = true;
+    const res = await getWalletBalance();
+    walletBalance.value = res.balance || 0;
+  } catch (error) {
+    console.error('获取钱包余额失败:', error);
+  } finally {
+    balanceLoading.value = false;
+  }
+};
 
 // 获取状态图标 (使用 SVG 资源)
 const getStatusIcon = (status?: string) => {
@@ -202,8 +268,78 @@ const cancelOrder = () => {
   });
 };
 
-// 支付订单 - 接入真实微信支付
+// 打开支付方式选择
+const openPaymentPicker = async () => {
+  await loadWalletBalance();
+  showPaymentPicker.value = true;
+};
+
+// 选择支付方式
+const selectPaymentMethod = (method: 'wechat' | 'balance') => {
+  if (method === 'balance' && !isBalanceSufficient.value) {
+    uni.showToast({
+      title: `余额不足，还差 ¥${formatPrice((order.value.totalAmount || 0) - walletBalance.value)}`,
+      icon: 'none'
+    });
+    return;
+  }
+  paymentMethod.value = method;
+};
+
+// 确认支付
+const confirmPay = async () => {
+  showPaymentPicker.value = false;
+  if (paymentMethod.value === 'balance') {
+    await payWithBalance();
+  } else {
+    await payWithWechat();
+  }
+};
+
+// 支付订单 - 打开支付方式选择
 const payOrder = async () => {
+  await openPaymentPicker();
+};
+
+// 余额支付
+const payWithBalance = async () => {
+  try {
+    uni.showLoading({ title: '支付中...' });
+
+    const res = await callFunction('order', {
+      action: 'payWithBalance',
+      data: { orderId: order.value._id }
+    });
+
+    uni.hideLoading();
+
+    if (res.code === 0 && res.data?.success !== false) {
+      uni.showToast({
+        title: '支付成功',
+        icon: 'success'
+      });
+      // 刷新订单详情
+      loadOrderDetail(order.value._id!);
+    } else {
+      const errorMsg = res.data?.message || res.msg || '支付失败';
+      uni.showModal({
+        title: '支付失败',
+        content: errorMsg,
+        showCancel: false
+      });
+    }
+  } catch (error: any) {
+    uni.hideLoading();
+    console.error('余额支付失败:', error);
+    uni.showToast({
+      title: error.message || '支付失败',
+      icon: 'none'
+    });
+  }
+};
+
+// 微信支付
+const payWithWechat = async () => {
   try {
     uni.showLoading({ title: '正在创建支付...' });
 
@@ -640,5 +776,151 @@ onLoad((options) => {
 .action-btn:active {
   opacity: 0.8;
   transform: scale(0.98);
+}
+
+/* 支付方式选择弹窗 */
+.payment-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+.popup-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.popup-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #FFFFFF;
+  border-radius: 32rpx 32rpx 0 0;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #F5F0E8;
+}
+
+.popup-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.popup-close {
+  font-family: "iconfont";
+  font-size: 40rpx;
+  color: #999;
+  padding: 10rpx;
+}
+
+.popup-body {
+  padding: 30rpx;
+}
+
+.payment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 20rpx;
+  margin-bottom: 20rpx;
+  border: 2rpx solid #E0E0E0;
+  border-radius: 12rpx;
+  transition: all 0.3s;
+}
+
+.payment-item.active {
+  border-color: #D4A574;
+  background: rgba(212, 165, 116, 0.05);
+}
+
+.payment-item.disabled {
+  opacity: 0.5;
+}
+
+.payment-left {
+  display: flex;
+  align-items: center;
+}
+
+.payment-icon {
+  font-family: "iconfont";
+  font-size: 40rpx;
+  margin-right: 20rpx;
+}
+
+.payment-icon.wechat {
+  color: #09BB07;
+}
+
+.payment-icon.balance {
+  color: #D4A574;
+}
+
+.payment-name {
+  font-size: 28rpx;
+  color: #1A1A1A;
+}
+
+.payment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.balance-amount {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.balance-tip {
+  font-size: 24rpx;
+  color: #ff4d4f;
+}
+
+.uncheck-circle {
+  width: 36rpx;
+  height: 36rpx;
+  border: 2rpx solid #E0E0E0;
+  border-radius: 50%;
+}
+
+.check-icon {
+  font-family: "iconfont";
+  font-size: 36rpx;
+  color: #D4A574;
+}
+
+.popup-footer {
+  padding: 20rpx 30rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+}
+
+.confirm-btn {
+  background: #1A1A1A;
+  border-radius: 40rpx;
+  padding: 24rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.confirm-text {
+  font-size: 30rpx;
+  color: #FFFFFF;
+  font-weight: 600;
 }
 </style>
