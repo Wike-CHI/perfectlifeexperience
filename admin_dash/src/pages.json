@@ -118,6 +118,76 @@
 				"navigationBarTitleText": "推广概览",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/users/list/index",
+			"style": {
+				"navigationBarTitleText": "用户管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/users/detail/index",
+			"style": {
+				"navigationBarTitleText": "用户详情",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/promoters/list/index",
+			"style": {
+				"navigationBarTitleText": "推广员管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/promoters/team/index",
+			"style": {
+				"navigationBarTitleText": "团队层级",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/commissions/list/index",
+			"style": {
+				"navigationBarTitleText": "佣金管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/marketing/coupons/index",
+			"style": {
+				"navigationBarTitleText": "优惠券管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/marketing/coupons/edit/index",
+			"style": {
+				"navigationBarTitleText": "编辑优惠券",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/marketing/banners/index",
+			"style": {
+				"navigationBarTitleText": "Banner管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/marketing/banners/edit/index",
+			"style": {
+				"navigationBarTitleText": "编辑Banner",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/finance/withdrawals/index",
+			"style": {
+				"navigationBarTitleText": "提现管理",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

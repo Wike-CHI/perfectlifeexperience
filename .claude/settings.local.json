@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__cloudbase__login",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(git merge:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

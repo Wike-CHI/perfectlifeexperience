@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from '@dcloudio/uni-app'
+import { ref, onMounted } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
 import AdminCard from '@/components/admin-card.vue'

@@ -66,7 +66,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
+import { ref, onMounted } from 'vue'
+import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
 import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'

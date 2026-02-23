@@ -66,9 +66,13 @@ const menuItems = [
   { label: 'Dashboard', path: '/dashboard', icon: 'chart-bar' },
   { label: 'Products', path: '/products/list', icon: 'cube' },
   { label: 'Orders', path: '/orders/list', icon: 'package' },
-  { label: 'Users', path: '/users', icon: 'users' },
-  { label: 'Promotion', path: '/promotion/overview', icon: 'rocket' },
-  { label: 'Finance', path: '/finance', icon: 'currency-dollar' },
+  { label: 'Users', path: '/users/list', icon: 'users' },
+  { label: 'Promoters', path: '/promoters/list', icon: 'star' },
+  { label: 'Commissions', path: '/commissions/list', icon: 'gift' },
+  { label: 'Coupons', path: '/marketing/coupons', icon: 'tag' },
+  { label: 'Banners', path: '/marketing/banners', icon: 'image' },
+  { label: 'Withdrawals', path: '/finance/withdrawals', icon: 'currency-dollar' },
+  { label: 'Announcements', path: '/announcements/list', icon: 'megaphone' },
 ];
 
 const navigateTo = (path: string) => {
