@@ -76,7 +76,7 @@ const PromotionRatio = {
   // 总公司分配（不参与佣金分配）
   HEAD_OFFICE_SHARE: 0.80,    // 80% - 总公司利润分成
 
-  // 基础佣金（按代理层级，总和20%）
+  // 基础佣金（按代理层级，总和20%）- 旧版本
   COMMISSION: {
     HEAD_OFFICE: 0.00,    // 0% - 总公司不参与佣金分配
     LEVEL_1: 0.10,        // 10% - 一级代理
@@ -85,10 +85,34 @@ const PromotionRatio = {
     LEVEL_4: 0.01         // 1% - 四级代理
   },
 
-  // 其他奖励（从代理佣金池中扣除）
+  // 其他奖励（从代理佣金池中扣除）- 旧版本
   REPURCHASE: 0.03,        // 3% 复购奖励
   MANAGEMENT: 0.02,       // 2% 团队管理奖
   NURTURE: 0.02           // 2% 育成津贴
+};
+
+// ==================== 新版佣金规则 ====================
+
+const CommissionV2 = {
+  HEAD_OFFICE_SHARE: 0.80,  // 公司拿80%
+
+  // 新的佣金分配规则（根据推广人的代理等级）
+  LEVEL_1: {
+    own: 0.20,        // 一级代理推广：自己拿20%
+    upstream: []       // 无上级
+  },
+  LEVEL_2: {
+    own: 0.12,        // 二级代理推广：自己拿12%
+    upstream: [0.08]  // 一级代理拿8%
+  },
+  LEVEL_3: {
+    own: 0.12,        // 三级代理推广：自己拿12%
+    upstream: [0.04, 0.04]  // 二级代理拿4%，一级代理拿4%
+  },
+  LEVEL_4: {
+    own: 0.08,        // 四级代理推广：自己拿8%
+    upstream: [0.04, 0.04, 0.04]  // 三级代理拿4%，二级代理拿4%，一级代理拿4%
+  }
 };
 
 // ==================== 防刷限制常量 ====================
@@ -179,6 +203,21 @@ function getCommissionRatio(level) {
 }
 
 /**
+ * 获取新版佣金规则
+ * @param {number} level - 代理层级 (1-4)
+ * @returns {Object} 佣金规则 { own, upstream }
+ */
+function getCommissionV2Rule(level) {
+  const ruleMap = {
+    [AgentLevel.LEVEL_1]: CommissionV2.LEVEL_1,
+    [AgentLevel.LEVEL_2]: CommissionV2.LEVEL_2,
+    [AgentLevel.LEVEL_3]: CommissionV2.LEVEL_3,
+    [AgentLevel.LEVEL_4]: CommissionV2.LEVEL_4
+  };
+  return ruleMap[level] || CommissionV2.LEVEL_4;
+}
+
+/**
  * 获取星级名称
  * @param {number} level - 星级
  * @returns {string} 星级名称
@@ -216,12 +255,14 @@ module.exports = {
   OrderStatus,
   Amount,
   PromotionRatio,
+  CommissionV2,
   AntiFraud,
   PromotionThreshold,
   Collections,
   LogLevel,
   getIpLimitWindow,
   getCommissionRatio,
+  getCommissionV2Rule,
   getStarLevelName,
   getAgentLevelName
 };
