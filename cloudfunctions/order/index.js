@@ -152,11 +152,12 @@ async function validateCartItems(cartItems) {
       continue;
     }
 
-    // 5. SKU 验证（如果有 SKU）
+    // 5. SKU/规格验证（支持两种方式）
     let validSku = true;
     let serverSku = null;
     let serverPrice = product.price;
 
+    // 方式1：通过 skuId 匹配 skus 数组
     if (cartItem.skuId && product.skus && product.skus.length > 0) {
       const sku = product.skus.find(s => s._id === cartItem.skuId);
       if (!sku) {
@@ -183,6 +184,32 @@ async function validateCartItems(cartItems) {
 
       serverSku = sku;
       serverPrice = sku.price;
+    }
+    // 方式2：通过 specs 匹配 priceList 数组
+    else if (cartItem.specs && product.priceList && product.priceList.length > 0) {
+      const specsStr = cartItem.specs.toString().trim();
+      const matchedPrice = product.priceList.find(p => {
+        const volumeStr = (p.volume || '').toString().trim();
+        // 完全匹配或包含匹配
+        return volumeStr === specsStr || volumeStr.includes(specsStr) || specsStr.includes(volumeStr);
+      });
+
+      if (matchedPrice) {
+        serverPrice = matchedPrice.price;
+        logger.debug('Matched price from priceList', {
+          productId: product._id,
+          specs: specsStr,
+          matchedVolume: matchedPrice.volume,
+          price: matchedPrice.price
+        });
+      } else {
+        // 没有匹配到规格价格，使用默认价格
+        logger.warn('No matching priceList entry found', {
+          productId: product._id,
+          specs: specsStr,
+          priceList: product.priceList
+        });
+      }
     }
 
     // 6. 价格验证（使用服务器价格，防止客户端篡改）

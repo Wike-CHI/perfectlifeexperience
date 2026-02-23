@@ -71,7 +71,8 @@ async function verifyAdmin(username, password) {
 }
 
 /**
- * Check if admin has required permission
+ * Check if admin has required permission (角色层级方式 - 已弃用，保留兼容性)
+ * @deprecated 使用 checkPermission 替代
  */
 function hasPermission(adminRole, requiredRole) {
   const roleHierarchy = {
@@ -81,6 +82,140 @@ function hasPermission(adminRole, requiredRole) {
   };
 
   return roleHierarchy[adminRole] >= roleHierarchy[requiredRole];
+}
+
+/**
+ * 检查管理员是否拥有指定权限（动态权限方式）
+ * @param {object} admin - 管理员对象
+ * @param {string} requiredPermission - 所需权限标识
+ * @returns {boolean} 是否拥有权限
+ */
+function checkPermission(admin, requiredPermission) {
+  if (!admin || !requiredPermission) {
+    return false
+  }
+
+  // 超级管理员拥有所有权限
+  if (admin.role === 'super_admin') {
+    return true
+  }
+
+  // 检查权限列表
+  if (admin.permissions && Array.isArray(admin.permissions)) {
+    return admin.permissions.includes(requiredPermission)
+  }
+
+  return false
+}
+
+/**
+ * 检查管理员是否拥有任一权限
+ * @param {object} admin - 管理员对象
+ * @param {string[]} requiredPermissions - 权限数组
+ * @returns {boolean} 是否拥有任一权限
+ */
+function hasAnyPermission(admin, requiredPermissions) {
+  if (!admin || !requiredPermissions || !Array.isArray(requiredPermissions)) {
+    return false
+  }
+
+  // 超级管理员拥有所有权限
+  if (admin.role === 'super_admin') {
+    return true
+  }
+
+  if (!admin.permissions || !Array.isArray(admin.permissions)) {
+    return false
+  }
+
+  return requiredPermissions.some(permission =>
+    admin.permissions.includes(permission)
+  )
+}
+
+/**
+ * 检查管理员是否拥有所有权限
+ * @param {object} admin - 管理员对象
+ * @param {string[]} requiredPermissions - 权限数组
+ * @returns {boolean} 是否拥有所有权限
+ */
+function hasAllPermissions(admin, requiredPermissions) {
+  if (!admin || !requiredPermissions || !Array.isArray(requiredPermissions)) {
+    return false
+  }
+
+  // 超级管理员拥有所有权限
+  if (admin.role === 'super_admin') {
+    return true
+  }
+
+  if (!admin.permissions || !Array.isArray(admin.permissions)) {
+    return false
+  }
+
+  return requiredPermissions.every(permission =>
+    admin.permissions.includes(permission)
+  )
+}
+
+/**
+ * 根据角色获取默认权限列表
+ * @param {string} role - 角色
+ * @returns {string[]} 权限列表
+ */
+function getDefaultPermissions(role) {
+  const rolePermissions = {
+    'super_admin': [
+      // 仪表盘
+      'dashboard.view',
+      // 订单管理
+      'order.view', 'order.update', 'order.delete',
+      // 商品管理
+      'product.view', 'product.create', 'product.update', 'product.delete',
+      // 数据统计
+      'statistics.view',
+      // 推广管理
+      'promotion.view', 'promotion.manage',
+      // 公告管理
+      'announcement.view', 'announcement.create', 'announcement.update', 'announcement.delete',
+      // 用户管理
+      'user.view', 'user.manage',
+      // 财务管理
+      'finance.view', 'finance.approve',
+      // 库存管理
+      'inventory.view'
+    ],
+    'operator': [
+      // 仪表盘
+      'dashboard.view',
+      // 订单管理
+      'order.view', 'order.update',
+      // 商品管理
+      'product.view', 'product.create', 'product.update',
+      // 数据统计
+      'statistics.view',
+      // 推广管理
+      'promotion.view',
+      // 公告管理
+      'announcement.view',
+      // 用户管理
+      'user.view',
+      // 库存管理
+      'inventory.view'
+    ],
+    'finance': [
+      // 仪表盘
+      'dashboard.view',
+      // 订单管理
+      'order.view',
+      // 数据统计
+      'statistics.view',
+      // 财务管理
+      'finance.view', 'finance.approve'
+    ]
+  }
+
+  return rolePermissions[role] || []
 }
 
 /**
@@ -105,6 +240,10 @@ async function logOperation(adminId, action, details) {
 module.exports = {
   verifyAdmin,
   hasPermission,
+  checkPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+  getDefaultPermissions,
   logOperation,
   hashPassword,
   verifyPassword

@@ -117,7 +117,17 @@ admin_dash/
 
 ## Cloud Functions
 
-Located in `../cloudfunctions/` (shared with mini-program). Each function follows this pattern:
+Located in `../cloudfunctions/` (shared with main mini-program project).
+
+### Shared Utilities
+All cloud functions share common utilities from `../cloudfunctions/common/`:
+- **`response.js`** - Standardized response format (`{code, msg, data}`)
+- **`validator.js`** - Input validation utilities
+- **`logger.js`** - Structured logging with levels
+- **`constants.js`** - Shared constants
+
+### Cloud Function Pattern
+Each function follows this pattern:
 
 ```javascript
 exports.main = async (event, context) => {
@@ -142,6 +152,9 @@ exports.main = async (event, context) => {
 - **promotion**: Marketing campaigns
 - **rewardSettlement**: Reward calculation and distribution
 - **login**: Authentication handling
+- **product**: Product catalog management
+- **wechatpay**: WeChat Pay integration
+- **migration**: Database migrations
 
 **Note**: Cloud functions use `wx-server-sdk` (server-side), not `@cloudbase/js-sdk`
 
@@ -160,7 +173,8 @@ Set in `.env` file or build environment:
 - Build output configuration
 
 ### Vite Configuration (`vite.config.ts`)
-- Development server: `0.0.0.0` (configured to avoid conflicts)
+- Development server: `0.0.0.0` (configures to listen on all interfaces)
+- Default port: 5173 (Vite default, may vary if occupied)
 - Proxy configured for `/__auth` routes to CloudBase auth endpoints
 - UniApp plugin with dependency optimization exclusions
 

@@ -113,13 +113,24 @@ Each cloud function:
 - Must use `cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })`
 - Receives OPENID via `cloud.getWXContext().OPENID`
 
+#### Shared Utilities (`cloudfunctions/common/`)
+All cloud functions share common utilities from the `common/` directory:
+- **`response.js`** - Standardized response format (`{code, msg, data}`)
+  - `success(data, message)` - Success response with code 0
+  - `error(code, message, details)` - Error response with error codes
+  - `ErrorCodes` - Centralized error code constants
+- **`validator.js`** - Input validation utilities
+- **`logger.js`** - Structured logging with levels
+- **`constants.js`** - Shared constants (agent levels, commission ratios, etc.)
+
+#### Cloud Functions List
+
 - **`login/`** - User authentication
   - Gets OPENID from wxContext or exchanges code for openid/session_key
   - Calls `getOrCreateUser()` to create/update user records
 
 - **`user/`** - User management
   - Actions: `loginOrUpdate`, `getUserInfo`, `updateUserInfo`
-  - Uses `common/auth.js` for auth utilities
 
 - **`promotion/`** - Promotion/referral system (1200+ lines)
   - Actions: `bindRelation`, `calculateReward`, `getInfo`, `getTeamMembers`, `getRewardRecords`, `generateQRCode`, `checkPromotion`, `updatePerformance`
@@ -128,12 +139,38 @@ Each cloud function:
   - Team statistics with recursive level counting
   - Anti-fraud measures (IP throttling, duplicate detection)
 
+- **`product/`** - Product catalog management
+  - Actions: `getProducts`, `getProductDetail`, `getHotProducts`, `getCategories`
+  - Supports category filtering, keyword search, pagination
+
+- **`wechatpay/`** - WeChat Pay integration (V3 API)
+  - Actions: `createPayment`, `queryOrder`, `closeOrder`
+  - HTTP trigger callback for payment notifications
+  - Configuration priority: local `config.js` → environment variables
+
 - **`order/`** - Order management
+  - Actions: `createOrder`, `getOrders`, `getOrderDetail`, `updateOrderStatus`
+
 - **`wallet/`** - Wallet balance and transactions
+  - Actions: `getBalance`, `getTransactions`, `recharge`, `withdraw`
+
 - **`coupon/`** - Coupon management
+  - Actions: `getCoupons`, `claimCoupon`, `useCoupon`, `getUserCoupons`
+
 - **`rewardSettlement/`** - Reward settlement processing
-- **`initData/`** - Database initialization
+
+- **`migration/`** - Database schema migrations and index creation
+  - Actions: `createIndexes`, `createIndexesV2`
+
+- **`initData/`** - Database initialization with seed data
+
+- **`initAdminData/`** - Admin account initialization
+
 - **`admin-api/`** - Admin management backend
+
+- **`test-helper/`** - Database query helper for testing
+
+- **`pay/`** - Legacy payment module (deprecated, use `wechatpay`)
 
 ### Key Design System
 
@@ -218,16 +255,24 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - **`PromotionBadge.vue`** - Agent/Star level badge with warm gradients
 - **`PromotionProgress.vue`** - Promotion progress bars with dual-track display
 - **`ProductSkuPopup.vue`** - Product SKU selection popup
+- **`CategoryIcon.vue`** - Category icon with SVG rendering
 
 ### Page Organization
 
 - **`pages/index/`** - Product listing/home
 - **`pages/product/detail.vue`** - Product details
+- **`pages/category/`** - Category browsing
 - **`pages/cart/`** - Shopping cart
 - **`pages/order/*`** - Order management (list, confirm, detail)
-- **`pages/user/user.vue`** - User profile
-- **`pages/promotion/*`** - Promotion center, team, rewards, QR code
+- **`pages/address/*`** - Address management (list, edit)
 - **`pages/wallet/*`** - Wallet and recharge
+- **`pages/coupon/*`** - Coupon center and my coupons
+- **`pages/promo/`** - Promotional activities
+- **`pages/store/location.vue`** - Store location
+- **`pages/user/user.vue`** - User profile
+- **`pages/settings/*`** - Settings and account security
+- **`pages/promotion/*`** - Promotion center, team, rewards, QR code, rules
+- **`pages/common/*`** - Common pages (user agreement, privacy policy, about us)
 
 ## Testing Notes
 
@@ -295,6 +340,31 @@ exports.main = async (event, context) => {
 };
 ```
 
+**Standard Response Format:**
+All cloud functions should use the standardized response format from `common/response.js`:
+
+```javascript
+const { success, error, ErrorCodes } = require('../common/response');
+
+// Success response
+return success(data, 'Success message');
+// Returns: { code: 0, msg: 'Success message', data: {...} }
+
+// Error response
+return error(ErrorCodes.INVALID_PARAMS, 'Parameter error');
+// Returns: { code: -2, msg: 'Parameter error' }
+```
+
+**Common Error Codes:**
+- `0` - Success
+- `-1` - Unknown error
+- `-2` - Invalid parameters
+- `-3` - Not logged in
+- `100-199` - User-related errors
+- `200-299` - Permission errors
+- `300-399` - Business logic errors
+- `500-599` - System errors
+
 ### Database Query Patterns
 
 ```javascript
@@ -334,11 +404,28 @@ try {
 5. Backend verifies signature, decrypts data, updates order status
 
 ### Key Environment Variables for Payment
+
+**Configuration Priority:**
+1. **Local `config.js`** (recommended for development)
+2. **Environment variables** (production environment)
+
+**Required Variables:**
 - `WX_PAY_MCH_ID` - Merchant ID
 - `WX_PAY_SERIAL_NO` - Certificate serial number
 - `WX_PAY_PRIVATE_KEY` - Merchant private key (PEM format)
 - `WX_PAY_API_V3_KEY` - API v3 secret key
 - `WX_PAY_NOTIFY_URL` - HTTP trigger URL for callbacks
+
+**Local Config Format (`cloudfunctions/wechatpay/config.js`):**
+```javascript
+module.exports = {
+  mchId: 'your_mch_id',
+  serialNo: 'your_serial_no',
+  privateKeyName: 'path/to/private_key.pem',
+  apiV3Key: 'your_api_v3_key',
+  notifyUrl: 'https://your-domain.com/wechatpay'
+};
+```
 
 See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 

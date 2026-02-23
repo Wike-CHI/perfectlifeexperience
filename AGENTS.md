@@ -5,6 +5,169 @@ alwaysApply: true
 inclusion: always
 ---
 
+# 🍺 大友元气精酿啤酒小程序 - 项目指南
+
+> **项目概述**：UniApp + 腾讯云开发(CloudBase) 的精酿啤酒电商小程序，支持微信小程序、H5、支付宝小程序、抖音小程序多端运行。
+
+## 🚀 常用开发命令
+
+```bash
+# 微信小程序开发
+npm run dev:mp-weixin
+
+# 生产构建 - 微信小程序
+npm run build:mp-weixin
+
+# 类型检查
+npm run type-check
+
+# H5 开发（用于 Web 测试）
+npm run dev:h5
+
+# H5 生产构建
+npm run build:h5
+```
+
+**构建输出位置**：
+- 微信小程序：`dist/build/mp-weixin/`
+- H5：`dist/build/h5/`
+
+## 🔧 CloudBase 环境配置
+
+| 配置项 | 值 |
+|--------|-----|
+| **环境 ID** | `cloud1-6gmp2q0y3171c353` |
+| **微信 AppID** | `wx4a0b93c3660d1404` |
+| **云函数运行时** | Node.js 16.13 |
+| **配置文件** | `src/utils/cloudbase.ts` |
+
+**CloudBase 控制台**：https://tcb.cloud.tencent.com/dev?envId=cloud1-6gmp2q0y3171c353
+
+## 🏗️ 项目架构要点
+
+### 双轨推广系统（核心业务）
+
+本项目的核心特色是**四级代理 + 四级星级推广员**的双轨推广体系：
+
+- **代理级别**（4级）：总公司 → 一级代理 → 二级代理 → 三级代理 → 四级代理
+- **星级级别**（4级）：普通会员 → 铜牌推广员 → 银牌推广员 → 金牌推广员
+
+### 四层佣金结构
+
+订单生成四种奖励，沿推广链向上分发：
+1. **基础佣金**：25%/20%/15%/10%/5%（按代理级别）
+2. **复购奖励**：3%（星级≥1）
+3. **团队管理奖**：2%（星级≥2，级差分配）
+4. **育成津贴**：2%（星级≥2，给导师）
+
+### 关键数据库集合
+
+| 集合名 | 用途 |
+|--------|------|
+| `users` | 用户资料、推广路径、业绩统计、奖励追踪 |
+| `promotion_relations` | 显式父子关系 |
+| `promotion_orders` | 推广订单记录（用于奖励计算） |
+| `reward_records` | 各类型奖励记录 |
+| `orders` | 客户订单 |
+| `coupons` | 优惠券模板和用户优惠券 |
+
+### 云函数架构
+
+所有云函数使用 **action 路由模式**：
+
+```javascript
+exports.main = async (event, context) => {
+  const { action, data } = event;
+  const wxContext = cloud.getWXContext();
+  
+  switch (action) {
+    case 'actionName':
+      return await handleActionName(data, wxContext);
+    default:
+      return { code: 400, msg: `Unknown action: ${action}` };
+  }
+};
+```
+
+**主要云函数**：
+- `login/` - 用户认证（获取 OPENID）
+- `user/` - 用户管理
+- `promotion/` - 推广系统（1200+行，核心业务逻辑）
+- `order/` - 订单管理
+- `wallet/` - 钱包余额和交易
+- `wechatpay/` - 微信支付集成
+
+## 🔐 认证流程
+
+小程序采用**静默登录**，无需用户手动授权：
+
+1. **App 启动** → `initCloudBase()` 检查环境
+2. **静默登录** → `checkLogin()` 调用 `login` 云函数
+3. **获取 OPENID** → 云函数从 `wxContext.OPENID` 获取
+4. **用户状态** → 缓存至本地存储，7天有效期
+5. **API 调用** → 所有云函数通过 `wxContext` 接收 OPENID
+
+**重要**：永远不要信任前端传递的用户 ID，始终使用 `wxContext.OPENID` 进行认证。
+
+## 📱 微信开发者工具
+
+**macOS 打开项目**：
+```bash
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli open --project "/Users/johnny/Desktop/小程序/perfectlifeexperience"
+```
+
+**Windows 打开项目**：
+```bash
+"C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" open --project "项目根目录路径"
+```
+
+## 🐛 常见问题排查
+
+### 云函数超时
+- 在 CloudBase 控制台检查执行时间
+- 使用索引优化数据库查询
+- 考虑异步处理长耗时操作
+
+### 登录问题
+- 验证 `src/utils/cloudbase.ts` 中的环境 ID
+- 检查 7 天缓存过期逻辑
+- 查看 `login` 云函数日志
+
+### 推广计算错误
+- 验证用户 `promotionPath` 格式（格式：`"parentId1/parentId2/..."`）
+- 检查代理级别计算（最多 4 级深度）
+- 查看业绩追踪的月份标签是否匹配
+
+### 构建/编译错误
+- 清除 `dist/` 和 `node_modules/` 后重试
+- 确保代码中引用的文件路径存在
+- 检查导入是否使用正确别名（`@/` 映射到 `src/`）
+
+### 微信支付失败
+- 验证商户证书和私钥
+- 检查 HTTP 触发器回调 URL
+- 查看支付签名验证日志
+
+## ⚠️ 重要约束
+
+### 云函数运行时
+- **运行时不可变**：创建后无法更改
+- 当前运行时：**Nodejs16.13**
+- 需要更改运行时必须删除重建
+
+### NoSQL 数据库限制
+- **无原生 JOIN**：需要反规范化或多重查询
+- **数组操作受限**：数组更新需要特殊语法
+- **事务支持有限**：不支持跨集合事务
+
+### 小程序特定限制
+- **无需原生登录**：CloudBase 通过 OPENID 提供静默登录
+- **域名白名单**：所有 API 域名必须在微信小程序后台配置
+- **包大小限制**：小程序代码必须小于 2MB（未压缩）
+- **文件存储**：使用 `wx.cloud.uploadFile()` 上传图片，不要用 base64
+
+---
+
 # CloudBase AI Development Rules Guide
 
 ## 🗂️ Rule File Path Resolution Strategy

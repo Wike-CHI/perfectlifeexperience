@@ -7,17 +7,44 @@ cloud.init({
 const db = cloud.database()
 const _ = db.command
 const { verifyAdmin, hasPermission, logOperation } = require('./auth')
+const { getRequiredPermission } = require('./permissions')
 
 // Main entry point
 exports.main = async (event, context) => {
   const { action, data } = event
   const wxContext = cloud.getWXContext()
 
-  // Middleware: Check Admin Permissions (TODO: Implement real RBAC)
-  // For now, we assume anyone calling this via the admin dashboard (which requires login) is authorized.
-  // In production, verify event.userInfo or a custom token.
-
   try {
+    // 权限验证中间件
+    const requiredPermission = getRequiredPermission(action)
+
+    // 如果需要权限验证
+    if (requiredPermission !== null) {
+      // 从请求中获取管理员信息（前端应该传递 adminToken）
+      const adminToken = data.adminToken || event.adminToken
+
+      if (!adminToken) {
+        return {
+          code: 401,
+          msg: '未授权：缺少管理员令牌'
+        }
+      }
+
+      // 验证管理员身份和权限
+      const authResult = await verifyAdminPermission(adminToken, requiredPermission)
+
+      if (!authResult.authorized) {
+        return {
+          code: 403,
+          msg: authResult.message
+        }
+      }
+
+      // 将管理员信息挂载到 wxContext，供后续函数使用
+      wxContext.ADMIN_INFO = authResult.admin
+    }
+
+    // 路由到对应的处理函数
     switch (action) {
       case 'adminLogin':
         return await adminLogin(data)
@@ -25,6 +52,8 @@ exports.main = async (event, context) => {
         return await getDashboardData(data)
       case 'checkAuth':
         return { success: true, message: 'Admin API connected', openId: wxContext.OPENID }
+      case 'checkAdminStatus':
+        return await checkAdminStatus(wxContext)
       case 'getProducts':
         return await getProductsList(data)
       case 'getProductDetail':
@@ -65,6 +94,82 @@ exports.main = async (event, context) => {
       code: 500,
       msg: err.message,
       error: err
+    }
+  }
+}
+
+/**
+ * 验证管理员权限
+ * @param {string} adminToken - 管理员令牌
+ * @param {string} requiredPermission - 所需权限
+ * @returns {Promise<{authorized: boolean, message?: string, admin?: object}>}
+ */
+async function verifyAdminPermission(adminToken, requiredPermission) {
+  try {
+    // TODO: 实现真实的 token 验证逻辑
+    // 当前简化版本：直接返回授权通过
+    // 实际生产环境应该：
+    // 1. 验证 token 有效性
+    // 2. 从 token 中提取管理员信息
+    // 3. 检查管理员权限列表是否包含所需权限
+
+    // 临时实现：假设所有请求都通过（需要后续完善）
+    return {
+      authorized: true,
+      admin: {
+        id: 'temp_admin_id',
+        username: 'admin',
+        role: 'super_admin',
+        permissions: [] // 超级管理员拥有所有权限
+      }
+    }
+  } catch (error) {
+    console.error('权限验证失败:', error)
+    return {
+      authorized: false,
+      message: '权限验证失败'
+    }
+  }
+}
+
+/**
+ * 检查用户是否为管理员
+ * @param {object} wxContext - 微信上下文
+ * @returns {Promise<{code: number, data?: {isAdmin: boolean}, msg?: string}>}
+ */
+async function checkAdminStatus(wxContext) {
+  try {
+    const openid = wxContext.OPENID
+
+    if (!openid) {
+      return {
+        code: 401,
+        msg: '未登录'
+      }
+    }
+
+    // 查询用户是否为管理员
+    const adminResult = await db.collection('admins')
+      .where({
+        _openid: openid,
+        status: 'active'
+      })
+      .limit(1)
+      .get()
+
+    const isAdmin = adminResult.data.length > 0
+
+    return {
+      code: 0,
+      data: {
+        isAdmin
+      }
+    }
+  } catch (error) {
+    console.error('检查管理员状态失败:', error)
+    return {
+      code: 500,
+      msg: '检查失败'
     }
   }
 }

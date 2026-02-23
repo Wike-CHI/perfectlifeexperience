@@ -130,6 +130,21 @@
       </view>
     </view>
 
+    <!-- 管理后台入口 -->
+    <view class="menu-section" v-if="isAdmin">
+      <view class="menu-item admin-entry" @click="goToAdmin">
+        <view class="menu-left">
+          <view class="menu-icon admin">
+            <image class="menu-icon-img" src="/static/icons/menu-admin.svg" mode="aspectFit" />
+          </view>
+          <text class="menu-text admin-text">管理后台</text>
+        </view>
+        <view class="admin-badge">
+          <text class="badge-text">ADMIN</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 设置列表 -->
     <view class="menu-section">
       <view class="menu-item" @click="goToSettings">
@@ -158,6 +173,7 @@ import type { UserInfo } from '@/types';
 // 数据
 const userInfo = ref<Partial<UserInfo>>({});
 const isLoggedIn = ref(false);
+const isAdmin = ref(false); // 管理员状态
 const balance = ref(0);
 const promotionReward = ref(0);
 const orderCount = ref({
@@ -336,6 +352,7 @@ const goToSettings = () => {
 // 生命周期
 onShow(() => {
   loadUserInfo();
+  checkAdminStatus(); // 检查管理员状态
 });
 
 const goToWallet = () => {
@@ -361,6 +378,41 @@ const loadPromotionReward = async () => {
   } catch (error) {
     console.error('加载推广收益失败:', error);
   }
+};
+
+// 检查是否为管理员
+const checkAdminStatus = async () => {
+  if (!isLoggedIn.value) {
+    isAdmin.value = false;
+    return;
+  }
+
+  try {
+    // 调用云函数检查用户是否为管理员
+    const res = await uni.cloud.callFunction({
+      name: 'admin-api',
+      data: {
+        action: 'checkAdminStatus',
+        data: {}
+      }
+    });
+
+    if (res.result && res.result.code === 0) {
+      isAdmin.value = res.result.data.isAdmin || false;
+    } else {
+      isAdmin.value = false;
+    }
+  } catch (error) {
+    console.error('检查管理员状态失败:', error);
+    isAdmin.value = false;
+  }
+};
+
+// 跳转到管理后台
+const goToAdmin = () => {
+  uni.navigateTo({
+    url: '/pagesAdmin/dashboard/index'
+  });
 };
 </script>
 
@@ -583,6 +635,33 @@ const loadPromotionReward = async () => {
 
 .menu-icon.promotion {
   background: rgba(212, 165, 116, 0.15);
+}
+
+.menu-icon.admin {
+  background: linear-gradient(135deg, #C9A962 0%, #B8984A 100%);
+}
+
+.admin-text {
+  color: #C9A962;
+  font-weight: 600;
+}
+
+.admin-entry {
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.1) 0%, rgba(184, 152, 74, 0.05) 100%);
+  border: 2rpx solid rgba(201, 169, 98, 0.3);
+}
+
+.admin-badge {
+  padding: 8rpx 16rpx;
+  background: linear-gradient(135deg, #C9A962 0%, #B8984A 100%);
+  border-radius: 20rpx;
+}
+
+.badge-text {
+  font-size: 20rpx;
+  color: #1A1A1A;
+  font-weight: bold;
+  letter-spacing: 1rpx;
 }
 
 .menu-text {

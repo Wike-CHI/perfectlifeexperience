@@ -811,6 +811,28 @@ export const getWalletTransactions = async (page = 1, limit = 20) => {
   }
 };
 
+// 确认充值状态（支付成功后主动调用）
+export const confirmRecharge = async (orderNo: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('wechatpay', {
+      action: 'confirmRecharge',
+      data: { orderNo }
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data;
+    }
+    throw new Error((res.data as any)?.message || res.msg || '确认充值失败');
+  } catch (error) {
+    console.error('确认充值失败:', error);
+    throw error;
+  }
+};
+
 // ==================== 优惠券相关 API ====================
 
 const COUPON_KEY = 'local_coupons';

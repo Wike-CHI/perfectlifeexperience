@@ -241,10 +241,9 @@ const loadWalletBalance = async () => {
   try {
     balanceLoading.value = true;
     const res = await getWalletBalance();
-    if (res.code === 0) {
-      walletBalance.value = res.data.balance || 0;
-      console.log('钱包余额:', walletBalance.value);
-    }
+    // getWalletBalance 返回 { balance: xxx }
+    walletBalance.value = res.balance || 0;
+    console.log('钱包余额:', walletBalance.value);
   } catch (error) {
     console.error('获取钱包余额失败:', error);
   } finally {
@@ -459,10 +458,9 @@ const submitOrder = async () => {
 
     const res = await createOrder(orderData);
 
-    // 获取订单ID（兼容多种返回格式）
-    // api.ts 返回 { _id: res.data.orderId }，所以优先检查 res._id
-    const orderId = res._id || res.orderId || res.data?.orderId;
-    
+    // 获取订单ID（createOrder 返回 { _id: orderId }）
+    const orderId = res._id;
+
     console.log('[支付调试] 创建订单响应:', res);
     console.log('[支付调试] 提取的 orderId:', orderId);
     

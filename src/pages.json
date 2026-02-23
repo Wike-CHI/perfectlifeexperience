@@ -260,6 +260,132 @@
 					}
 				}
 			]
+		},
+		{
+			"root": "pagesAdmin",
+			"pages": [
+				{
+					"path": "login/index",
+					"style": {
+						"navigationBarTitleText": "管理员登录",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "dashboard/index",
+					"style": {
+						"navigationBarTitleText": "管理后台",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "orders/list",
+					"style": {
+						"navigationBarTitleText": "订单管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "orders/detail",
+					"style": {
+						"navigationBarTitleText": "订单详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "products/list",
+					"style": {
+						"navigationBarTitleText": "商品管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "products/edit",
+					"style": {
+						"navigationBarTitleText": "编辑商品",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "statistics/index",
+					"style": {
+						"navigationBarTitleText": "数据统计",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "promotion/index",
+					"style": {
+						"navigationBarTitleText": "推广管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "announcements/list",
+					"style": {
+						"navigationBarTitleText": "公告管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "announcements/edit",
+					"style": {
+						"navigationBarTitleText": "编辑公告",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "users/list",
+					"style": {
+						"navigationBarTitleText": "用户管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "users/detail",
+					"style": {
+						"navigationBarTitleText": "用户详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "finance/index",
+					"style": {
+						"navigationBarTitleText": "财务管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "inventory/list",
+					"style": {
+						"navigationBarTitleText": "库存预警",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				}
+			]
 		}
 	],
 	"tabBar": {

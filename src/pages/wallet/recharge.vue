@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { createRechargePayment } from '@/utils/api';
+import { createRechargePayment, confirmRecharge } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import { rechargeOptions, getGiftAmount, type RechargeOption } from '@/config/recharge';
 
@@ -207,12 +207,32 @@ const handleRecharge = async () => {
       package: result.payParams.package,
       signType: result.payParams.signType as 'MD5' | 'RSA',
       paySign: result.payParams.paySign,
-      success: () => {
-        uni.showToast({
-          title: `充值成功，到账¥${totalAmount.value}`,
-          icon: 'success'
-        });
-        
+      success: async () => {
+        uni.showLoading({ title: '确认充值中...' });
+
+        // 支付成功后主动确认充值状态
+        try {
+          if (result.orderNo) {
+            const confirmResult = await confirmRecharge(result.orderNo);
+            console.log('[充值支付] 确认结果:', confirmResult);
+          }
+
+          uni.hideLoading();
+          uni.showToast({
+            title: `充值成功，到账¥${totalAmount.value}`,
+            icon: 'success'
+          });
+        } catch (confirmError: any) {
+          console.error('[充值支付] 确认充值失败:', confirmError);
+          uni.hideLoading();
+          // 即使确认失败，也显示支付成功（回调可能还在处理中）
+          uni.showToast({
+            title: '支付成功，请稍后查看余额',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+
         setTimeout(() => {
           uni.navigateBack();
         }, 1500);
