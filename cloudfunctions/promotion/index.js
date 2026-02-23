@@ -20,9 +20,11 @@ const {
   OrderStatus,
   Amount,
   PromotionRatio,
+  CommissionV2,
   AntiFraud,
   PromotionThreshold,
-  Collections
+  Collections,
+  getCommissionV2Rule
 } = require('./common/constants');
 
 // ✅ 引入缓存模块
@@ -31,6 +33,12 @@ const {
   userCache,
   withCache
 } = require('./common/cache');
+
+// ✅ 引入推广升级模块V2
+const {
+  handlePromotionWithFollow,
+  handleStarLevelPromotion
+} = require('./promotion-v2');
 
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
@@ -780,6 +788,245 @@ async function updateBuyerOrderCount(buyerId, transaction = null) {
   }
 }
 
+// ==================== 新版佣金计算（简化版） ====================
+
+/**
+ * 计算订单推广奖励（新版简化算法）
+ *
+ * 核心逻辑：
+ * 1. 佣金分配取决于推广人的代理等级（agentLevel），而非在链条中的位置
+ * 2. 一级代理推广：自己拿20%
+ * 3. 二级代理推广：自己拿12%，一级代理拿8%
+ * 4. 三级代理推广：自己拿12%，二级代理拿4%，一级代理拿4%
+ * 5. 四级代理推广：自己拿8%，三级代理拿4%，二级代理拿4%，一级代理拿4%
+ */
+async function calculatePromotionRewardV2(event, context) {
+  const { orderId, buyerId, orderAmount } = event;
+
+  logger.info('V2 Reward calculation started', {
+    orderId,
+    buyerId,
+    amount: orderAmount
+  });
+
+  // 边界情况：金额为0
+  if (!orderAmount || orderAmount <= 0) {
+    logger.warn('Invalid order amount', { amount: orderAmount });
+    return { code: 0, msg: '订单金额无效', data: { rewards: [] } };
+  }
+
+  // 开启事务
+  const transaction = await db.startTransaction();
+
+  try {
+    // 1. 获取买家信息，找到推广人
+    const buyerRes = await transaction.collection('users')
+      .where({ _openid: buyerId })
+      .get();
+
+    if (buyerRes.data.length === 0) {
+      await transaction.rollback();
+      logger.error('Buyer not found', { buyerId });
+      return { code: -1, msg: '买家信息不存在' };
+    }
+
+    const buyer = buyerRes.data[0];
+
+    // 2. 找到推广人（通过parentId）
+    const promoterId = buyer.parentId;
+    if (!promoterId) {
+      await transaction.rollback();
+      logger.info('No promotion relationship', { buyerId });
+      return { code: 0, msg: '无推广关系', data: { rewards: [] } };
+    }
+
+    // 3. 获取推广人信息
+    const promoterRes = await transaction.collection('users')
+      .where({ _openid: promoterId })
+      .get();
+
+    if (promoterRes.data.length === 0) {
+      await transaction.rollback();
+      logger.error('Promoter not found', { promoterId });
+      return { code: -1, msg: '推广人信息不存在' };
+    }
+
+    const promoter = promoterRes.data[0];
+    const promoterAgentLevel = promoter.agentLevel || 4; // 默认四级代理
+
+    logger.info('Promoter info', {
+      promoterId,
+      agentLevel: promoterAgentLevel
+    });
+
+    // 4. 根据推广人的等级，获取佣金分配规则
+    const commissionRule = getCommissionV2Rule(promoterAgentLevel);
+
+    logger.info('Commission rule applied', {
+      promoterLevel: promoterAgentLevel,
+      ownRatio: (commissionRule.own * 100).toFixed(1) + '%',
+      upstreamCount: commissionRule.upstream.length
+    });
+
+    // 5. 解析推广路径，获取上级链
+    const promotionPath = promoter.promotionPath || '';
+    const parentChain = promotionPath.split('/').filter(id => id).reverse(); // 从近到远
+
+    logger.debug('Promoter upstream chain', {
+      length: parentChain.length,
+      chain: parentChain
+    });
+
+    // 6. 批量获取上级用户信息
+    const upstreamUsers = [];
+    if (parentChain.length > 0) {
+      const usersRes = await transaction.collection('users')
+        .where({ _openid: _.in(parentChain) })
+        .get();
+
+      const userMap = {};
+      usersRes.data.forEach(u => {
+        userMap[u._openid] = u;
+      });
+
+      // 按照链条顺序获取上级
+      for (const parentId of parentChain) {
+        if (userMap[parentId]) {
+          upstreamUsers.push(userMap[parentId]);
+        }
+      }
+    }
+
+    // 7. 分配佣金
+    const rewards = [];
+
+    // 7.1 推广人自己拿的佣金
+    const ownCommissionAmount = Math.floor(orderAmount * commissionRule.own);
+
+    if (ownCommissionAmount >= Amount.MIN_REWARD) {
+      await createRewardRecord({
+        orderId,
+        beneficiaryId: promoterId,
+        sourceUserId: buyerId,
+        orderAmount,
+        ratio: commissionRule.own,
+        amount: ownCommissionAmount,
+        rewardType: 'commission',
+        position: 0 // 推广人自己的位置标记为0
+      }, transaction);
+
+      rewards.push({
+        beneficiaryId: promoterId,
+        beneficiaryName: promoter.nickName || promoter._openid,
+        type: 'commission',
+        amount: ownCommissionAmount,
+        ratio: commissionRule.own,
+        role: '推广人'
+      });
+
+      logger.info('Promoter commission calculated', {
+        amount: ownCommissionAmount,
+        ratio: (commissionRule.own * 100).toFixed(1) + '%'
+      });
+    }
+
+    // 7.2 上级代理拿的佣金
+    for (let i = 0; i < commissionRule.upstream.length; i++) {
+      const ratio = commissionRule.upstream[i];
+
+      if (i >= upstreamUsers.length) {
+        logger.warn('Not enough upstream users', {
+          required: i + 1,
+          available: upstreamUsers.length
+        });
+        break;
+      }
+
+      const upstreamUser = upstreamUsers[i];
+      const commissionAmount = Math.floor(orderAmount * ratio);
+
+      if (commissionAmount >= Amount.MIN_REWARD) {
+        await createRewardRecord({
+          orderId,
+          beneficiaryId: upstreamUser._openid,
+          sourceUserId: buyerId,
+          orderAmount,
+          ratio: ratio,
+          amount: commissionAmount,
+          rewardType: 'commission',
+          position: i + 1 // 上级层级位置（1开始）
+        }, transaction);
+
+        rewards.push({
+          beneficiaryId: upstreamUser._openid,
+          beneficiaryName: upstreamUser.nickName || upstreamUser._openid,
+          type: 'commission',
+          amount: commissionAmount,
+          ratio: ratio,
+          role: `${i + 1}级上级`
+        });
+
+        logger.info('Upstream commission calculated', {
+          upstreamLevel: i + 1,
+          amount: commissionAmount,
+          ratio: (ratio * 100).toFixed(1) + '%'
+        });
+      }
+    }
+
+    // 8. 记录推广订单
+    await transaction.collection('promotion_orders').add({
+      data: {
+        orderId,
+        buyerId,
+        promoterId,
+        promoterLevel: promoterAgentLevel,
+        orderAmount,
+        status: 'pending',
+        createTime: db.serverDate(),
+        settleTime: null
+      }
+    });
+
+    // 9. 更新买家订单计数
+    await updateBuyerOrderCount(buyerId, transaction);
+
+    // 10. 提交事务
+    await transaction.commit();
+
+    logger.info('V2 Reward calculation completed', {
+      rewardsCount: rewards.length,
+      totalAmount: rewards.reduce((sum, r) => sum + r.amount, 0)
+    });
+
+    return {
+      code: 0,
+      msg: '奖励计算成功',
+      data: {
+        rewards,
+        promoterLevel: promoterAgentLevel,
+        commissionRule: {
+          own: commissionRule.own,
+          upstream: commissionRule.upstream
+        }
+      }
+    };
+  } catch (error) {
+    // 回滚事务
+    if (transaction) {
+      try {
+        await transaction.rollback();
+        logger.error('V2 Reward calculation transaction rolled back', error);
+      } catch (rollbackError) {
+        logger.error('Failed to rollback transaction', rollbackError);
+      }
+    } else {
+      logger.error('V2 Reward calculation failed', error);
+    }
+    return { code: -1, msg: '计算失败', error: error.message };
+  }
+}
+
 // ==================== 核心业务函数 ====================
 
 /**
@@ -1511,6 +1758,8 @@ exports.main = async (event, context) => {
       return await bindPromotionRelation(requestData, context);
     case 'calculateReward':
       return await calculatePromotionReward(requestData, context);
+    case 'calculateRewardV2':
+      return await calculatePromotionRewardV2(requestData, context);
     case 'getInfo':
       return await getPromotionInfo(requestData, context);
     case 'getTeamMembers':
@@ -1523,6 +1772,20 @@ exports.main = async (event, context) => {
       return await checkStarLevelPromotion(OPENID);
     case 'updatePerformance':
       return await updatePerformanceAndCheckPromotion(requestData, context);
+    case 'promoteAgentLevel':
+      // 代理层级升级（带跟随升级机制）
+      return await handlePromotionWithFollow(
+        requestData.userId || OPENID,
+        requestData.newLevel,
+        requestData.oldLevel
+      );
+    case 'promoteStarLevel':
+      // 星级升级（无跟随升级）
+      return await handleStarLevelPromotion(
+        requestData.userId || OPENID,
+        requestData.newStarLevel,
+        requestData.oldStarLevel
+      );
     default:
       return { code: -1, msg: '未知操作' };
   }
