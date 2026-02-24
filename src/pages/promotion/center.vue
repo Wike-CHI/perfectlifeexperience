@@ -33,6 +33,38 @@
     <!-- 晋升进度 -->
     <PromotionProgress :progress="promotionInfo.promotionProgress" />
 
+    <!-- 佣金比例卡片 -->
+    <view class="commission-section">
+      <view class="section-title">
+        <text>我的佣金比例</text>
+      </view>
+      <view class="commission-grid">
+        <view class="commission-item main">
+          <view class="commission-header">
+            <text class="commission-label">我的佣金</text>
+            <text class="commission-value">{{ myCommissionRatio }}%</text>
+          </view>
+          <view class="commission-desc">
+            <text>{{ promotionInfo.agentLevelName }}</text>
+          </view>
+        </view>
+        <view class="commission-item upstream" v-if="upstreamRatios.length > 0">
+          <view class="commission-header">
+            <text class="commission-label">上级分成</text>
+          </view>
+          <view class="upstream-list">
+            <view class="upstream-item" v-for="(ratio, index) in upstreamRatios" :key="index">
+              <text class="upstream-level">{{ index + 1 }}级上级</text>
+              <text class="upstream-value">{{ (ratio * 100).toFixed(0) }}%</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="commission-tip">
+        <text>推广好友下单，您获得{{ myCommissionRatio }}%佣金，上级获得相应比例分成</text>
+      </view>
+    </view>
+
     <!-- 收益分类统计 -->
     <view class="reward-category-section">
       <view class="section-title">
@@ -202,11 +234,15 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getPromotionInfo } from '@/utils/api';
+import { usePromotion } from '@/composables/usePromotion';
 import type { PromotionInfo, TeamStats, PromotionProgress as PromotionProgressType } from '@/types';
 import PromotionBadge from '@/components/PromotionBadge.vue';
 import PromotionProgress from '@/components/PromotionProgress.vue';
 
 const SETTLEMENT_DAYS = 7;
+
+// 使用 usePromotion composable
+const { myCommissionRatio, upstreamRatios } = usePromotion();
 
 // 默认晋升进度
 const defaultPromotionProgress: PromotionProgressType = {
@@ -397,6 +433,130 @@ onShow(() => {
   color: rgba(255, 255, 255, 0.85);
   font-weight: 500;
   letter-spacing: 0.3rpx;
+}
+
+/* 收益分类统计 */
+/* 佣金比例卡片 */
+.commission-section {
+  background: #FFFFFF;
+  margin: 0 30rpx 30rpx;
+  padding: 32rpx;
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
+}
+
+.commission-section .section-title {
+  margin-bottom: 24rpx;
+}
+
+.commission-section .section-title text {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1A1A1A;
+  letter-spacing: 0.5rpx;
+}
+
+.commission-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20rpx;
+}
+
+.commission-item {
+  padding: 24rpx;
+  border-radius: 16rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.commission-item.main {
+  background: linear-gradient(135deg, #3D2914 0%, #C9A962 100%);
+}
+
+.commission-item.upstream {
+  background: linear-gradient(135deg, #FAF9F7 0%, #F5F0E8 100%);
+  border: 1rpx solid rgba(201, 169, 98, 0.15);
+}
+
+.commission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.commission-item.main .commission-label {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.commission-item.upstream .commission-label {
+  font-size: 24rpx;
+  color: #4A4A4A;
+  font-weight: 500;
+}
+
+.commission-value {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #FFFFFF;
+  font-family: 'DM Mono', monospace;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.2);
+}
+
+.commission-desc {
+  margin-top: 8rpx;
+}
+
+.commission-desc text {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 500;
+}
+
+.upstream-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.upstream-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12rpx 16rpx;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12rpx;
+}
+
+.upstream-level {
+  font-size: 22rpx;
+  color: #4A4A4A;
+  font-weight: 500;
+}
+
+.upstream-value {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #C9A962;
+  font-family: 'DM Mono', monospace;
+}
+
+.commission-tip {
+  margin-top: 20rpx;
+  padding: 16rpx 20rpx;
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.08) 0%, rgba(212, 165, 116, 0.05) 100%);
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(201, 169, 98, 0.15);
+}
+
+.commission-tip text {
+  font-size: 24rpx;
+  color: #6B5B4F;
+  line-height: 1.6;
+  font-weight: 500;
 }
 
 /* 收益分类统计 */
