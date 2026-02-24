@@ -1,4 +1,4 @@
-import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon } from '@/types';
+import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon, CommissionV2Response } from '@/types';
 import { callFunction } from '@/utils/cloudbase';
 
 // 重新导出 callFunction 供外部使用
@@ -1104,14 +1104,14 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
 
   try {
     const res = await callFunction('promotion', {
-      action: 'calculateReward',
+      action: 'calculateRewardV2',
       orderId,
       buyerId,
       orderAmount
     });
 
     if (res.code === 0) {
-      return res.data;
+      return res.data as CommissionV2Response;
     }
     throw new Error(res.msg || '计算失败');
   } catch (error) {
