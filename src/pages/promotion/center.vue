@@ -196,6 +196,34 @@
         </view>
         <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
+
+      <view class="menu-item" @click="goToCommissionCalculator">
+        <view class="menu-left">
+          <view class="menu-icon calculator">
+            <image class="icon-svg" src="/static/icons/icon-mechanism.svg" mode="aspectFit"/>
+          </view>
+          <view class="menu-info">
+            <text class="menu-title">佣金计算器</text>
+            <text class="menu-subtitle">计算佣金分配</text>
+          </view>
+        </view>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
+      </view>
+
+      <view class="menu-item upgrade-item" @click="handleUpgrade" v-if="promotionInfo.agentLevel > 1">
+        <view class="menu-left">
+          <view class="menu-icon upgrade">
+            <text class="upgrade-icon">⬆️</text>
+          </view>
+          <view class="menu-info">
+            <text class="menu-title">申请升级</text>
+            <text class="menu-subtitle">升级到更高代理等级</text>
+          </view>
+        </view>
+        <view class="upgrade-badge">
+          <text class="badge-text">升级</text>
+        </view>
+      </view>
     </view>
 
     <!-- 规则说明 -->
@@ -227,17 +255,27 @@
 
     <!-- 安全区域 -->
     <view class="safe-area"></view>
+
+    <!-- 升级提示组件 -->
+    <PromotionUpgradeAlert
+      :show="showUpgradeAlert"
+      :oldLevel="upgradeInfo.oldLevel"
+      :newLevel="upgradeInfo.newLevel"
+      :followUpdates="upgradeInfo.followUpdates"
+      @close="closeUpgradeAlert"
+    />
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getPromotionInfo } from '@/utils/api';
+import { getPromotionInfo, promoteAgentLevel } from '@/utils/api';
 import { usePromotion } from '@/composables/usePromotion';
 import type { PromotionInfo, TeamStats, PromotionProgress as PromotionProgressType } from '@/types';
 import PromotionBadge from '@/components/PromotionBadge.vue';
 import PromotionProgress from '@/components/PromotionProgress.vue';
+import PromotionUpgradeAlert from '@/components/PromotionUpgradeAlert.vue';
 
 const SETTLEMENT_DAYS = 7;
 
@@ -284,6 +322,19 @@ const promotionInfo = ref<PromotionInfo>({
 });
 
 const loading = ref(false);
+
+// 升级提示状态
+const showUpgradeAlert = ref(false);
+const upgradeInfo = ref({
+  oldLevel: 4,
+  newLevel: 3,
+  followUpdates: [] as Array<{
+    childId: string;
+    childName: string;
+    from: number;
+    to: number;
+  }>
+});
 
 const teamStats = computed(() => promotionInfo.value.teamStats);
 const teamTotal = computed(() => teamStats.value.total);
@@ -354,6 +405,69 @@ const goToStarRules = () => {
   uni.navigateTo({
     url: '/pages/promotion/star-rules'
   });
+};
+
+const goToCommissionCalculator = () => {
+  uni.navigateTo({
+    url: '/pages/promotion/commission-calculator'
+  });
+};
+
+// 模拟升级功能（演示用）
+const handleUpgrade = async () => {
+  const currentLevel = promotionInfo.value.agentLevel;
+  const targetLevel = currentLevel > 1 ? currentLevel - 1 : 1;
+
+  if (currentLevel === 1) {
+    uni.showToast({
+      title: '已是一级代理',
+      icon: 'none'
+    });
+    return;
+  }
+
+  try {
+    uni.showLoading({ title: '升级中...' });
+
+    const result = await promoteAgentLevel(
+      promotionInfo.value._openid || '',
+      currentLevel,
+      targetLevel
+    );
+
+    uni.hideLoading();
+
+    if (result.success) {
+      // 显示升级提示
+      upgradeInfo.value = {
+        oldLevel: currentLevel,
+        newLevel: targetLevel,
+        followUpdates: result.followUpdates
+      };
+      showUpgradeAlert.value = true;
+
+      // 更新本地数据
+      promotionInfo.value.agentLevel = targetLevel;
+      const levelNames: Record<number, string> = {
+        1: '一级代理',
+        2: '二级代理',
+        3: '三级代理',
+        4: '四级代理'
+      };
+      promotionInfo.value.agentLevelName = levelNames[targetLevel];
+    }
+  } catch (error) {
+    uni.hideLoading();
+    uni.showToast({
+      title: '升级失败',
+      icon: 'none'
+    });
+  }
+};
+
+// 关闭升级提示
+const closeUpgradeAlert = () => {
+  showUpgradeAlert.value = false;
 };
 
 onShow(() => {
@@ -745,6 +859,28 @@ onShow(() => {
   border-bottom: none;
 }
 
+.menu-item.upgrade-item {
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%);
+}
+
+.menu-item.upgrade-item:active {
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.15) 0%, rgba(184, 134, 11, 0.1) 100%);
+}
+
+.upgrade-badge {
+  padding: 8rpx 20rpx;
+  background: linear-gradient(135deg, #C9A962 0%, #B8860B 100%);
+  border-radius: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(201, 169, 98, 0.3);
+}
+
+.badge-text {
+  font-size: 22rpx;
+  color: #FFFFFF;
+  font-weight: 600;
+  letter-spacing: 0.5rpx;
+}
+
 .menu-left {
   display: flex;
   align-items: center;
@@ -778,6 +914,18 @@ onShow(() => {
 
 .menu-icon.star {
   background: linear-gradient(135deg, rgba(201, 169, 98, 0.2) 0%, rgba(184, 134, 11, 0.15) 100%);
+}
+
+.menu-icon.calculator {
+  background: linear-gradient(135deg, rgba(122, 154, 142, 0.2) 0%, rgba(91, 122, 110, 0.15) 100%);
+}
+
+.menu-icon.upgrade {
+  background: linear-gradient(135deg, #C9A962 0%, #B8860B 100%);
+}
+
+.upgrade-icon {
+  font-size: 32rpx;
 }
 
 .icon-svg {
