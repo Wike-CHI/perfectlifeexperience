@@ -507,7 +507,6 @@ onShow(() => {
   letter-spacing: 0.3rpx;
 }
 
-/* 收益分类统计 */
 /* 佣金比例卡片 */
 .commission-section {
   background: #FFFFFF;
@@ -629,17 +628,6 @@ onShow(() => {
   color: #6B5B4F;
   line-height: 1.6;
   font-weight: 500;
-}
-
-/* 邀请码卡片 */
-  margin-bottom: 24rpx;
-}
-
-.section-title text {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1A1A1A;
-  letter-spacing: 0.5rpx;
 }
 
 /* 邀请码卡片 */
