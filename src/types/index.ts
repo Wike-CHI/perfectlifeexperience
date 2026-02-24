@@ -316,3 +316,64 @@ export interface WalletTransaction {
   status: 'pending' | 'success' | 'failed';
   createTime?: Date;
 }
+
+// ==================== 推广体系V2类型定义 ====================
+
+// V2佣金分配结果
+export interface CommissionV2Reward {
+  beneficiaryId: string;
+  beneficiaryName: string;
+  type: 'commission';
+  amount: number;
+  ratio: number;
+  role: string;  // '推广人' | '1级上级' | '2级上级' | '3级上级'
+}
+
+// V2佣金计算响应
+export interface CommissionV2Response {
+  rewards: CommissionV2Reward[];
+  promoterLevel: number;
+  commissionRule: {
+    own: number;
+    upstream: number[];
+  };
+}
+
+// 升级历史记录
+export interface PromotionHistoryItem {
+  from: number;
+  to: number;
+  type: 'self' | 'follow' | 'star_promotion';
+  triggeredBy?: string;
+  timestamp: Date;
+  oldPath?: string;
+  newPath?: string;
+}
+
+// 升级响应
+export interface PromotionResponse {
+  success: boolean;
+  promoted: {
+    userId: string;
+    from: number;
+    to: number;
+    newPath: string;
+  };
+  followUpdates: Array<{
+    childId: string;
+    childName: string;
+    from: number;
+    to: number;
+  }>;
+}
+
+// 推广用户信息（V2）
+export interface PromotionUserV2 {
+  _openid: string;
+  agentLevel: number;  // 1-4
+  starLevel: number;   // 0-3
+  promotionPath: string;
+  promotionHistory: PromotionHistoryItem[];
+  nickName: string;
+  avatarUrl: string;
+}
