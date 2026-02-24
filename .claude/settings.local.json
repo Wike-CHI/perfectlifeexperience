@@ -19,7 +19,8 @@
       "mcp__cloudbase__uploadFiles",
       "Bash(jq:*)",
       "mcp__cloudbase__callCloudApi",
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(npm run build:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
