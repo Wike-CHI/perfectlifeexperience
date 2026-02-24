@@ -1119,3 +1119,61 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
     throw error;
   }
 };
+
+// ==================== 推广升级相关 API ====================
+
+// 代理层级升级（带跟随升级）
+export const promoteAgentLevel = async (
+  userId: string,
+  oldLevel: number,
+  newLevel: number
+): Promise<import('@/types').PromotionResponse> => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('promotion', {
+      action: 'promoteAgentLevel',
+      userId,
+      oldLevel,
+      newLevel
+    });
+
+    if (res.code === 0) {
+      return res.data as import('@/types').PromotionResponse;
+    }
+    throw new Error(res.msg || '升级失败');
+  } catch (error) {
+    console.error('代理层级升级失败:', error);
+    throw error;
+  }
+};
+
+// 星级升级
+export const promoteStarLevel = async (
+  userId: string,
+  oldStarLevel: number,
+  newStarLevel: number
+): Promise<{ success: boolean; promoted: { userId: string; from: number; to: number } }> => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('promotion', {
+      action: 'promoteStarLevel',
+      userId,
+      oldStarLevel,
+      newStarLevel
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '升级失败');
+  } catch (error) {
+    console.error('星级升级失败:', error);
+    throw error;
+  }
+};
