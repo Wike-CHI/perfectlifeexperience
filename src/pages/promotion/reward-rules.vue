@@ -2,41 +2,22 @@
   <view class="page-container">
     <!-- 顶部标题 -->
     <view class="header">
-      <text class="header-title">分销机制详解</text>
-      <text class="header-desc">了解四重分润，开启财富增长之旅</text>
+      <text class="header-title">佣金分配规则 V2</text>
+      <text class="header-desc">简化佣金制度，公平透明，奖励丰厚</text>
     </view>
 
-    <!-- 四重分润概览 -->
+    <!-- 佣金分配表 -->
     <view class="section">
       <view class="section-header">
         <view class="section-icon">💰</view>
-        <text class="section-title">四重分润体系</text>
-      </view>
-      <view class="reward-cards">
-        <view class="reward-card" v-for="(item, index) in rewardTypes" :key="index">
-          <view class="reward-icon" :style="{ background: item.color }">
-            <text>{{ item.icon }}</text>
-          </view>
-          <view class="reward-info">
-            <text class="reward-name">{{ item.name }}</text>
-            <text class="reward-ratio">{{ item.ratio }}</text>
-            <text class="reward-desc">{{ item.desc }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <!-- 代理等级权益 -->
-    <view class="section">
-      <view class="section-header">
-        <view class="section-icon">🎖️</view>
-        <text class="section-title">代理等级权益</text>
+        <text class="section-title">佣金分配表</text>
       </view>
       <view class="level-table">
         <view class="table-header">
-          <text class="col col-level">等级</text>
-          <text class="col col-ratio">基础佣金</text>
-          <text class="col col-condition">条件</text>
+          <text class="col col-level">推广人等级</text>
+          <text class="col col-own">推广人拿</text>
+          <text class="col col-up">上级分配</text>
+          <text class="col col-total">总计</text>
         </view>
         <view class="table-row" v-for="(item, index) in agentLevels" :key="index">
           <view class="col col-level">
@@ -44,8 +25,9 @@
               <text>{{ item.name }}</text>
             </view>
           </view>
-          <text class="col col-ratio">{{ item.ratio }}</text>
-          <text class="col col-condition">{{ item.condition }}</text>
+          <text class="col col-own">{{ item.own }}</text>
+          <text class="col col-up">{{ item.up }}</text>
+          <text class="col col-total">{{ item.total }}</text>
         </view>
       </view>
     </view>
@@ -72,38 +54,42 @@
       </view>
     </view>
 
-    <!-- 分润示例 -->
+    <!-- 计算示例 -->
     <view class="section">
       <view class="section-header">
         <view class="section-icon">📊</view>
-        <text class="section-title">分润示例</text>
+        <text class="section-title">计算示例</text>
       </view>
       <view class="example-box">
         <view class="example-title">
-          <text>假设订单金额：<text class="highlight">¥1000</text></text>
+          <text>假设订单金额：<text class="highlight">¥100</text></text>
         </view>
         <view class="example-scenario">
-          <text class="scenario-title">场景：银牌会员 + 二级代理</text>
+          <text class="scenario-title">场景：四级代理推广订单</text>
           <view class="breakdown">
             <view class="breakdown-item">
-              <text class="breakdown-label">总公司收益</text>
-              <text class="breakdown-value">¥800 (80%)</text>
+              <text class="breakdown-label">四级代理（推广人）</text>
+              <text class="breakdown-value">¥8 (8%)</text>
             </view>
             <view class="breakdown-item">
-              <text class="breakdown-label">基础佣金</text>
-              <text class="breakdown-value">¥60 (6%)</text>
+              <text class="breakdown-label">三级代理（上级1）</text>
+              <text class="breakdown-value">¥4 (4%)</text>
             </view>
             <view class="breakdown-item">
-              <text class="breakdown-label">复购奖励</text>
-              <text class="breakdown-value">¥30 (3%)</text>
+              <text class="breakdown-label">二级代理（上级2）</text>
+              <text class="breakdown-value">¥4 (4%)</text>
             </view>
             <view class="breakdown-item">
-              <text class="breakdown-label">团队管理奖</text>
-              <text class="breakdown-value">¥20 (2%)</text>
+              <text class="breakdown-label">一级代理（上级3）</text>
+              <text class="breakdown-value">¥4 (4%)</text>
             </view>
             <view class="breakdown-item highlight-row">
-              <text class="breakdown-label">代理收益</text>
-              <text class="breakdown-value">¥110</text>
+              <text class="breakdown-label">佣金总计</text>
+              <text class="breakdown-value">¥20 (20%)</text>
+            </view>
+            <view class="breakdown-item">
+              <text class="breakdown-label">公司收益</text>
+              <text class="breakdown-value">¥80 (80%)</text>
             </view>
           </view>
         </view>
@@ -117,84 +103,23 @@
         <text class="section-title">温馨提示</text>
       </view>
       <view class="tips-list">
-        <text class="tip-item">• 订单收益的80%归总公司所有</text>
-        <text class="tip-item">• 四级代理共享20%佣金池</text>
-        <text class="tip-item">• 基础佣金根据您的代理等级确定（1%-10%）</text>
-        <text class="tip-item">• 复购奖励、管理奖等从20%代理佣金池中扣除</text>
-        <text class="tip-item">• 奖励在订单完成后自动结算到账户</text>
+        <text class="tip-item">• 每笔订单的佣金总额固定为订单金额的20%</text>
+        <text class="tip-item">• 佣金根据推广人的代理等级和上级关系自动分配</text>
+        <text class="tip-item">• 所有代理的佣金总计不超过订单金额的20%</text>
+        <text class="tip-item">• 佣金在订单完成后自动结算到各代理账户</text>
+        <text class="tip-item">• 晋升更高级别代理可获得更高的推广佣金比例</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-// 四重分润类型
-const rewardTypes = [
-  {
-    name: '代理佣金池',
-    icon: '佣',
-    ratio: '20% 总池',
-    desc: '四级代理共享',
-    color: 'linear-gradient(135deg, #0052D9 0%, #00A1FF 100%)'
-  },
-  {
-    name: '基础佣金',
-    icon: '基',
-    ratio: '1% - 10%',
-    desc: '根据代理等级确定',
-    color: 'linear-gradient(135deg, #C9A962 0%, #D4A574 100%)'
-  },
-  {
-    name: '复购奖励',
-    icon: '复',
-    ratio: '+3%',
-    desc: '铜牌以上星级专属',
-    color: 'linear-gradient(135deg, #00A870 0%, #4CD964 100%)'
-  },
-  {
-    name: '团队管理奖',
-    icon: '管',
-    ratio: '+2%',
-    desc: '银牌以上星级专属',
-    color: 'linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)'
-  }
-];
-
-// 代理等级权益
+// V2佣金分配规则
 const agentLevels = [
-  { level: 0, name: '总公司', ratio: '80% 利润', condition: '公司收益' },
-  { level: 1, name: 'I级代理', ratio: '10%', condition: '一级代理' },
-  { level: 2, name: 'II级代理', ratio: '6%', condition: '二级代理' },
-  { level: 3, name: 'III级代理', ratio: '3%', condition: '三级代理' },
-  { level: 4, name: 'IV级代理', ratio: '1%', condition: '四级代理' }
-];
-
-// 星级权益
-const starLevels = [
-  {
-    name: '普通会员',
-    icon: '普',
-    bgColor: '#9E9E9E',
-    benefits: ['享受基础佣金', '可参与推广活动']
-  },
-  {
-    name: '铜牌会员',
-    icon: '铜',
-    bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    benefits: ['享受基础佣金', '复购奖励 +3%', '专属铜牌标识']
-  },
-  {
-    name: '银牌会员',
-    icon: '银',
-    bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    benefits: ['享受基础佣金', '复购奖励 +3%', '团队管理奖 +2%', '专属银牌标识']
-  },
-  {
-    name: '金牌会员',
-    icon: '金',
-    bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    benefits: ['享受基础佣金', '复购奖励 +3%', '团队管理奖 +2%', '专属金牌标识', '优先客服支持']
-  }
+  { level: 1, name: '一级代理', own: '20%', up: '无', total: '20%' },
+  { level: 2, name: '二级代理', own: '12%', up: '一级8%', total: '20%' },
+  { level: 3, name: '三级代理', own: '12%', up: '二级4% + 一级4%', total: '20%' },
+  { level: 4, name: '四级代理', own: '8%', up: '三级4% + 二级4% + 一级4%', total: '20%' }
 ];
 </script>
 
