@@ -65,51 +65,6 @@
       </view>
     </view>
 
-    <!-- 收益分类统计 -->
-    <view class="reward-category-section">
-      <view class="section-title">
-        <text>收益明细</text>
-      </view>
-      <view class="category-grid">
-        <view class="category-item">
-          <view class="category-icon commission">
-            <text>佣</text>
-          </view>
-          <view class="category-info">
-            <text class="category-label">基础佣金</text>
-            <text class="category-value">{{ formatPrice(promotionInfo.commissionReward) }}</text>
-          </view>
-        </view>
-        <view class="category-item">
-          <view class="category-icon repurchase">
-            <text>复</text>
-          </view>
-          <view class="category-info">
-            <text class="category-label">复购奖励</text>
-            <text class="category-value">{{ formatPrice(promotionInfo.repurchaseReward) }}</text>
-          </view>
-        </view>
-        <view class="category-item">
-          <view class="category-icon management">
-            <text>管</text>
-          </view>
-          <view class="category-info">
-            <text class="category-label">团队管理奖</text>
-            <text class="category-value">{{ formatPrice(promotionInfo.managementReward) }}</text>
-          </view>
-        </view>
-        <view class="category-item">
-          <view class="category-icon nurture">
-            <text>育</text>
-          </view>
-          <view class="category-info">
-            <text class="category-label">育成津贴</text>
-            <text class="category-value">{{ formatPrice(promotionInfo.nurtureReward) }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
     <!-- 邀请码卡片 -->
     <view class="invite-card">
       <view class="invite-header">
@@ -177,8 +132,8 @@
             <image class="icon-svg" src="/static/icons/icon-mechanism.svg" mode="aspectFit"/>
           </view>
           <view class="menu-info">
-            <text class="menu-title">分销机制</text>
-            <text class="menu-subtitle">四重分润详解</text>
+            <text class="menu-title">佣金规则</text>
+            <text class="menu-subtitle">查看佣金分配详情</text>
           </view>
         </view>
         <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
@@ -241,11 +196,11 @@
       </view>
       <view class="rule-item">
         <text class="rule-num">3</text>
-        <text class="rule-text">基础佣金按代理等级：一级20%，二级15%，三级10%，四级5%</text>
+        <text class="rule-text">佣金按推广人等级：一级20%，二级12%，三级12%，四级8%</text>
       </view>
       <view class="rule-item">
         <text class="rule-num">4</text>
-        <text class="rule-text">铜牌享3%复购奖，银牌享2%管理奖，导师享2%育成津贴</text>
+        <text class="rule-text">总佣金固定为订单金额的20%，剩余80%为公司利润</text>
       </view>
       <view class="rule-item">
         <text class="rule-num">5</text>
@@ -676,17 +631,7 @@ onShow(() => {
   font-weight: 500;
 }
 
-/* 收益分类统计 */
-.reward-category-section {
-  background: #FFFFFF;
-  margin: 0 30rpx 30rpx;
-  padding: 32rpx;
-  border-radius: 24rpx;
-  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.12);
-  border: 1rpx solid rgba(201, 169, 98, 0.1);
-}
-
-.section-title {
+/* 邀请码卡片 */
   margin-bottom: 24rpx;
 }
 
@@ -695,76 +640,6 @@ onShow(() => {
   font-weight: 600;
   color: #1A1A1A;
   letter-spacing: 0.5rpx;
-}
-
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
-}
-
-.category-item {
-  display: flex;
-  align-items: center;
-  padding: 20rpx;
-  background: linear-gradient(135deg, #FAF9F7 0%, #F5F0E8 100%);
-  border-radius: 16rpx;
-  border: 1rpx solid rgba(201, 169, 98, 0.1);
-  transition: all 0.3s ease;
-}
-
-.category-item:active {
-  transform: translateY(-2rpx);
-  box-shadow: 0 4rpx 12rpx rgba(61, 41, 20, 0.1);
-}
-
-.category-icon {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 12rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16rpx;
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #FFFFFF;
-}
-
-.category-icon.commission {
-  background: linear-gradient(135deg, #3D2914 0%, #C9A962 100%);
-}
-
-.category-icon.repurchase {
-  background: linear-gradient(135deg, #5B7A6E 0%, #7A9A8E 100%);
-}
-
-.category-icon.management {
-  background: linear-gradient(135deg, #B8860B 0%, #D4A574 100%);
-}
-
-.category-icon.nurture {
-  background: linear-gradient(135deg, #B8860B 0%, #C9A962 100%);
-}
-
-.category-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.category-label {
-  font-size: 24rpx;
-  color: #4A4A4A;
-  margin-bottom: 6rpx;
-  font-weight: 500;
-  letter-spacing: 0.2rpx;
-}
-
-.category-value {
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #1A1A1A;
-  font-family: var(--font-mono);
 }
 
 /* 邀请码卡片 */
