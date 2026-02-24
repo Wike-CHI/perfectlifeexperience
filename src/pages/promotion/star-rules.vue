@@ -160,7 +160,7 @@ const conditions = [
 // 权益对比
 const compareItems = [
   {
-    name: '基础佣金',
+    name: '推广佣金',
     values: [
       { text: '✓', type: 'yes' },
       { text: '✓', type: 'yes' },
@@ -169,25 +169,7 @@ const compareItems = [
     ]
   },
   {
-    name: '复购奖励',
-    values: [
-      { text: '✗', type: 'no' },
-      { text: '+3%', type: 'highlight' },
-      { text: '+3%', type: 'highlight' },
-      { text: '+3%', type: 'highlight' }
-    ]
-  },
-  {
-    name: '团队管理奖',
-    values: [
-      { text: '✗', type: 'no' },
-      { text: '✗', type: 'no' },
-      { text: '+2%', type: 'highlight' },
-      { text: '+2%', type: 'highlight' }
-    ]
-  },
-  {
-    name: '专属标识',
+    name: '身份标识',
     values: [
       { text: '普通', type: 'normal' },
       { text: '铜牌', type: 'normal' },

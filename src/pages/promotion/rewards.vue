@@ -120,10 +120,7 @@ const statusOptions = [
 
 const typeOptions = [
   { label: '全部类型', value: '' },
-  { label: '基础佣金', value: 'commission' },
-  { label: '复购奖励', value: 'repurchase' },
-  { label: '管理奖', value: 'management' },
-  { label: '育成津贴', value: 'nurture' }
+  { label: '佣金收益', value: 'commission' }
 ];
 
 const loadOverview = async () => {
