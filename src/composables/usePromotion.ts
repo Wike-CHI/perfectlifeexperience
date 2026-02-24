@@ -1,0 +1,119 @@
+import { ref, computed } from 'vue';
+import {
+  getPromotionInfo,
+  promoteAgentLevel,
+  promoteStarLevel
+} from '@/utils/api';
+import type { PromotionUserV2, PromotionHistoryItem } from '@/types';
+
+export function usePromotion() {
+  const user = ref<PromotionUserV2>({
+    _openid: '',
+    agentLevel: 4,
+    starLevel: 0,
+    promotionPath: '',
+    promotionHistory: [],
+    nickName: '',
+    avatarUrl: ''
+  });
+
+  const promotionHistory = ref<PromotionHistoryItem[]>([]);
+  const loading = ref(false);
+
+  // 获取推广信息
+  const fetchPromotionInfo = async () => {
+    loading.value = true;
+    try {
+      const info = await getPromotionInfo();
+      user.value = info.user;
+      promotionHistory.value = info.promotionHistory || [];
+    } catch (error) {
+      console.error('获取推广信息失败:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  // 计算我的佣金比例
+  const myCommissionRatio = computed(() => {
+    const ratios: Record<number, number> = {
+      1: 20,  // 一级代理
+      2: 12,  // 二级代理
+      3: 12,  // 三级代理
+      4: 8    // 四级代理
+    };
+    return ratios[user.value.agentLevel] || 8;
+  });
+
+  // 计算上级佣金比例
+  const upstreamRatios = computed(() => {
+    const ratios: Record<number, number[]> = {
+      1: [],                  // 一级无上级
+      2: [0.08],             // 二级：一级拿8%
+      3: [0.04, 0.04],       // 三级：二级4%，一级4%
+      4: [0.04, 0.04, 0.04]  // 四级：三级4%，二级4%，一级4%
+    };
+    return ratios[user.value.agentLevel] || [];
+  });
+
+  // 升级代理等级
+  const upgradeAgentLevel = async (newLevel: number) => {
+    const oldLevel = user.value.agentLevel;
+    loading.value = true;
+    try {
+      const result = await promoteAgentLevel(
+        user.value._openid,
+        oldLevel,
+        newLevel
+      );
+
+      if (result.success) {
+        // 更新用户信息
+        user.value.agentLevel = newLevel;
+        return result;
+      }
+      throw new Error('升级失败');
+    } catch (error) {
+      console.error('升级失败:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  // 升级星级
+  const upgradeStarLevel = async (newStarLevel: number) => {
+    const oldStarLevel = user.value.starLevel;
+    loading.value = true;
+    try {
+      const result = await promoteStarLevel(
+        user.value._openid,
+        oldStarLevel,
+        newStarLevel
+      );
+
+      if (result.success) {
+        user.value.starLevel = newStarLevel;
+        return result;
+      }
+      throw new Error('升级失败');
+    } catch (error) {
+      console.error('升级失败:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  return {
+    user,
+    promotionHistory,
+    loading,
+    myCommissionRatio,
+    upstreamRatios,
+    fetchPromotionInfo,
+    upgradeAgentLevel,
+    upgradeStarLevel
+  };
+}
