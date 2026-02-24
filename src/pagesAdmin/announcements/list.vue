@@ -31,15 +31,24 @@ onMounted(() => {
 
 const loadList = async () => {
   try {
+    uni.showLoading({ title: '加载中...' })
+
     const res = await callFunction('admin-api', {
       action: 'getAnnouncements',
       data: { page: 1, limit: 20 }
     })
-    if (res.result?.code === 0) {
-      list.value = res.result.data.list || []
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
+      list.value = res.data.list || []
+    } else {
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
+    uni.hideLoading()
     console.error('加载公告失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
   }
 }
 

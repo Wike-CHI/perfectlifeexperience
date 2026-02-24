@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk')
+const jwt = require('jsonwebtoken')
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -6,8 +7,20 @@ cloud.init({
 
 const db = cloud.database()
 const _ = db.command
-const { verifyAdmin, hasPermission, logOperation } = require('./auth')
+const { verifyAdmin, hasPermission, logOperation, getDefaultPermissions } = require('./auth')
 const { getRequiredPermission } = require('./permissions')
+const {
+  isValidObjectId,
+  validateOrderStatus,
+  validatePaginationParams,
+  validateWithdrawalAction,
+  validateProductData,
+  sanitizeUpdateData
+} = require('./validator')
+
+// JWT配置 - 生产环境应该从环境变量获取
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+const JWT_EXPIRES_IN = '7d' // 7天过期
 
 // Main entry point
 exports.main = async (event, context) => {
@@ -150,21 +163,63 @@ exports.main = async (event, context) => {
  */
 async function verifyAdminPermission(adminToken, requiredPermission) {
   try {
-    // TODO: 实现真实的 token 验证逻辑
-    // 当前简化版本：直接返回授权通过
-    // 实际生产环境应该：
-    // 1. 验证 token 有效性
-    // 2. 从 token 中提取管理员信息
-    // 3. 检查管理员权限列表是否包含所需权限
+    if (!adminToken) {
+      return {
+        authorized: false,
+        message: '未授权：缺少管理员令牌'
+      }
+    }
 
-    // 临时实现：假设所有请求都通过（需要后续完善）
+    // 验证 JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(adminToken, JWT_SECRET);
+    } catch (error) {
+      return {
+        authorized: false,
+        message: 'Token无效或已过期'
+      }
+    }
+
+    // 从数据库查询管理员信息（确保账号仍然有效）
+    const adminResult = await db.collection('admins')
+      .where({
+        _id: decoded.adminId,
+        status: 'active'
+      })
+      .limit(1)
+      .get()
+
+    if (adminResult.data.length === 0) {
+      return {
+        authorized: false,
+        message: '管理员不存在或已被禁用'
+      }
+    }
+
+    const admin = adminResult.data[0];
+
+    // 检查权限
+    if (requiredPermission) {
+      // 超级管理员拥有所有权限
+      if (admin.role !== 'super_admin') {
+        const permissions = admin.permissions || getDefaultPermissions(admin.role);
+        if (!permissions.includes(requiredPermission)) {
+          return {
+            authorized: false,
+            message: '权限不足'
+          }
+        }
+      }
+    }
+
     return {
       authorized: true,
       admin: {
-        id: 'temp_admin_id',
-        username: 'admin',
-        role: 'super_admin',
-        permissions: [] // 超级管理员拥有所有权限
+        id: admin._id,
+        username: admin.username,
+        role: admin.role,
+        permissions: admin.permissions || getDefaultPermissions(admin.role)
       }
     }
   } catch (error) {
@@ -232,12 +287,26 @@ async function adminLogin(data) {
     return { code: 401, msg: result.message };
   }
 
+  // 生成JWT token
+  const token = jwt.sign(
+    {
+      adminId: result.admin.id,
+      username: result.admin.username,
+      role: result.admin.role
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+
   // Log the login operation
   await logOperation(result.admin.id, 'login', { username });
 
   return {
     code: 0,
-    data: result.admin,
+    data: {
+      ...result.admin,
+      token
+    },
     msg: '登录成功'
   };
 }
@@ -441,7 +510,17 @@ async function updateProductAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
+    // 验证输入
+    if (!isValidObjectId(data.id)) {
+      return { code: 400, msg: '商品ID格式无效' };
+    }
+
     const { id, ...updateData } = data;
+
+    // 清理不允许更新的字段
+    updateData = sanitizeUpdateData(updateData, ['_id', '_openid', 'createTime']);
+
+    // 添加更新时间
     updateData.updateTime = new Date();
 
     await db.collection('products').doc(id).update({
@@ -583,6 +662,16 @@ async function getOrderDetailAdmin(data) {
 async function updateOrderStatusAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    // 验证输入
+    if (!isValidObjectId(data.orderId)) {
+      return { code: 400, msg: '订单ID格式无效' };
+    }
+
+    const statusValidation = validateOrderStatus(data.status);
+    if (!statusValidation.valid) {
+      return { code: 400, msg: statusValidation.message };
+    }
 
     const { orderId, status } = data;
 
@@ -1003,6 +1092,9 @@ async function approveWithdrawalAdmin(data, wxContext) {
       return { code: 400, msg: '该提现记录已处理' };
     }
 
+    const withdrawal = withdrawalResult.data;
+
+    // 更新提现记录状态
     await db.collection('withdrawals').doc(withdrawalId).update({
       data: {
         status: 'approved',
@@ -1011,7 +1103,31 @@ async function approveWithdrawalAdmin(data, wxContext) {
       }
     });
 
-    await logOperation(adminInfo.id, 'approveWithdrawal', { withdrawalId });
+    // 更新用户钱包余额 - 减少冻结余额，增加已提现金额
+    await db.collection('wallets')
+      .where({ _openid: withdrawal._openid })
+      .update({
+        data: {
+          frozenBalance: _.inc(-withdrawal.amount),
+          withdrawn: _.inc(withdrawal.amount),
+          updateTime: new Date()
+        }
+      });
+
+    // 创建交易记录
+    await db.collection('wallet_transactions').add({
+      data: {
+        _openid: withdrawal._openid,
+        type: 'withdrawal',
+        amount: -withdrawal.amount,
+        status: 'completed',
+        withdrawalId: withdrawalId,
+        description: '提现申请已批准',
+        createTime: new Date()
+      }
+    });
+
+    await logOperation(adminInfo.id, 'approveWithdrawal', { withdrawalId, amount: withdrawal.amount });
 
     return {
       code: 0,
@@ -1039,12 +1155,39 @@ async function rejectWithdrawalAdmin(data, wxContext) {
       return { code: 400, msg: '该提现记录已处理' };
     }
 
+    const withdrawal = withdrawalResult.data;
+
+    // 更新提现记录状态
     await db.collection('withdrawals').doc(withdrawalId).update({
       data: {
         status: 'rejected',
         rejectedBy: adminInfo.id,
         rejectedTime: new Date(),
         rejectReason: reason
+      }
+    });
+
+    // 更新用户钱包 - 释放冻结金额回余额
+    await db.collection('wallets')
+      .where({ _openid: withdrawal._openid })
+      .update({
+        data: {
+          balance: _.inc(withdrawal.amount),
+          frozenBalance: _.inc(-withdrawal.amount),
+          updateTime: new Date()
+        }
+      });
+
+    // 创建交易记录
+    await db.collection('wallet_transactions').add({
+      data: {
+        _openid: withdrawal._openid,
+        type: 'withdrawal',
+        amount: withdrawal.amount,
+        status: 'failed',
+        withdrawalId: withdrawalId,
+        description: `提现被拒绝: ${reason || '无原因'}`,
+        createTime: new Date()
       }
     });
 

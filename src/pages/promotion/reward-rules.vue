@@ -32,28 +32,6 @@
       </view>
     </view>
 
-    <!-- 星级权益 -->
-    <view class="section">
-      <view class="section-header">
-        <view class="section-icon">⭐</view>
-        <text class="section-title">星级身份权益</text>
-      </view>
-      <view class="star-cards">
-        <view class="star-card" v-for="(item, index) in starLevels" :key="index">
-          <view class="star-header" :style="{ background: item.bgColor }">
-            <text class="star-name">{{ item.name }}</text>
-            <text class="star-icon">{{ item.icon }}</text>
-          </view>
-          <view class="star-benefits">
-            <view class="benefit-item" v-for="(benefit, bIndex) in item.benefits" :key="bIndex">
-              <text class="benefit-dot">•</text>
-              <text class="benefit-text">{{ benefit }}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
-
     <!-- 计算示例 -->
     <view class="section">
       <view class="section-header">

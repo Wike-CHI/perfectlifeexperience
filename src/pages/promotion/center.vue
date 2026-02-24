@@ -416,7 +416,7 @@ const goToCommissionCalculator = () => {
 // 模拟升级功能（演示用）
 const handleUpgrade = async () => {
   const currentLevel = promotionInfo.value.agentLevel;
-  const targetLevel = currentLevel > 1 ? currentLevel - 1 : 1;
+  const targetLevel = currentLevel > 1 ? (currentLevel - 1) as 1 | 2 | 3 | 4 : 1;
 
   if (currentLevel === 1) {
     uni.showToast({
@@ -429,8 +429,11 @@ const handleUpgrade = async () => {
   try {
     uni.showLoading({ title: '升级中...' });
 
+    // 使用模拟的 OPENID（实际应从 wxContext 获取）
+    const mockOpenId = 'mock_openid_for_demo';
+
     const result = await promoteAgentLevel(
-      promotionInfo.value._openid || '',
+      mockOpenId,
       currentLevel,
       targetLevel
     );

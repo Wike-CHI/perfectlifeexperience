@@ -33,15 +33,24 @@ onMounted(() => {
 
 const loadWithdrawals = async () => {
   try {
+    uni.showLoading({ title: '加载中...' })
+
     const res = await callFunction('admin-api', {
       action: 'getWithdrawals',
       data: { status: 'pending', page: 1, limit: 20 }
     })
-    if (res.result?.code === 0) {
-      withdrawals.value = res.result.data.list || []
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
+      withdrawals.value = res.data.list || []
+    } else {
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
+    uni.hideLoading()
     console.error('加载提现失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
   }
 }
 
@@ -51,15 +60,24 @@ const formatDate = (date: string) => {
 
 const handleApprove = async (id: string) => {
   try {
+    uni.showLoading({ title: '处理中...' })
+
     const res = await callFunction('admin-api', {
       action: 'approveWithdrawal',
       data: { withdrawalId: id }
     })
-    if (res.result?.code === 0) {
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
       uni.showToast({ title: '已批准', icon: 'success' })
       loadWithdrawals()
+    } else {
+      uni.showToast({ title: res.msg || '操作失败', icon: 'none' })
     }
   } catch (e) {
+    uni.hideLoading()
+    console.error('操作失败', e)
     uni.showToast({ title: '操作失败', icon: 'none' })
   }
 }
@@ -67,18 +85,28 @@ const handleApprove = async (id: string) => {
 const handleReject = async (id: string) => {
   uni.showModal({
     title: '确认拒绝',
+    content: '确定要拒绝此提现申请吗？',
     success: async (res) => {
       if (res.confirm) {
         try {
+          uni.showLoading({ title: '处理中...' })
+
           const result = await callFunction('admin-api', {
             action: 'rejectWithdrawal',
             data: { withdrawalId: id, reason: '审核未通过' }
           })
-          if (result.result?.code === 0) {
+
+          uni.hideLoading()
+
+          if (result.code === 0) {
             uni.showToast({ title: '已拒绝', icon: 'success' })
             loadWithdrawals()
+          } else {
+            uni.showToast({ title: result.msg || '操作失败', icon: 'none' })
           }
         } catch (e) {
+          uni.hideLoading()
+          console.error('操作失败', e)
           uni.showToast({ title: '操作失败', icon: 'none' })
         }
       }

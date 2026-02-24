@@ -4,17 +4,43 @@ import {
   promoteAgentLevel,
   promoteStarLevel
 } from '@/utils/api';
-import type { PromotionUserV2, PromotionHistoryItem } from '@/types';
+import type { PromotionInfo, PromotionHistoryItem } from '@/types';
 
 export function usePromotion() {
-  const user = ref<PromotionUserV2>({
-    _openid: '',
-    agentLevel: 4,
+  const user = ref<PromotionInfo>({
+    inviteCode: '',
     starLevel: 0,
-    promotionPath: '',
-    promotionHistory: [],
-    nickName: '',
-    avatarUrl: ''
+    agentLevel: 4,
+    starLevelName: '普通会员',
+    agentLevelName: '四级代理',
+    totalReward: 0,
+    pendingReward: 0,
+    todayReward: 0,
+    monthReward: 0,
+    commissionReward: 0,
+    repurchaseReward: 0,
+    managementReward: 0,
+    nurtureReward: 0,
+    performance: {
+      totalSales: 0,
+      monthSales: 0,
+      monthTag: '',
+      directCount: 0,
+      teamCount: 0
+    },
+    promotionProgress: {
+      currentLevel: 0,
+      nextLevel: 1,
+      salesProgress: { current: 0, target: 2000000, percent: 0 },
+      countProgress: { current: 0, target: 30, percent: 0 }
+    },
+    teamStats: {
+      total: 0,
+      level1: 0,
+      level2: 0,
+      level3: 0,
+      level4: 0
+    }
   });
 
   const promotionHistory = ref<PromotionHistoryItem[]>([]);
@@ -25,8 +51,8 @@ export function usePromotion() {
     loading.value = true;
     try {
       const info = await getPromotionInfo();
-      user.value = info.user;
-      promotionHistory.value = info.promotionHistory || [];
+      user.value = info;
+      promotionHistory.value = (info as any).promotionHistory || [];
     } catch (error) {
       console.error('获取推广信息失败:', error);
       throw error;

@@ -60,12 +60,17 @@ onMounted(() => {
 
 const loadAnnouncement = async () => {
   try {
+    uni.showLoading({ title: '加载中...' })
+
     const res = await callFunction('admin-api', {
-      action: 'getAnnouncementDetail',
+      action: 'getCouponDetail',
       data: { id: announcementId.value }
     })
-    if (res.result?.code === 0 && res.result.data) {
-      const data = res.result.data
+
+    uni.hideLoading()
+
+    if (res.code === 0 && res.data) {
+      const data = res.data
       formData.value = {
         title: data.title || '',
         content: data.content || '',
@@ -75,7 +80,9 @@ const loadAnnouncement = async () => {
       typeIndex.value = types.indexOf(data.type) || 0
     }
   } catch (e) {
+    uni.hideLoading()
     console.error('加载公告失败', e)
+    uni.showToast({ title: '加载失败', icon: 'none' })
   }
 }
 
@@ -90,6 +97,8 @@ const onActiveChange = (e: any) => {
 
 const handleSubmit = async () => {
   try {
+    uni.showLoading({ title: '保存中...' })
+
     const action = isEdit.value ? 'updateAnnouncement' : 'createAnnouncement'
     const params = isEdit.value ? { id: announcementId.value, ...formData.value } : formData.value
 
@@ -98,11 +107,16 @@ const handleSubmit = async () => {
       data: params
     })
 
-    if (res.result?.code === 0) {
+    uni.hideLoading()
+
+    if (res.code === 0) {
       uni.showToast({ title: '保存成功', icon: 'success' })
       setTimeout(() => uni.navigateBack(), 1500)
+    } else {
+      uni.showToast({ title: res.msg || '保存失败', icon: 'none' })
     }
   } catch (e) {
+    uni.hideLoading()
     console.error('保存失败', e)
     uni.showToast({ title: '保存失败', icon: 'none' })
   }

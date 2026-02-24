@@ -8,7 +8,18 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(ls:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(npm install:*)",
+      "Bash(\"/Users/johnny/Desktop/小程序/perfectlifeexperience/src/types/index.ts\":*)",
+      "mcp__cloudbase__searchKnowledgeBase",
+      "Bash(mcp__cloudbase__getFunctionList:*)",
+      "mcp__cloudbase__getFunctionList",
+      "mcp__cloudbase__updateFunctionCode",
+      "Bash(npm run build:h5:*)",
+      "mcp__cloudbase__uploadFiles",
+      "Bash(jq:*)",
+      "mcp__cloudbase__callCloudApi",
+      "Bash(npm run type-check:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

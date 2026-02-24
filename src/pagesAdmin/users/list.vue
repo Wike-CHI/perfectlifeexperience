@@ -41,11 +41,14 @@ const loadUsers = async () => {
       action: 'getUsers',
       data: { page: 1, pageSize: 50 }
     })
-    if (res.result?.code === 0) {
-      users.value = res.result.data.list || []
+    if (res.code === 0) {
+      users.value = res.data.list || []
+    } else {
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
     console.error('加载用户失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
   }
 }
 

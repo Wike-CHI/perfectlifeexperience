@@ -53,15 +53,24 @@ onMounted(() => {
 
 const loadUser = async (id: string) => {
   try {
+    uni.showLoading({ title: '加载中...' })
+
     const res = await callFunction('admin-api', {
       action: 'getUserDetail',
       data: { userId: id }
     })
-    if (res.result?.code === 0) {
-      userInfo.value = res.result.data
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
+      userInfo.value = res.data
+    } else {
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
+    uni.hideLoading()
     console.error('加载用户失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
   }
 }
 </script>
