@@ -88,15 +88,18 @@ export function usePromotion() {
     const oldLevel = user.value.agentLevel;
     loading.value = true;
     try {
+      // 使用模拟的 OPENID（实际应从 wxContext 获取）
+      const mockOpenId = 'mock_openid_for_demo';
+
       const result = await promoteAgentLevel(
-        user.value._openid,
+        mockOpenId,
         oldLevel,
         newLevel
       );
 
       if (result.success) {
         // 更新用户信息
-        user.value.agentLevel = newLevel;
+        user.value.agentLevel = newLevel as 1 | 2 | 3 | 4;
         return result;
       }
       throw new Error('升级失败');
@@ -113,14 +116,17 @@ export function usePromotion() {
     const oldStarLevel = user.value.starLevel;
     loading.value = true;
     try {
+      // 使用模拟的 OPENID（实际应从 wxContext 获取）
+      const mockOpenId = 'mock_openid_for_demo';
+
       const result = await promoteStarLevel(
-        user.value._openid,
+        mockOpenId,
         oldStarLevel,
         newStarLevel
       );
 
       if (result.success) {
-        user.value.starLevel = newStarLevel;
+        user.value.starLevel = newStarLevel as 0 | 1 | 2 | 3;
         return result;
       }
       throw new Error('升级失败');
