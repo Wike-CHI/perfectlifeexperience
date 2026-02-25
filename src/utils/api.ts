@@ -1123,8 +1123,8 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
 // ==================== 推广升级相关 API ====================
 
 // 代理层级升级（带跟随升级）
+// 注意：不传递 userId，云函数会从 wxContext.OPENID 自动获取
 export const promoteAgentLevel = async (
-  userId: string,
   oldLevel: number,
   newLevel: number
 ): Promise<import('@/types').PromotionResponse> => {
@@ -1135,7 +1135,7 @@ export const promoteAgentLevel = async (
   try {
     const res = await callFunction('promotion', {
       action: 'promoteAgentLevel',
-      userId,
+      // 不传递 userId，云函数会从 wxContext.OPENID 获取
       oldLevel,
       newLevel
     });
@@ -1151,8 +1151,8 @@ export const promoteAgentLevel = async (
 };
 
 // 星级升级
+// 注意：不传递 userId，云函数会从 wxContext.OPENID 自动获取
 export const promoteStarLevel = async (
-  userId: string,
   oldStarLevel: number,
   newStarLevel: number
 ): Promise<{ success: boolean; promoted: { userId: string; from: number; to: number } }> => {
@@ -1163,7 +1163,7 @@ export const promoteStarLevel = async (
   try {
     const res = await callFunction('promotion', {
       action: 'promoteStarLevel',
-      userId,
+      // 不传递 userId，云函数会从 wxContext.OPENID 获取
       oldStarLevel,
       newStarLevel
     });

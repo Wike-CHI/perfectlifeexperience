@@ -88,11 +88,8 @@ export function usePromotion() {
     const oldLevel = user.value.agentLevel;
     loading.value = true;
     try {
-      // 使用模拟的 OPENID（实际应从 wxContext 获取）
-      const mockOpenId = 'mock_openid_for_demo';
-
+      // 云函数会从 wxContext.OPENID 自动获取用户ID，无需前端传递
       const result = await promoteAgentLevel(
-        mockOpenId,
         oldLevel,
         newLevel
       );
@@ -116,11 +113,8 @@ export function usePromotion() {
     const oldStarLevel = user.value.starLevel;
     loading.value = true;
     try {
-      // 使用模拟的 OPENID（实际应从 wxContext 获取）
-      const mockOpenId = 'mock_openid_for_demo';
-
+      // 云函数会从 wxContext.OPENID 自动获取用户ID，无需前端传递
       const result = await promoteStarLevel(
-        mockOpenId,
         oldStarLevel,
         newStarLevel
       );

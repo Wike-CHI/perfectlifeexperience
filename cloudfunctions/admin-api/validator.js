@@ -3,7 +3,12 @@
  * 用于验证和清理用户输入
  */
 
-const { ErrorCodes } = require('../common/response');
+// ErrorCodes 定义（本地定义，不依赖 common）
+const ErrorCodes = {
+  INVALID_PARAMS: -2,
+  NOT_LOGGED_IN: -3,
+  PERMISSION_DENIED: -4
+};
 
 /**
  * 验证ObjectId格式
