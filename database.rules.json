@@ -1,7 +1,7 @@
 {
   "rules": {
     "users": {
-      ".read": "auth.openid != null",
+      ".read": "auth.openid != null && auth.openid == doc._openid",
       ".write": "auth.openid != null && auth.openid == doc._openid",
       "agentLevel": {
         ".write": "auth.openid == doc._openid && newData.agentLevel >= oldData.agentLevel"
@@ -14,11 +14,20 @@
       },
       "parentId": {
         ".write": "newData.parentId == null || newData.parentId != doc._openid"
+      },
+      "createTime": {
+        ".write": false
+      },
+      "updateTime": {
+        ".write": false
       }
     },
     "reward_records": {
       ".read": "auth.openid == doc.beneficiaryId",
-      ".write": false
+      ".write": false,
+      "_openid": {
+        ".write": false
+      }
     },
     "promotion_orders": {
       ".read": "auth.openid == doc.buyerId || auth.openid == doc.promoterId",
@@ -38,7 +47,13 @@
     },
     "orders": {
       ".read": "auth.openid == doc._openid",
-      ".write": "auth.openid == doc._openid"
+      ".write": "auth.openid == doc._openid",
+      "_openid": {
+        ".write": false
+      },
+      "createTime": {
+        ".write": false
+      }
     },
     "products": {
       ".read": true,
@@ -54,36 +69,45 @@
     },
     "user_coupons": {
       ".read": "auth.openid == doc._openid",
-      ".write": false
+      ".write": false,
+      "_openid": {
+        ".write": false
+      },
+      "status": {
+        ".write": "auth.openid == doc._openid && (newData.status == 'used' || newData.status == 'expired')"
+      }
     },
     "wallet_transactions": {
+      ".read": "auth.openid == doc._openid",
+      ".write": false,
+      "_openid": {
+        ".write": false
+      },
+      "amount": {
+        ".write": false
+      },
+      "type": {
+        ".write": false
+      }
+    },
+    "recharge_orders": {
       ".read": "auth.openid == doc._openid",
       ".write": false
     },
     "admin_users": {
       ".read": "auth.openid != null && get('database.admin_users.' + auth.openid).is_admin == true",
       ".write": false
-    }
-  },
-  "functions": {
-    "promotion": {
-      ".read": false,
+    },
+    "system_config": {
+      ".read": true,
       ".write": false
     },
-    "order": {
-      ".read": false,
+    "invite_codes": {
+      ".read": true,
       ".write": false
     },
-    "user": {
-      ".read": false,
-      ".write": false
-    },
-    "wallet": {
-      ".read": false,
-      ".write": false
-    },
-    "login": {
-      ".read": false,
+    "team_stats": {
+      ".read": "auth.openid != null",
       ".write": false
     }
   }
