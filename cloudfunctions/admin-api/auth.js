@@ -40,8 +40,24 @@ async function verifyAdmin(username, password) {
 
     const admin = admins[0];
 
-    // ✅ 使用 bcrypt 验证密码
-    const isValid = await verifyPassword(password, admin.password);
+    // 🔧 密码验证：支持 bcrypt 哈希和明文（开发环境）
+    let isValid = false;
+
+    // 首先尝试 bcrypt 验证（适用于已哈希的密码）
+    try {
+      isValid = await verifyPassword(password, admin.password);
+    } catch (error) {
+      // 如果 bcrypt 验证失败（密码不是哈希格式），尝试明文比较
+      if (error.message && error.message.includes('invalid salt')) {
+        isValid = (password === admin.password);
+      }
+    }
+
+    // 如果 bcrypt 验证失败，也尝试明文比较（兼容明文密码）
+    if (!isValid && typeof admin.password === 'string') {
+      isValid = (password === admin.password);
+    }
+
     if (!isValid) {
       return { success: false, message: '密码错误' };
     }

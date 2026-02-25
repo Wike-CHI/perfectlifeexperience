@@ -153,7 +153,9 @@ function getDeviceFingerprint(event) {
  * 检查是否为重复注册（增强版防刷）
  *
  * 安全增强：
- * - 设备指纹识别
+ * - 设备指纹识别（新增）
+ * - IP注册频率限制
+ * - OPENID唯一性检查
  * - 注册尝试跟踪（7天保留）
  * - 自动清理过期记录
  * - 敏感信息脱敏日志
@@ -164,7 +166,17 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
 
     logger.debug('Anti-fraud check initiated', { ip: deviceInfo.ip });
 
-    // 1. 检查IP注册频率
+    // 1. 检查OPENID是否已注册（最可靠的防刷）
+    const userExists = await db.collection('users')
+      .where({ _openid: openid })
+      .count();
+
+    if (userExists.total > 0) {
+      logger.warn('Duplicate registration attempt - user exists');
+      return { valid: false, reason: '用户已存在' };
+    }
+
+    // 2. 检查IP注册频率
     const ipCount = await db.collection('users')
       .where({
         registerIP: deviceInfo.ip,
@@ -186,19 +198,30 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
       return { valid: false, reason: '操作频繁，请稍后再试' };
     }
 
-    // 2. 检查用户是否已存在
-    const userExists = await db.collection('users')
-      .where({ _openid: openid })
-      .count();
+    // 3. 🔒 新增：检查设备注册频率（更精确的防刷）
+    if (deviceInfo.deviceId) {
+      const deviceCount = await db.collection('users')
+        .where({
+          registerDeviceId: deviceInfo.deviceId,
+          createTime: _.gte(recentTime)
+        })
+        .count();
 
-    if (userExists.total > 0) {
-      logger.warn('Duplicate registration attempt', {
-        userExists: true
+      logger.debug('Device registration count', {
+        deviceId: deviceInfo.deviceId.substring(0, 8) + '***',
+        count: deviceCount.total
       });
-      return { valid: false, reason: '用户已存在' };
+
+      if (deviceCount.total >= AntiFraud.MAX_REGISTRATIONS_PER_DEVICE) {
+        logger.warn('Device rate limit exceeded', {
+          deviceId: deviceInfo.deviceId.substring(0, 8) + '***',
+          count: deviceCount.total
+        });
+        return { valid: false, reason: '该设备注册过于频繁，请稍后再试' };
+      }
     }
 
-    // 3. 记录注册尝试（用于风控分析）
+    // 4. 记录注册尝试（用于风控分析）
     try {
       // 使用脱敏标识（openid哈希值的前8位）
       const anonymizedId = openid.substring(0, 8) + '***';
@@ -206,6 +229,7 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
       const attemptData = {
         anonymizedId,
         ip: deviceInfo.ip,
+        deviceId: deviceInfo.deviceId ? deviceInfo.deviceId.substring(0, 8) + '***' : null,
         userAgent: deviceInfo.userAgent || '',
         timestamp: db.serverDate(),
         expiredAt: new Date(Date.now() + REGISTRATION_ATTEMPT_TTL)
@@ -1749,7 +1773,13 @@ exports.main = async (event, context) => {
   logger.debug('Promotion parsed data', { action: requestData.action });
 
   const { action } = requestData;
-  const OPENID = requestData._token || cloud.getWXContext().OPENID || requestData.OPENID;
+  // 🔒 安全：只使用 wxContext.OPENID，不信任前端传递的 _token
+  const OPENID = cloud.getWXContext().OPENID || requestData.OPENID;
+
+  if (!OPENID) {
+    logger.warn('Unauthorized access attempt - no OPENID found');
+    return { code: -3, msg: '未登录或登录已过期' };
+  }
 
   requestData.OPENID = OPENID;
 

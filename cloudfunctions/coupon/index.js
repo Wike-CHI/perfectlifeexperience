@@ -25,11 +25,18 @@ exports.main = async (event, context) => {
   
   const requestData = parseEvent(event);
   console.log('Coupon parsed data:', JSON.stringify(requestData));
-  
+
   const { action, data = {} } = requestData;
-  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
-  const OPENID = requestData._token || cloud.getWXContext().OPENID;
-  
+  // 🔒 安全：只使用 wxContext.OPENID，不信任前端传递的 _token
+  const OPENID = cloud.getWXContext().OPENID;
+
+  if (!OPENID) {
+    return {
+      success: false,
+      error: '未登录或登录已过期'
+    };
+  }
+
   console.log('Coupon openid:', OPENID, 'action:', action);
 
   try {

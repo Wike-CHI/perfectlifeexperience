@@ -677,11 +677,12 @@ exports.main = async (event, context) => {
   const { action, data } = requestData;
 
   const wxContext = cloud.getWXContext();
-  const openid = requestData._token || wxContext.OPENID;
+  // 🔒 安全：只使用 wxContext.OPENID，不信任前端传递的 _token
+  const openid = wxContext.OPENID;
 
   if (!openid) {
     logger.warn('Unauthorized access attempt');
-    return error(ErrorCodes.NOT_LOGIN, '未登录');
+    return error(ErrorCodes.NOT_LOGIN, '未登录或登录已过期');
   }
 
   logger.info('Order action', { action });

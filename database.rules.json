@@ -1,0 +1,90 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth.openid != null",
+      ".write": "auth.openid != null && auth.openid == doc._openid",
+      "agentLevel": {
+        ".write": "auth.openid == doc._openid && newData.agentLevel >= oldData.agentLevel"
+      },
+      "starLevel": {
+        ".write": "auth.openid == doc._openid && newData.starLevel >= oldData.starLevel"
+      },
+      "_openid": {
+        ".write": false
+      },
+      "parentId": {
+        ".write": "newData.parentId == null || newData.parentId != doc._openid"
+      }
+    },
+    "reward_records": {
+      ".read": "auth.openid == doc.beneficiaryId",
+      ".write": false
+    },
+    "promotion_orders": {
+      ".read": "auth.openid == doc.buyerId || auth.openid == doc.promoterId",
+      ".write": false
+    },
+    "promotion_relations": {
+      ".read": "auth.openid == doc.parentId || auth.openid == doc.childId",
+      ".write": false
+    },
+    "registration_attempts": {
+      ".read": false,
+      ".write": false
+    },
+    "operation_logs": {
+      ".read": false,
+      ".write": false
+    },
+    "orders": {
+      ".read": "auth.openid == doc._openid",
+      ".write": "auth.openid == doc._openid"
+    },
+    "products": {
+      ".read": true,
+      ".write": false
+    },
+    "categories": {
+      ".read": true,
+      ".write": false
+    },
+    "coupons": {
+      ".read": true,
+      ".write": false
+    },
+    "user_coupons": {
+      ".read": "auth.openid == doc._openid",
+      ".write": false
+    },
+    "wallet_transactions": {
+      ".read": "auth.openid == doc._openid",
+      ".write": false
+    },
+    "admin_users": {
+      ".read": "auth.openid != null && get('database.admin_users.' + auth.openid).is_admin == true",
+      ".write": false
+    }
+  },
+  "functions": {
+    "promotion": {
+      ".read": false,
+      ".write": false
+    },
+    "order": {
+      ".read": false,
+      ".write": false
+    },
+    "user": {
+      ".read": false,
+      ".write": false
+    },
+    "wallet": {
+      ".read": false,
+      ".write": false
+    },
+    "login": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

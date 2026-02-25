@@ -39,8 +39,8 @@ exports.main = async (event, context) => {
   logger.debug('Wallet parsed data', { action: requestData.action });
 
   const wxContext = cloud.getWXContext();
-  // 优先从 requestData._token 获取（HTTP 触发器模式），否则从 wxContext 获取
-  const openid = requestData._token || wxContext.OPENID;
+  // 🔒 安全：只使用 wxContext.OPENID，不信任前端传递的 _token
+  const openid = wxContext.OPENID;
   const { action, data } = requestData;
 
   // ✅ 敏感信息不记录到日志

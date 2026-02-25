@@ -120,6 +120,7 @@ const CommissionV2 = {
 const AntiFraud = {
   // IP 限制
   MAX_REGISTRATIONS_PER_IP: 3,           // 同IP 24小时内最多注册数
+  MAX_REGISTRATIONS_PER_DEVICE: 2,       // 同设备24小时内最多注册数（新增）
   IP_LIMIT_WINDOW_HOURS: 24,            // IP限制时间窗口（小时）
   REGISTRATION_ATTEMPT_TTL_DAYS: 7,    // 注册尝试记录保留时间（天）
 

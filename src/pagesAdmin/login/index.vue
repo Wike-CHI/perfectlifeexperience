@@ -134,8 +134,8 @@ const handleLogin = async () => {
 
     // 延迟跳转，让用户看到成功提示
     setTimeout(() => {
-      uni.switchTab({
-        url: '/pages/user/user'
+      uni.redirectTo({
+        url: '/pagesAdmin/dashboard/index'
       })
     }, 1500)
   } catch (error: any) {
