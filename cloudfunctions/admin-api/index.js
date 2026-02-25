@@ -85,6 +85,10 @@ exports.main = async (event, context) => {
         return await getOrderDetailAdmin(data)
       case 'updateOrderStatus':
         return await updateOrderStatusAdmin(data, wxContext)
+      case 'searchOrderByExpress':
+        return await searchOrderByExpress(data)
+      case 'updateOrderExpress':
+        return await updateOrderExpressAdmin(data, wxContext)
       case 'getAnnouncements':
         return await getAnnouncementsAdmin(data)
       case 'createAnnouncement':
@@ -139,6 +143,38 @@ exports.main = async (event, context) => {
         return await getBannerDetailAdmin(data)
       case 'getTeamMembers':
         return await getTeamMembersAdmin(data)
+      // Activity Management APIs
+      case 'getPromotions':
+        return await getPromotionsAdmin(data)
+      case 'getPromotionDetail':
+        return await getPromotionDetailAdmin(data)
+      case 'createPromotion':
+        return await createPromotionAdmin(data, wxContext)
+      case 'updatePromotion':
+        return await updatePromotionAdmin(data, wxContext)
+      case 'deletePromotion':
+        return await deletePromotionAdmin(data, wxContext)
+      case 'getPromotionProducts':
+        return await getPromotionProductsAdmin(data)
+      case 'addPromotionProducts':
+        return await addPromotionProductsAdmin(data, wxContext)
+      case 'removePromotionProduct':
+        return await removePromotionProductAdmin(data, wxContext)
+      case 'getPromotionActivityStats':
+        return await getPromotionActivityStatsAdmin(data)
+      // Refund Management APIs
+      case 'getRefundList':
+        return await getRefundListAdmin(data)
+      case 'getRefundDetail':
+        return await getRefundDetailAdmin(data)
+      case 'approveRefund':
+        return await approveRefundAdmin(data, wxContext)
+      case 'confirmReceipt':
+        return await confirmReceiptAdmin(data, wxContext)
+      case 'rejectRefund':
+        return await rejectRefundAdmin(data, wxContext)
+      case 'retryRefund':
+        return await retryRefundAdmin(data, wxContext)
       default:
         return {
           code: 400,
@@ -696,6 +732,79 @@ async function updateOrderStatusAdmin(data, wxContext) {
     };
   } catch (error) {
     console.error('Update order status error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 根据快递单号搜索订单
+ */
+async function searchOrderByExpress(data) {
+  try {
+    const { expressCode } = data;
+
+    if (!expressCode || typeof expressCode !== 'string') {
+      return { code: 400, msg: '快递单号不能为空' };
+    }
+
+    // 查询订单
+    const result = await db.collection('orders')
+      .where({ expressCode: expressCode.trim() })
+      .limit(1)
+      .get();
+
+    if (result.data.length === 0) {
+      return { code: 404, msg: '未找到该订单' };
+    }
+
+    return {
+      code: 0,
+      data: { id: result.data[0]._id },
+      msg: '查询成功'
+    };
+  } catch (error) {
+    console.error('Search order by express error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 更新订单快递单号
+ */
+async function updateOrderExpressAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    // 验证输入
+    if (!isValidObjectId(data.orderId)) {
+      return { code: 400, msg: '订单ID格式无效' };
+    }
+
+    const { orderId, expressCode } = data;
+
+    if (!expressCode || typeof expressCode !== 'string') {
+      return { code: 400, msg: '快递单号不能为空' };
+    }
+
+    // 更新订单快递单号
+    await db.collection('orders').doc(orderId).update({
+      data: {
+        expressCode: expressCode.trim(),
+        updateTime: new Date()
+      }
+    });
+
+    await logOperation(adminInfo.id, 'updateOrderExpress', {
+      orderId,
+      expressCode
+    });
+
+    return {
+      code: 0,
+      msg: '快递单号更新成功'
+    };
+  } catch (error) {
+    console.error('Update order express error:', error);
     return { code: 500, msg: error.message };
   }
 }
@@ -1775,3 +1884,847 @@ async function getMembersAtLevel(parentUserId, level) {
     return [];
   }
 }
+
+// ==================== Activity Management Functions ====================
+
+/**
+ * Get promotions list
+ */
+async function getPromotionsAdmin(data) {
+  try {
+    const { page = 1, limit = 20, status, type } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (type && type !== 'all') {
+      query.type = type;
+    }
+
+    const [promotionsResult, countResult] = await Promise.all([
+      db.collection('promotions')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('promotions').where(query).count()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        list: promotionsResult.data,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Get promotions error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Get promotion detail
+ */
+async function getPromotionDetailAdmin(data) {
+  try {
+    const { id } = data;
+
+    const promotionResult = await db.collection('promotions').doc(id).get();
+
+    if (!promotionResult.data) {
+      return { code: 404, msg: '活动不存在' };
+    }
+
+    // Get promotion products
+    const productsResult = await db.collection('promotion_products')
+      .where({ promotionId: id })
+      .get();
+
+    return {
+      code: 0,
+      data: {
+        promotion: promotionResult.data,
+        products: productsResult.data
+      }
+    };
+  } catch (error) {
+    console.error('Get promotion detail error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Create promotion
+ */
+async function createPromotionAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const promotionData = {
+      ...data,
+      createTime: new Date(),
+      updateTime: new Date()
+    };
+
+    const result = await db.collection('promotions').add({
+      data: promotionData
+    });
+
+    await logOperation(adminInfo.id, 'createPromotion', {
+      promotionId: result.id,
+      name: data.name
+    });
+
+    return {
+      code: 0,
+      data: { id: result.id },
+      msg: '活动创建成功'
+    };
+  } catch (error) {
+    console.error('Create promotion error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Update promotion
+ */
+async function updatePromotionAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { id, ...updateData } = data;
+    updateData.updateTime = new Date();
+
+    await db.collection('promotions').doc(id).update({
+      data: updateData
+    });
+
+    await logOperation(adminInfo.id, 'updatePromotion', {
+      promotionId: id,
+      ...updateData
+    });
+
+    return {
+      code: 0,
+      msg: '活动更新成功'
+    };
+  } catch (error) {
+    console.error('Update promotion error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Delete promotion
+ */
+async function deletePromotionAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { id } = data;
+
+    // Delete promotion products first
+    const productsResult = await db.collection('promotion_products')
+      .where({ promotionId: id })
+      .get();
+
+    for (const product of productsResult.data) {
+      await db.collection('promotion_products').doc(product._id).remove();
+    }
+
+    // Delete promotion stats
+    const statsResult = await db.collection('promotion_stats')
+      .where({ promotionId: id })
+      .get();
+
+    for (const stat of statsResult.data) {
+      await db.collection('promotion_stats').doc(stat._id).remove();
+    }
+
+    // Delete promotion
+    await db.collection('promotions').doc(id).remove();
+
+    await logOperation(adminInfo.id, 'deletePromotion', { promotionId: id });
+
+    return {
+      code: 0,
+      msg: '活动删除成功'
+    };
+  } catch (error) {
+    console.error('Delete promotion error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Get promotion products
+ */
+async function getPromotionProductsAdmin(data) {
+  try {
+    const { promotionId } = data;
+
+    const productsResult = await db.collection('promotion_products')
+      .where({ promotionId })
+      .get();
+
+    // Get full product details
+    const productsWithDetails = await Promise.all(
+      productsResult.data.map(async (pp) => {
+        const productResult = await db.collection('products')
+          .doc(pp.productId)
+          .get();
+
+        return {
+          ...pp,
+          product: productResult.data || null
+        };
+      })
+    );
+
+    return {
+      code: 0,
+      data: productsWithDetails
+    };
+  } catch (error) {
+    console.error('Get promotion products error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Add products to promotion
+ */
+async function addPromotionProductsAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { promotionId, products } = data;
+
+    // products should be an array of { productId, discountPrice, stockLimit }
+    const results = [];
+
+    for (const p of products) {
+      const result = await db.collection('promotion_products').add({
+        data: {
+          promotionId,
+          productId: p.productId,
+          discountPrice: p.discountPrice || 0,
+          stockLimit: p.stockLimit || 0,
+          soldCount: 0,
+          createTime: new Date()
+        }
+      });
+      results.push(result);
+    }
+
+    await logOperation(adminInfo.id, 'addPromotionProducts', {
+      promotionId,
+      count: products.length
+    });
+
+    return {
+      code: 0,
+      data: { count: results.length },
+      msg: `成功添加 ${results.length} 个商品`
+    };
+  } catch (error) {
+    console.error('Add promotion products error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Remove product from promotion
+ */
+async function removePromotionProductAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { id } = data;
+
+    await db.collection('promotion_products').doc(id).remove();
+
+    await logOperation(adminInfo.id, 'removePromotionProduct', { id });
+
+    return {
+      code: 0,
+      msg: '商品已从活动中移除'
+    };
+  } catch (error) {
+    console.error('Remove promotion product error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * Get promotion activity stats
+ */
+async function getPromotionActivityStatsAdmin(data) {
+  try {
+    const { promotionId, startDate, endDate } = data;
+
+    let query = { promotionId };
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    const statsResult = await db.collection('promotion_stats')
+      .where(query)
+      .orderBy('date', 'asc')
+      .get();
+
+    // Calculate totals
+    const totals = statsResult.data.reduce((acc, stat) => {
+      return {
+        views: acc.views + (stat.views || 0),
+        orders: acc.orders + (stat.orders || 0),
+        sales: acc.sales + (stat.sales || 0)
+      };
+    }, { views: 0, orders: 0, sales: 0 });
+
+    return {
+      code: 0,
+      data: {
+        daily: statsResult.data,
+        totals
+      }
+    };
+  } catch (error) {
+    console.error('Get promotion stats error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// ==================== Refund Management Functions ====================
+
+/**
+ * 获取退款列表
+ */
+async function getRefundListAdmin(data) {
+  try {
+    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (status && status !== 'all') {
+      query.refundStatus = status;
+    }
+
+    if (keyword) {
+      query.$or = [
+        { refundNo: db.RegExp({ regexp: keyword, options: 'i' }) },
+        { orderNo: db.RegExp({ regexp: keyword, options: 'i' }) }
+      ];
+    }
+
+    if (startDate || endDate) {
+      query.createTime = {};
+      if (startDate) query.createTime.$gte = new Date(startDate);
+      if (endDate) query.createTime.$lte = new Date(endDate);
+    }
+
+    const [refundsResult, countResult] = await Promise.all([
+      db.collection('refunds')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('refunds').where(query).count()
+    ]);
+
+    // 获取关联的用户和订单信息
+    const refundsWithDetails = await Promise.all(
+      refundsResult.data.map(async (refund) => {
+        // 获取用户信息
+        const userResult = await db.collection('users')
+          .where({ _openid: refund._openid })
+          .limit(1)
+          .get();
+
+        // 获取订单信息
+        const orderResult = await db.collection('orders')
+          .where({ _id: refund.orderId })
+          .limit(1)
+          .get();
+
+        return {
+          ...refund,
+          user: userResult.data[0] || null,
+          order: orderResult.data[0] || null
+        };
+      })
+    );
+
+    return {
+      code: 0,
+      data: {
+        list: refundsWithDetails,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Get refund list error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 获取退款详情
+ */
+async function getRefundDetailAdmin(data) {
+  try {
+    const { refundId } = data;
+
+    if (!refundId) {
+      return { code: 400, msg: '缺少退款ID' };
+    }
+
+    const refundResult = await db.collection('refunds').doc(refundId).get();
+
+    if (!refundResult.data) {
+      return { code: 404, msg: '退款记录不存在' };
+    }
+
+    const refund = refundResult.data;
+
+    // 获取关联的用户和订单信息
+    const [userResult, orderResult] = await Promise.all([
+      db.collection('users').where({ _openid: refund._openid }).limit(1).get(),
+      db.collection('orders').where({ _id: refund.orderId }).limit(1).get()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        refund: refund,
+        user: userResult.data[0] || null,
+        order: orderResult.data[0] || null
+      }
+    };
+  } catch (error) {
+    console.error('Get refund detail error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 审核通过退款
+ */
+async function approveRefundAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { refundId, refundAmount, remark } = data;
+
+    if (!refundId) {
+      return { code: 400, msg: '缺少退款ID' };
+    }
+
+    // 获取退款记录
+    const refundResult = await db.collection('refunds').doc(refundId).get();
+
+    if (!refundResult.data) {
+      return { code: 404, msg: '退款记录不存在' };
+    }
+
+    const refund = refundResult.data;
+
+    // 验证退款状态
+    if (refund.refundStatus !== 'pending') {
+      return { code: 400, msg: '当前状态不允许审核' };
+    }
+
+    // 获取订单信息
+    const orderResult = await db.collection('orders')
+      .where({ _id: refund.orderId })
+      .get();
+
+    if (orderResult.data.length === 0) {
+      return { code: 404, msg: '订单不存在' };
+    }
+
+    const order = orderResult.data[0];
+
+    // 根据退款类型处理
+    if (refund.refundType === 'only_refund') {
+      // 仅退款：直接执行退款
+      return await executeRefund(refund, order, adminInfo, refundAmount, remark);
+    } else {
+      // 退货退款：更新状态为approved，等待用户退货
+      await db.collection('refunds').doc(refundId).update({
+        data: {
+          refundStatus: 'approved',
+          auditBy: adminInfo.id,
+          auditTime: new Date(),
+          auditRemark: remark,
+          updateTime: new Date()
+        }
+      });
+
+      await logOperation(adminInfo.id, 'approveRefund', {
+        refundId,
+        refundType: 'return_refund',
+        remark
+      });
+
+      return {
+        code: 0,
+        msg: '已同意退货申请，等待用户寄回商品'
+      };
+    }
+  } catch (error) {
+    console.error('Approve refund error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 执行退款（内部函数）
+ */
+async function executeRefund(refund, order, adminInfo, customRefundAmount, remark) {
+  try {
+    const finalRefundAmount = customRefundAmount || refund.refundAmount;
+
+    // 根据订单支付方式执行退款
+    if (order.paymentMethod === 'wechat' || !order.paymentMethod) {
+      // 微信支付退款
+      const wechatpayResult = await cloud.callFunction({
+        name: 'wechatpay',
+        data: {
+          action: 'createRefund',
+          data: {
+            orderNo: order.orderNo,
+            refundNo: refund.refundNo,
+            refundAmount: finalRefundAmount,
+            reason: refund.refundReason
+          }
+        }
+      });
+
+      if (!wechatpayResult.result.success) {
+        throw new Error(wechatpayResult.result.message || '微信退款失败');
+      }
+
+      // 更新退款记录状态
+      await db.collection('refunds').doc(refund._id).update({
+        data: {
+          refundStatus: 'processing',
+          auditBy: adminInfo.id,
+          auditTime: new Date(),
+          auditRemark: remark,
+          updateTime: new Date()
+        }
+      });
+    } else if (order.paymentMethod === 'balance') {
+      // 余额支付退款：直接增加用户钱包余额
+      const WALLETS_COLLECTION = 'user_wallets';
+      const TRANSACTIONS_COLLECTION = 'wallet_transactions';
+
+      // 增加钱包余额
+      const walletRes = await db.collection(WALLETS_COLLECTION)
+        .where({ _openid: refund._openid })
+        .get();
+
+      if (walletRes.data.length > 0) {
+        await db.collection(WALLETS_COLLECTION).doc(walletRes.data[0]._id).update({
+          data: {
+            balance: _.inc(finalRefundAmount),
+            updateTime: db.serverDate()
+          }
+        });
+      } else {
+        // 钱包不存在，创建新钱包
+        await db.collection(WALLETS_COLLECTION).add({
+          data: {
+            _openid: refund._openid,
+            balance: finalRefundAmount,
+            totalRecharge: 0,
+            totalGift: 0,
+            updateTime: db.serverDate()
+          }
+        });
+      }
+
+      // 创建交易记录
+      await db.collection(TRANSACTIONS_COLLECTION).add({
+        data: {
+          _openid: refund._openid,
+          type: 'refund',
+          amount: finalRefundAmount,
+          title: '订单退款',
+          description: `订单 ${order.orderNo} 退款`,
+          orderId: order._id,
+          refundId: refund._id,
+          status: 'success',
+          createTime: db.serverDate()
+        }
+      });
+
+      // 更新退款记录状态为成功
+      await db.collection('refunds').doc(refund._id).update({
+        data: {
+          refundStatus: 'success',
+          auditBy: adminInfo.id,
+          auditTime: new Date(),
+          auditRemark: remark,
+          successTime: db.serverDate(),
+          updateTime: db.serverDate()
+        }
+      });
+
+      // 更新订单退款金额
+      await db.collection('orders').doc(order._id).update({
+        data: {
+          refundAmount: _.inc(finalRefundAmount),
+          refundStatus: _.inc(finalRefundAmount) >= (order.totalAmount || 0) ? 'full' : 'partial',
+          updateTime: db.serverDate()
+        }
+      });
+
+      // 触发奖励扣回
+      await triggerRewardDeduction(order._id, finalRefundAmount, order.totalAmount);
+    }
+
+    await logOperation(adminInfo.id, 'approveRefund', {
+      refundId: refund._id,
+      refundAmount: finalRefundAmount,
+      refundType: refund.refundType
+    });
+
+    return {
+      code: 0,
+      msg: '退款处理成功'
+    };
+  } catch (error) {
+    console.error('Execute refund error:', error);
+
+    // 更新退款状态为失败
+    await db.collection('refunds').doc(refund._id).update({
+      data: {
+        refundStatus: 'failed',
+        failedReason: error.message,
+        updateTime: new Date()
+      }
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * 确认收货（退货退款）
+ */
+async function confirmReceiptAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { refundId } = data;
+
+    if (!refundId) {
+      return { code: 400, msg: '缺少退款ID' };
+    }
+
+    // 获取退款记录
+    const refundResult = await db.collection('refunds').doc(refundId).get();
+
+    if (!refundResult.data) {
+      return { code: 404, msg: '退款记录不存在' };
+    }
+
+    const refund = refundResult.data;
+
+    // 验证退款状态
+    if (refund.refundStatus !== 'waiting_receive') {
+      return { code: 400, msg: '当前状态不是等待收货' };
+    }
+
+    // 获取订单信息
+    const orderResult = await db.collection('orders')
+      .where({ _id: refund.orderId })
+      .get();
+
+    if (orderResult.data.length === 0) {
+      return { code: 404, msg: '订单不存在' };
+    }
+
+    const order = orderResult.data[0];
+
+    // 执行退款
+    await executeRefund(refund, order, adminInfo, null, '管理员确认收货');
+
+    await logOperation(adminInfo.id, 'confirmReceipt', { refundId });
+
+    return {
+      code: 0,
+      msg: '已确认收货，退款处理中'
+    };
+  } catch (error) {
+    console.error('Confirm receipt error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 拒绝退款
+ */
+async function rejectRefundAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { refundId, reason } = data;
+
+    if (!refundId) {
+      return { code: 400, msg: '缺少退款ID' };
+    }
+
+    if (!reason) {
+      return { code: 400, msg: '请填写拒绝原因' };
+    }
+
+    // 获取退款记录
+    const refundResult = await db.collection('refunds').doc(refundId).get();
+
+    if (!refundResult.data) {
+      return { code: 404, msg: '退款记录不存在' };
+    }
+
+    const refund = refundResult.data;
+
+    // 验证退款状态
+    if (refund.refundStatus !== 'pending') {
+      return { code: 400, msg: '当前状态不允许拒绝' };
+    }
+
+    // 更新退款状态
+    await db.collection('refunds').doc(refundId).update({
+      data: {
+        refundStatus: 'rejected',
+        rejectReason: reason,
+        auditBy: adminInfo.id,
+        auditTime: new Date(),
+        updateTime: new Date()
+      }
+    });
+
+    await logOperation(adminInfo.id, 'rejectRefund', { refundId, reason });
+
+    return {
+      code: 0,
+      msg: '已拒绝退款申请'
+    };
+  } catch (error) {
+    console.error('Reject refund error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 重试失败的退款
+ */
+async function retryRefundAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    const { refundId } = data;
+
+    if (!refundId) {
+      return { code: 400, msg: '缺少退款ID' };
+    }
+
+    // 获取退款记录
+    const refundResult = await db.collection('refunds').doc(refundId).get();
+
+    if (!refundResult.data) {
+      return { code: 404, msg: '退款记录不存在' };
+    }
+
+    const refund = refundResult.data;
+
+    // 验证退款状态
+    if (refund.refundStatus !== 'failed') {
+      return { code: 400, msg: '只有失败状态的退款才能重试' };
+    }
+
+    // 获取订单信息
+    const orderResult = await db.collection('orders')
+      .where({ _id: refund.orderId })
+      .get();
+
+    if (orderResult.data.length === 0) {
+      return { code: 404, msg: '订单不存在' };
+    }
+
+    const order = orderResult.data[0];
+
+    // 重置退款状态为pending，重新执行审核
+    await db.collection('refunds').doc(refundId).update({
+      data: {
+        refundStatus: 'pending',
+        failedReason: null,
+        updateTime: new Date()
+      }
+    });
+
+    // 重新执行退款
+    await executeRefund(refund, order, adminInfo, null, '管理员重试退款');
+
+    await logOperation(adminInfo.id, 'retryRefund', { refundId });
+
+    return {
+      code: 0,
+      msg: '退款重试成功'
+    };
+  } catch (error) {
+    console.error('Retry refund error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 触发推广奖励扣回
+ */
+async function triggerRewardDeduction(orderId, refundAmount, totalOrderAmount) {
+  try {
+    // 计算退款比例
+    const refundRatio = refundAmount / totalOrderAmount;
+
+    console.log(`[奖励扣回] 订单: ${orderId}, 退款金额: ${refundAmount}, 订单总额: ${totalOrderAmount}, 扣回比例: ${refundRatio}`);
+
+    // 调用rewardSettlement云函数扣回奖励
+    const result = await cloud.callFunction({
+      name: 'rewardSettlement',
+      data: {
+        action: 'cancelOrderRewards',
+        orderId: orderId,
+        refundRatio: refundRatio
+      }
+    });
+
+    if (result.result.code !== 0) {
+      console.error('奖励扣回失败:', result.result.msg);
+    } else {
+      console.log('奖励扣回成功');
+    }
+  } catch (error) {
+    console.error('触发奖励扣回失败:', error);
+  }
+}
+

@@ -97,7 +97,32 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { getTeamMembers, getPromotionInfo } from '@/utils/api';
-import type { PromotionUser, TeamStats } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface PromotionUser {
+  _id: string
+  _openid: string
+  nickname: string
+  avatarUrl: string
+  agentLevel: number
+  starLevel: number
+  performance: {
+    totalSales: number
+    monthSales: number
+    monthTag: string
+    directCount: number
+    teamCount: number
+  }
+  createTime: Date
+}
+
+interface TeamStats {
+  total: number
+  level1: number
+  level2: number
+  level3: number
+  level4: number
+}
 
 const currentLevel = ref(0);
 const members = ref<PromotionUser[]>([]);

@@ -40,7 +40,29 @@ const PERMISSIONS = {
   FINANCE_APPROVE: 'finance.approve',
 
   // 库存管理
-  INVENTORY_VIEW: 'inventory.view'
+  INVENTORY_VIEW: 'inventory.view',
+
+  // 活动管理
+  ACTIVITY_VIEW: 'activity.view',
+  ACTIVITY_CREATE: 'activity.create',
+  ACTIVITY_UPDATE: 'activity.update',
+  ACTIVITY_DELETE: 'activity.delete',
+
+  // Banner管理
+  BANNER_VIEW: 'banner.view',
+  BANNER_CREATE: 'banner.create',
+  BANNER_UPDATE: 'banner.update',
+  BANNER_DELETE: 'banner.delete',
+
+  // 优惠券管理
+  COUPON_VIEW: 'coupon.view',
+  COUPON_CREATE: 'coupon.create',
+  COUPON_UPDATE: 'coupon.update',
+  COUPON_DELETE: 'coupon.delete',
+
+  // 退款管理
+  REFUND_VIEW: 'refund.view',
+  REFUND_APPROVE: 'refund.approve'
 }
 
 /**
@@ -55,6 +77,8 @@ const ACTION_PERMISSIONS = {
   'getOrders': PERMISSIONS.ORDER_VIEW,
   'getOrderDetail': PERMISSIONS.ORDER_VIEW,
   'updateOrderStatus': PERMISSIONS.ORDER_UPDATE,
+  'searchOrderByExpress': PERMISSIONS.ORDER_VIEW,
+  'updateOrderExpress': PERMISSIONS.ORDER_UPDATE,
   'deleteOrder': PERMISSIONS.ORDER_DELETE,
 
   // 商品管理
@@ -86,7 +110,40 @@ const ACTION_PERMISSIONS = {
   'getFinanceReport': PERMISSIONS.FINANCE_VIEW,
 
   // 库存管理
-  'getLowStockProducts': PERMISSIONS.INVENTORY_VIEW
+  'getLowStockProducts': PERMISSIONS.INVENTORY_VIEW,
+
+  // 活动管理
+  'getPromotions': PERMISSIONS.ACTIVITY_VIEW,
+  'getPromotionDetail': PERMISSIONS.ACTIVITY_VIEW,
+  'createPromotion': PERMISSIONS.ACTIVITY_CREATE,
+  'updatePromotion': PERMISSIONS.ACTIVITY_UPDATE,
+  'deletePromotion': PERMISSIONS.ACTIVITY_DELETE,
+  'getPromotionProducts': PERMISSIONS.ACTIVITY_VIEW,
+  'addPromotionProducts': PERMISSIONS.ACTIVITY_UPDATE,
+  'removePromotionProduct': PERMISSIONS.ACTIVITY_UPDATE,
+  'getPromotionActivityStats': PERMISSIONS.ACTIVITY_VIEW,
+
+  // Banner管理
+  'getBanners': PERMISSIONS.BANNER_VIEW,
+  'getBannerDetail': PERMISSIONS.BANNER_VIEW,
+  'createBanner': PERMISSIONS.BANNER_CREATE,
+  'updateBanner': PERMISSIONS.BANNER_UPDATE,
+  'deleteBanner': PERMISSIONS.BANNER_DELETE,
+
+  // 优惠券管理
+  'getCoupons': PERMISSIONS.COUPON_VIEW,
+  'getCouponDetail': PERMISSIONS.COUPON_VIEW,
+  'createCoupon': PERMISSIONS.COUPON_CREATE,
+  'updateCoupon': PERMISSIONS.COUPON_UPDATE,
+  'deleteCoupon': PERMISSIONS.COUPON_DELETE,
+
+  // 退款管理
+  'getRefundList': PERMISSIONS.REFUND_VIEW,
+  'getRefundDetail': PERMISSIONS.REFUND_VIEW,
+  'approveRefund': PERMISSIONS.REFUND_APPROVE,
+  'confirmReceipt': PERMISSIONS.REFUND_APPROVE,
+  'rejectRefund': PERMISSIONS.REFUND_APPROVE,
+  'retryRefund': PERMISSIONS.REFUND_APPROVE
 }
 
 /**

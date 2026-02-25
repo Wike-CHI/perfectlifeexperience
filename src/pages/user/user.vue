@@ -168,7 +168,37 @@ import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin } from '@/utils/api';
 import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
-import type { UserInfo } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface UserInfo {
+  _id: string
+  _openid: string
+  nickname: string
+  avatarUrl: string
+  phoneNumber?: string
+  addresses?: Array<{
+    _id: string
+    name: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detail: string
+    isDefault: boolean
+  }>
+  promotionPath?: string
+  agentLevel: number
+  starLevel: number
+  performance?: {
+    totalSales: number
+    monthSales: number
+    monthTag: string
+    directCount: number
+    teamCount: number
+  }
+  createTime: Date
+  isAdmin?: boolean
+}
 
 // 数据
 const userInfo = ref<Partial<UserInfo>>({});

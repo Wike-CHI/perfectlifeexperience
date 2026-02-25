@@ -100,6 +100,31 @@
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white"
 					}
+				},
+				{
+					"path": "refund-apply",
+					"style": {
+						"navigationBarTitleText": "申请退款",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "refund-detail",
+					"style": {
+						"navigationBarTitleText": "退款详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "refund-list",
+					"style": {
+						"navigationBarTitleText": "退款记录",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
 				}
 			]
 		},
@@ -391,6 +416,91 @@
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white",
 						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "banners/list",
+					"style": {
+						"navigationBarTitleText": "Banner管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "banners/edit",
+					"style": {
+						"navigationBarTitleText": "编辑Banner",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "coupons/list",
+					"style": {
+						"navigationBarTitleText": "优惠券管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "coupons/edit",
+					"style": {
+						"navigationBarTitleText": "编辑优惠券",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "promotions/list",
+					"style": {
+						"navigationBarTitleText": "活动管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "promotions/edit",
+					"style": {
+						"navigationBarTitleText": "编辑活动",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "promotions/products",
+					"style": {
+						"navigationBarTitleText": "活动商品",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "promotions/stats",
+					"style": {
+						"navigationBarTitleText": "活动统计",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "refunds/index",
+					"style": {
+						"navigationBarTitleText": "退款管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "refunds/detail",
+					"style": {
+						"navigationBarTitleText": "退款详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
 					}
 				}
 			]

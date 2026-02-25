@@ -77,7 +77,9 @@ async function verifyAdmin(username, password) {
         id: admin._id,
         username: admin.username,
         role: admin.role,
-        permissions: admin.permissions || []
+        permissions: admin.permissions || [],
+        status: admin.status,
+        createTime: admin.createTime
       }
     };
   } catch (error) {
@@ -199,7 +201,9 @@ function getDefaultPermissions(role) {
       // 财务管理
       'finance.view', 'finance.approve',
       // 库存管理
-      'inventory.view'
+      'inventory.view',
+      // 退款管理
+      'refund.view', 'refund.approve'
     ],
     'operator': [
       // 仪表盘
@@ -227,7 +231,9 @@ function getDefaultPermissions(role) {
       // 数据统计
       'statistics.view',
       // 财务管理
-      'finance.view', 'finance.approve'
+      'finance.view', 'finance.approve',
+      // 退款管理
+      'refund.view', 'refund.approve'
     ]
   }
 

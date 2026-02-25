@@ -205,7 +205,7 @@ async function requestApi(method, path, body, config) {
 
 /**
  * 生成商户订单号
- * 格式：前缀(可选) + 年月日时分秒 + 6位随机数
+ * 格式：前缀(可选) + 年月日时分秒 + 10位随机数（毫秒时间戳4位 + 随机数6位）
  * @param {string} prefix - 订单号前缀，如 'RC' 表示充值，'DY' 表示商品订单
  */
 function generateOutTradeNo(prefix = 'DY') {
@@ -216,8 +216,14 @@ function generateOutTradeNo(prefix = 'DY') {
   const hour = String(now.getHours()).padStart(2, '0');
   const minute = String(now.getMinutes()).padStart(2, '0');
   const second = String(now.getSeconds()).padStart(2, '0');
-  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-  
+
+  // 使用毫秒时间戳的后4位 + 6位随机数，共10位
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
+  const microRandom = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+
+  // 组合随机部分：取毫秒的第1位 + 6位随机数 + 毫秒的后2位
+  const random = `${ms[0]}${microRandom}${ms.slice(1)}`;
+
   return `${prefix}${year}${month}${day}${hour}${minute}${second}${random}`;
 }
 

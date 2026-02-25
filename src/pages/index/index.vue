@@ -118,6 +118,11 @@
       </view>
     </view>
 
+    <!-- 距离提示 -->
+    <view class="distance-section" @click="goToStoreLocation">
+      <distance-badge icon="📍" loading-text="获取中..." />
+    </view>
+
     <!-- 会员储值区 - 大卡片设计 -->
     <view class="recharge-section" @click="goToRecharge">
       <view class="recharge-bg">
@@ -282,8 +287,34 @@ import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import { getProducts, addToCart as addToCartApi, formatPrice } from '@/utils/api';
 import { rechargeOptions } from '@/config/recharge';
-import type { Product, Banner } from '@/types';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
+import DistanceBadge from '@/components/distance-badge.vue';
+
+// 类型定义（内联，避免分包导入问题）
+interface Product {
+  _id: string
+  name: string
+  enName?: string
+  description?: string
+  images: string[]
+  price: number
+  priceList?: Array<{ volume: string; price: number }>
+  volume?: string
+  originalPrice?: number
+  stock?: number
+  sales?: number
+  category?: string
+  tags?: string[]
+  alcoholContent?: number
+  brewery?: string
+}
+
+interface Banner {
+  image: string
+  title: string
+  subtitle: string
+  link?: string
+}
 
 // 轮播图数据
 const banners = ref<Banner[]>([
@@ -385,6 +416,10 @@ const goToPromo = () => {
 
 const goToRecharge = () => {
   uni.navigateTo({ url: '/pages/wallet/recharge' });
+};
+
+const goToStoreLocation = () => {
+  uni.navigateTo({ url: '/pages/store/location' });
 };
 
 const goToProduct = (product: any) => {
@@ -1104,6 +1139,13 @@ onPullDownRefresh(() => {
 .gift-text {
   font-size: 20rpx;
   color: #C8A464;
+}
+
+/* ============================================
+   距离提示
+   ============================================ */
+.distance-section {
+  margin: 0 32rpx 32rpx;
 }
 
 /* ============================================

@@ -87,6 +87,9 @@ export interface Order {
   payTime?: Date;
   shipTime?: Date;
   completeTime?: Date;
+  // 退款相关字段
+  refundAmount?: number;         // 已退款金额（分）
+  refundStatus?: 'none' | 'partial' | 'full'; // 退款状态
 }
 
 // 用户数据类型
@@ -377,3 +380,83 @@ export interface PromotionUserV2 {
   nickName: string;
   avatarUrl: string;
 }
+
+// ==================== 退款相关类型 ====================
+
+// 退款类型
+export type RefundType = 'only_refund' | 'return_refund';
+
+// 退款状态
+export type RefundStatus = 'pending' | 'approved' | 'rejected' | 'waiting_receive' | 'processing' | 'success' | 'failed';
+
+// 退款商品项
+export interface RefundProductItem {
+  productId: string;
+  productName: string;
+  productImage?: string;
+  skuId?: string;
+  skuName?: string;
+  quantity: number;        // 订单中数量
+  refundQuantity: number;  // 退款数量
+  price: number;           // 单价
+  totalPrice: number;      // 小计
+}
+
+// 退货物流信息
+export interface ReturnLogistics {
+  company: string;      // 物流公司
+  trackingNo: string;   // 运单号
+  shipTime: Date;       // 寄出时间
+}
+
+// 退款记录
+export interface Refund {
+  _id?: string;
+  _openid?: string;
+  orderId: string;
+  orderNo: string;
+  refundNo: string;
+
+  // 退款信息
+  refundAmount: number;     // 退款金额（分）
+  refundReason: string;     // 退款原因
+  refundType: RefundType;   // 退款类型
+  refundStatus: RefundStatus; // 退款状态
+
+  // 商品信息
+  products?: RefundProductItem[];
+
+  // 物流信息（退货时）
+  returnLogistics?: ReturnLogistics;
+
+  // 审核信息
+  auditBy?: string;        // 审核管理员ID
+  auditTime?: Date;        // 审核时间
+  auditRemark?: string;    // 审核备注
+  rejectReason?: string;   // 拒绝原因
+
+  // 退款结果
+  transactionId?: string;  // 微信退款交易号
+  successTime?: Date;      // 退款成功时间
+  failedReason?: string;   // 失败原因
+
+  createTime: Date;
+  updateTime: Date;
+}
+
+// 退款状态显示名称映射
+export const RefundStatusNames: Record<RefundStatus, string> = {
+  pending: '待审核',
+  approved: '已同意',
+  rejected: '已拒绝',
+  waiting_receive: '等待收货',
+  processing: '退款中',
+  success: '退款成功',
+  failed: '退款失败'
+};
+
+// 退款类型显示名称映射
+export const RefundTypeNames: Record<RefundType, string> = {
+  only_refund: '仅退款',
+  return_refund: '退货退款'
+};

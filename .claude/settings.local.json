@@ -24,7 +24,17 @@
       "Bash(git push:*)",
       "Bash(npm run build:mp-weixin:*)",
       "mcp__cloudbase__executeReadOnlySQL",
-      "mcp__cloudbase__readNoSqlDatabaseContent"
+      "mcp__cloudbase__readNoSqlDatabaseContent",
+      "mcp__cloudbase__writeNoSqlDatabaseContent",
+      "Bash(./upload-database-rules.sh:*)",
+      "mcp__cloudbase__invokeFunction",
+      "Bash(find:*)",
+      "Skill(code-review:code-review)",
+      "Skill(code-review:code-review:*)",
+      "Bash(grep:*)",
+      "Bash(npx cloudbase-cli login:*)",
+      "mcp__cloudbase__writeNoSqlDatabaseStructure",
+      "mcp__cloudbase__readNoSqlDatabaseStructure"
     ]
   },
   "enableAllProjectMcpServers": true,

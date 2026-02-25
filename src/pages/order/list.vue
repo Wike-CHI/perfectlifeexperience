@@ -117,7 +117,31 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice } from '@/utils/api';
-import type { Order } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface Order {
+  _id: string
+  orderNo: string
+  products: Array<{
+    name: string
+    price: number
+    quantity: number
+    image: string
+  }>
+  totalAmount: number
+  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled'
+  address?: {
+    name: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detail: string
+  }
+  createTime: Date
+  payTime?: Date
+  _openid?: string
+}
 
 // 数据
 const orders = ref<Order[]>([]);

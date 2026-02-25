@@ -1177,3 +1177,309 @@ export const promoteStarLevel = async (
     throw error;
   }
 };
+
+// ==================== 退款相关 API ====================
+
+/**
+ * 申请退款
+ */
+export const applyRefund = async (params: {
+  orderId: string;
+  refundType: 'only_refund' | 'return_refund';
+  refundReason: string;
+  products?: Array<{
+    productId: string;
+    refundQuantity: number;
+  }>;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('order', {
+      action: 'applyRefund',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '申请退款失败');
+  } catch (error) {
+    console.error('申请退款失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 取消退款申请
+ */
+export const cancelRefund = async (refundId: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('order', {
+      action: 'cancelRefund',
+      data: { refundId }
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '取消退款失败');
+  } catch (error) {
+    console.error('取消退款失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 更新退货物流信息
+ */
+export const updateReturnLogistics = async (params: {
+  refundId: string;
+  company: string;
+  trackingNo: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('order', {
+      action: 'updateReturnLogistics',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '更新物流失败');
+  } catch (error) {
+    console.error('更新物流失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取退款列表
+ */
+export const getRefundList = async (status?: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('order', {
+      action: 'getRefundList',
+      data: { status }
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取退款列表失败');
+  } catch (error) {
+    console.error('获取退款列表失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取退款详情
+ */
+export const getRefundDetail = async (refundId: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('order', {
+      action: 'getRefundDetail',
+      data: { refundId }
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取退款详情失败');
+  } catch (error) {
+    console.error('获取退款详情失败:', error);
+    throw error;
+  }
+};
+
+// ==================== 管理端退款 API ====================
+
+/**
+ * 管理端 - 获取退款列表
+ */
+export const adminGetRefundList = async (params: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  keyword?: string;
+  startDate?: string;
+  endDate?: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'getRefundList',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取退款列表失败');
+  } catch (error) {
+    console.error('获取退款列表失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 管理端 - 获取退款详情
+ */
+export const adminGetRefundDetail = async (params: {
+  refundId: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'getRefundDetail',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取退款详情失败');
+  } catch (error) {
+    console.error('获取退款详情失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 管理端 - 审核通过退款
+ */
+export const adminApproveRefund = async (params: {
+  refundId: string;
+  refundAmount?: number;
+  remark?: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'approveRefund',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '审核退款失败');
+  } catch (error) {
+    console.error('审核退款失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 管理端 - 确认收货
+ */
+export const adminConfirmReceipt = async (params: {
+  refundId: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'confirmReceipt',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '确认收货失败');
+  } catch (error) {
+    console.error('确认收货失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 管理端 - 拒绝退款
+ */
+export const adminRejectRefund = async (params: {
+  refundId: string;
+  reason: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'rejectRefund',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '拒绝退款失败');
+  } catch (error) {
+    console.error('拒绝退款失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 管理端 - 重试退款
+ */
+export const adminRetryRefund = async (params: {
+  refundId: string;
+  adminToken: string;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'retryRefund',
+      data: params
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '重试退款失败');
+  } catch (error) {
+    console.error('重试退款失败:', error);
+    throw error;
+  }
+};

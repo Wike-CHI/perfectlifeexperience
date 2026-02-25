@@ -10,7 +10,7 @@
             <text class="store-name">大友元气</text>
           </view>
           <view class="store-meta">
-            <text class="distance">1.5km</text>
+            <text class="distance" :class="{'loading': loadingDistance}" @click="loadDistance">{{ formatDistance }}</text>
             <text class="switch-store">切换门店 ></text>
           </view>
         </view>
@@ -193,13 +193,63 @@
 import { ref, computed, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getProducts, getCategories, addToCart as addToCartApi, formatPrice } from '@/utils/api';
-import type { Product, Category } from '@/types';
+import { getDistanceToStore, formatDistance, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import CategoryIcon from '@/components/CategoryIcon.vue';
+import DistanceBadge from '@/components/distance-badge.vue';
+
+// 类型定义（内联，避免分包导入问题）
+interface Product {
+  _id: string
+  name: string
+  enName?: string
+  description?: string
+  images: string[]
+  price: number
+  priceList?: Array<{ volume: string; price: number }>
+  volume?: string
+  stock?: number
+  sales?: number
+  category?: string
+  tags?: string[]
+  alcoholContent?: number
+  brewery?: string
+}
+
+interface Category {
+  _id: string
+  name: string
+  icon: string
+  sort: number
+}
 
 // 数据
 const categories = ref<Category[]>([]);
 const products = ref<Product[]>([]);
+
+// 距离相关状态
+const distance = ref<number | null>(null);
+const loadingDistance = ref(false);
+
+// 距离格式化显示
+const formatDistance = computed(() => {
+  if (loadingDistance.value) return '获取中...';
+  if (distance.value === null) return '--';
+  return formatDistance(distance.value);
+});
+
+// 加载距离
+const loadDistance = async () => {
+  try {
+    loadingDistance.value = true;
+    distance.value = await getDistanceToStore();
+  } catch (error) {
+    console.error('获取距离失败:', error);
+    distance.value = null;
+  } finally {
+    loadingDistance.value = false;
+  }
+};
 
 // 获取分类图标类型
 const getCategoryIconType = (categoryName: string): 'beer' | 'cocktail' => {
@@ -357,21 +407,22 @@ const goToDetail = (product: Product) => {
 onLoad(() => {
   loadCategories();
   loadRecommendProducts();
-  
+  loadDistance();
+
   // 检查是否有选中的分类或排序
   const selected = uni.getStorageSync('selectedCategory');
   const sort = uni.getStorageSync('sortType');
-  
+
   if (selected) {
     currentCategory.value = selected;
     uni.removeStorageSync('selectedCategory');
   }
-  
+
   if (sort) {
     sortBy.value = sort;
     uni.removeStorageSync('sortType');
   }
-  
+
   loadProducts(true);
 });
 
@@ -449,6 +500,16 @@ onPullDownRefresh(() => {
 .distance {
   font-size: 24rpx;
   color: rgba(245, 245, 240, 0.6);
+  transition: all 0.3s ease;
+}
+
+.distance.loading {
+  color: #C8A464;
+  opacity: 0.7;
+}
+
+.distance:active {
+  opacity: 0.5;
 }
 
 .switch-store {

@@ -361,61 +361,142 @@ async function sendPromotionNotification(openid, oldLevel, newLevel, reason) {
 }
 
 /**
- * 取消订单奖励（退款时）
+ * 取消订单奖励（退款时）- 支持部分退款按比例扣回
+ * @param {string} orderId - 订单ID
+ * @param {number} refundRatio - 退款比例 (0-1)，全额退款为1
  */
-async function cancelRewards(orderId) {
+async function cancelRewards(orderId, refundRatio = 1) {
   try {
+    console.log(`[取消奖励] 订单: ${orderId}, 扣回比例: ${refundRatio}`);
+
     const rewardsRes = await db.collection('reward_records')
       .where({ orderId })
       .get();
 
+    let cancelledCount = 0;
+    let deductedCount = 0;
+    let deductedAmount = 0;
+
     for (const reward of rewardsRes.data) {
+      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
+
       if (reward.status === 'pending') {
+        // pending状态的奖励直接取消
         await db.collection('reward_records')
           .doc(reward._id)
           .update({
             data: {
               status: 'cancelled',
+              cancelReason: `订单退款（扣回比例: ${(refundRatio * 100).toFixed(0)}%）`,
               updateTime: db.serverDate()
             }
           });
-      } else if (reward.status === 'settled') {
+
+        // 从用户的待结算奖励中扣除
         await db.collection('users')
           .where({ _openid: reward.beneficiaryId })
           .update({
             data: {
-              totalReward: _.inc(-reward.amount),
+              pendingReward: _.inc(-reward.amount),
               updateTime: db.serverDate()
             }
           });
 
-        const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
+        cancelledCount++;
+        console.log(`[取消奖励] pending奖励已取消: ${reward._id}, 金额: ${reward.amount}`);
+      } else if (reward.status === 'settled') {
+        // 已结算的奖励按比例扣回
+        const deductAmount = Math.floor(reward.amount * refundRatio);
 
-        await db.collection('wallet_transactions').add({
-          data: {
-            _openid: reward.beneficiaryId,
-            type: 'reward_deduct',
-            amount: -reward.amount,
-            title: '奖励扣回',
-            description: `订单 ${orderId} 退款，扣回${rewardTypeName}`,
-            orderId,
-            status: 'success',
-            createTime: db.serverDate()
-          }
-        });
+        if (deductAmount > 0) {
+          // 从用户总奖励扣回
+          await db.collection('users')
+            .where({ _openid: reward.beneficiaryId })
+            .update({
+              data: {
+                totalReward: _.inc(-deductAmount),
+                updateTime: db.serverDate()
+              }
+            });
 
-        await db.collection('reward_records')
-          .doc(reward._id)
-          .update({
+          // 创建交易记录
+          await db.collection('wallet_transactions').add({
             data: {
-              status: 'deducted',
-              updateTime: db.serverDate()
+              _openid: reward.beneficiaryId,
+              type: 'reward_deduct',
+              amount: -deductAmount,
+              title: '奖励扣回',
+              description: `订单 ${orderId} 退款，扣回${rewardTypeName}`,
+              orderId: orderId,
+              status: 'success',
+              createTime: db.serverDate()
             }
           });
+
+          // 如果全额扣回，更新奖励状态为deducted
+          if (deductAmount === reward.amount) {
+            await db.collection('reward_records')
+              .doc(reward._id)
+              .update({
+                data: {
+                  status: 'deducted',
+                  cancelReason: `订单全额退款`,
+                  updateTime: db.serverDate()
+                }
+              });
+          } else {
+            // 部分扣回，记录扣回金额
+            await db.collection('reward_records')
+              .doc(reward._id)
+              .update({
+                data: {
+                  deductedAmount: _.inc(deductAmount),
+                  updateTime: db.serverDate()
+                }
+              });
+          }
+
+          deductedCount++;
+          deductedAmount += deductAmount;
+          console.log(`[取消奖励] settled奖励已扣回: ${reward._id}, 扣回金额: ${deductAmount}`);
+        }
       }
     }
+
+    console.log(`[取消奖励] 完成: ${orderId}, 取消: ${cancelledCount}, 扣回: ${deductedCount}, 总金额: ${deductedAmount}`);
+
+    return {
+      success: true,
+      cancelledCount,
+      deductedCount,
+      deductedAmount
+    };
   } catch (error) {
     console.error('取消奖励失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 取消订单奖励 - 独立action入口
+ */
+async function cancelOrderRewards(event, context) {
+  const { orderId, refundRatio } = event;
+
+  if (!orderId) {
+    return { code: -1, msg: '缺少订单ID' };
+  }
+
+  try {
+    const result = await cancelRewards(orderId, refundRatio);
+    return {
+      code: 0,
+      msg: '奖励扣回成功',
+      data: result
+    };
+  } catch (error) {
+    console.error('取消订单奖励失败:', error);
+    return { code: -1, msg: '奖励扣回失败' };
   }
 }
 
@@ -602,6 +683,8 @@ exports.main = async (event, context) => {
       return await getSettlementStats(event, context);
     case 'settlement':
       return await settlementRewards(event, context);
+    case 'cancelOrderRewards':
+      return await cancelOrderRewards(event, context);
     default:
       return { code: -1, msg: '未知操作' };
   }

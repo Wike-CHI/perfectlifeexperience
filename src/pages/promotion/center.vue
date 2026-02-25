@@ -227,10 +227,45 @@ import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getPromotionInfo, promoteAgentLevel } from '@/utils/api';
 import { usePromotion } from '@/composables/usePromotion';
-import type { PromotionInfo, TeamStats, PromotionProgress as PromotionProgressType } from '@/types';
 import PromotionBadge from '@/components/PromotionBadge.vue';
 import PromotionProgress from '@/components/PromotionProgress.vue';
 import PromotionUpgradeAlert from '@/components/PromotionUpgradeAlert.vue';
+
+// 类型定义（内联，避免分包导入问题）
+interface PromotionInfo {
+  starLevel: number
+  agentLevel: number
+  agentLevelName: string
+  todayReward: number
+  monthReward: number
+  totalReward: number
+  pendingReward: number
+  inviteCode: string
+  promotionProgress: PromotionProgress
+}
+
+interface TeamStats {
+  level1: number
+  level2: number
+  level3: number
+  level4: number
+  total: number
+}
+
+interface PromotionProgress {
+  currentLevel: number
+  nextLevel: number
+  salesProgress: {
+    current: number
+    target: number
+    percent: number
+  }
+  teamProgress: {
+    current: number
+    target: number
+    percent: number
+  }
+}
 
 const SETTLEMENT_DAYS = 7;
 

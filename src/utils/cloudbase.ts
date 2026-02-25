@@ -241,11 +241,25 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
   }
 
   try {
-    console.log(`调用云函数 ${name} (原生)`, JSON.stringify(data));
+    // 🔧 自动注入 adminToken（如果是管理后台 API）
+    let requestData = { ...data };
+
+    if (name === 'admin-api' && !requestData.adminToken) {
+      // 动态导入 AdminAuthManager 以避免循环依赖
+      const { default: AdminAuthManager } = await import('./admin-auth');
+      const token = AdminAuthManager.getToken();
+
+      if (token) {
+        requestData.adminToken = token;
+        console.log('✅ 已自动注入 adminToken');
+      }
+    }
+
+    console.log(`调用云函数 ${name} (原生)`, JSON.stringify(requestData));
 
     const res = await wx.cloud.callFunction({
       name,
-      data
+      data: requestData
     });
 
     console.log(`云函数 ${name} 响应:`, res.result);

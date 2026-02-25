@@ -96,6 +96,12 @@
     <view class="store-section" @click="goToStoreLocation">
       <view class="store-header-row">
         <text class="section-title">门店位置</text>
+        <view class="store-distance-info" v-if="distance > 0 && !loadingDistance">
+          <text class="distance-badge" :class="`distance-${distanceLevel.level}`">
+            {{ formatDistance }}
+          </text>
+          <text class="distance-hint">距离您{{ distanceLevel.text }}</text>
+        </view>
         <view class="store-arrow">
           <image class="arrow-icon" src="/static/icons/arrow-right.svg" mode="aspectFit" />
         </view>
@@ -105,9 +111,12 @@
         <view class="store-overlay">
           <view class="store-info-row">
             <image class="store-icon" src="/static/icons/menu-address.svg" mode="aspectFit" />
-            <text class="store-address">浙江省温州市瑞安市瑞光大道1308号德信铂瑞湾二期30楼05-06</text>
+            <text class="store-address">{{ STORE_LOCATION.address }}</text>
           </view>
-          <text class="store-navigate-hint">点击查看地图导航</text>
+          <text class="store-navigate-hint" v-if="distance > 0 && !loadingDistance">
+            预计{{ estimatedTime }}分钟到达
+          </text>
+          <text class="store-navigate-hint" v-else>点击查看地图导航</text>
         </view>
       </view>
     </view>
@@ -165,7 +174,28 @@
 import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getProductDetail, addToCart as apiAddToCart, getCartItems, formatPrice } from '@/utils/api';
-import type { Product } from '@/types';
+import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
+
+// 类型定义（内联，避免分包导入问题）
+interface Product {
+  _id: string
+  name: string
+  enName?: string
+  description: string
+  images: string[]
+  price: number
+  priceList?: Array<{
+    volume: string
+    price: number
+  }>
+  volume?: string
+  stock?: number
+  sales: number
+  category?: string
+  tags?: string[]
+  alcoholContent: number
+  brewery: string
+}
 
 // 数据
 const product = ref<Product>({} as Product);
@@ -174,6 +204,10 @@ const currentPrice = ref(0);
 const currentSpec = ref('');
 const quantity = ref(1);
 const loading = ref(false);
+
+// 距离相关
+const distance = ref<number | null>(null);
+const loadingDistance = ref(false);
 
 // 计算属性：单瓶规格
 const singleSpecs = computed(() => {
@@ -195,6 +229,23 @@ const totalPrice = computed(() => {
 // 显示容量
 const displayVolume = computed(() => {
   return currentSpec.value || (product.value.volume ? `${product.value.volume}ml` : '--');
+});
+
+// 距离相关计算属性
+const formatDistance = computed(() => {
+  if (distance.value === null) return '--';
+  return formatDistanceUtil(distance.value);
+});
+
+const distanceLevel = computed(() => {
+  if (distance.value === null) return { level: 'near', text: '很近', color: '#52C41A' };
+  return getDistanceLevel(distance.value);
+});
+
+const estimatedTime = computed(() => {
+  if (distance.value === null) return '--';
+  const drivingTime = Math.ceil(distance.value / (15000 / 60)); // 分钟
+  return Math.min(drivingTime + 10, 60); // 加上准备时间，最多60分钟
 });
 
 // 获取商品详情
@@ -225,6 +276,19 @@ const loadCartCount = async () => {
     cartCount.value = res.length;
   } catch (error) {
     console.error('加载购物车数量失败:', error);
+  }
+};
+
+// 加载距离信息
+const loadDistance = async () => {
+  try {
+    loadingDistance.value = true;
+    distance.value = await getDistanceToStore();
+  } catch (error) {
+    console.error('获取距离失败:', error);
+    distance.value = null;
+  } finally {
+    loadingDistance.value = false;
   }
 };
 
@@ -353,6 +417,7 @@ onLoad((options) => {
     loadProductDetail(options.id);
   }
   loadCartCount();
+  loadDistance();
 });
 </script>
 
@@ -702,6 +767,48 @@ onLoad((options) => {
 .store-navigate-hint {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* 门店距离信息 */
+.store-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.store-distance-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  align-items: flex-end;
+}
+
+.distance-badge {
+  font-size: 28rpx;
+  font-weight: 700;
+  padding: 6rpx 16rpx;
+  border-radius: 12rpx;
+}
+
+.distance-badge.distance-near {
+  background: rgba(82, 196, 26, 0.15);
+  color: #52C41A;
+}
+
+.distance-badge.distance-medium {
+  background: rgba(212, 165, 116, 0.15);
+  color: #D4A574;
+}
+
+.distance-badge.distance-far {
+  background: rgba(155, 139, 127, 0.15);
+  color: #9B8B7F;
+}
+
+.distance-hint {
+  font-size: 22rpx;
+  color: #9B8B7F;
 }
 
 /* 商品详情 */

@@ -26,6 +26,8 @@ const {
   jsapiOrder,
   queryOrderByOutTradeNo,
   closeOrder,
+  refund,
+  queryRefund,
   generateMiniProgramPayParams,
   generateOutTradeNo
 } = require('./pay');
@@ -85,10 +87,11 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
     // 1. 查询订单当前状态
     const orderRes = await db.collection('orders').doc(orderId).get();
     if (!orderRes.data) {
+      console.error('[订单状态验证] 订单不存在', { orderId });
       return {
         success: false,
         code: 'ORDER_NOT_FOUND',
-        message: '订单不存在'
+        message: '订单信息异常'
       };
     }
 
@@ -100,22 +103,22 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
       return { success: true, message: '订单已是目标状态' };
     }
 
-    // 3. 验证状态转换合法性
+    // 3. 防止重复支付 - 已支付订单不允许任何状态变更
+    if (actualStatus === PAYMENT_STATUS.PAID) {
+      return {
+        success: false,
+        code: 'ALREADY_PAID',
+        message: '订单已支付，请勿重复支付'
+      };
+    }
+
+    // 4. 验证状态转换合法性
     const allowed = VALID_TRANSITIONS[actualStatus] || [];
     if (!allowed.includes(newStatus)) {
       return {
         success: false,
         code: 'INVALID_STATUS_TRANSITION',
         message: `无效的状态转换: ${actualStatus} -> ${newStatus}`
-      };
-    }
-
-    // 4. 防止重复支付（如果是已支付状态）
-    if (newStatus === PAYMENT_STATUS.PAID && actualStatus === PAYMENT_STATUS.PAID) {
-      return {
-        success: false,
-        code: 'ALREADY_PAID',
-        message: '订单已支付，请勿重复支付'
       };
     }
 
@@ -158,15 +161,16 @@ function getConfig() {
     apiV3Key: localConfig.apiV3Key || process.env.WX_PAY_API_V3_KEY,
     notifyUrl: localConfig.notifyUrl || process.env.WX_PAY_NOTIFY_URL
   };
-  
-  // 验证配置完整性
+
+  // 验证配置完整性（不暴露具体配置项名称）
   const required = ['appid', 'mchid', 'serialNo', 'privateKey', 'apiV3Key', 'notifyUrl'];
   for (const key of required) {
     if (!config[key]) {
-      throw new Error(`缺少必要配置: ${key}`);
+      console.error(`[配置错误] 缺少必要配置: ${key}`);
+      throw new Error('支付配置异常，请联系管理员');
     }
   }
-  
+
   return config;
 }
 
@@ -192,19 +196,22 @@ function decodePrivateKey(key) {
 
 /**
  * 云函数主入口
- * 
+ *
  * 支持的 action:
  * - createPayment: 创建支付订单
  * - queryOrder: 查询订单
  * - closeOrder: 关闭订单
+ * - createRefund: 创建退款
+ * - queryRefund: 查询退款
  * - notify: 支付回调通知（HTTP 触发器）
+ * - refundCallback: 退款回调通知（HTTP 触发器）
  */
 exports.main = async (event, context) => {
   const { action, data } = event;
-  
+
   try {
     const config = getConfig();
-    
+
     switch (action) {
       case 'createPayment':
         return await createPayment(data, config);
@@ -221,9 +228,19 @@ exports.main = async (event, context) => {
       case 'confirmRecharge':
         return await confirmRecharge(data, config);
 
+      case 'createRefund':
+        return await createRefundHandler(data, config);
+
+      case 'queryRefund':
+        return await queryRefundHandler(data, config);
+
       case 'notify':
         // HTTP 触发器回调
         return await handleNotify(event, config);
+
+      case 'refundCallback':
+        // HTTP 触发器退款回调
+        return await handleRefundCallback(event, config);
 
       default:
         return {
@@ -350,10 +367,11 @@ async function createPayment(data, config) {
     .get();
 
   if (orderRes.data.length === 0) {
+    console.error('[创建支付] 订单不存在', { orderId, openid });
     return {
       success: false,
       code: 'ORDER_NOT_FOUND',
-      message: '订单不存在'
+      message: '订单信息异常'
     };
   }
 
@@ -767,3 +785,221 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
 
   console.log(`[充值成功] 钱包余额已更新，用户: ${_openid}, 新增余额: ${totalAmount}分`);
 }
+
+/**
+ * 生成退款单号
+ */
+function generateRefundNo() {
+  return generateOutTradeNo('RF');
+}
+
+/**
+ * 创建退款
+ */
+async function createRefundHandler(data, config) {
+  const { orderNo, refundNo, refundAmount, reason } = data;
+
+  // 1. 参数验证
+  if (!orderNo || !refundNo || !refundAmount) {
+    return {
+      success: false,
+      code: 'INVALID_PARAMS',
+      message: '缺少必要参数: orderNo, refundNo, refundAmount'
+    };
+  }
+
+  // 2. 验证退款金额
+  if (refundAmount < AMOUNT_LIMITS.MIN || refundAmount > AMOUNT_LIMITS.MAX) {
+    return {
+      success: false,
+      code: 'INVALID_AMOUNT',
+      message: `退款金额异常: ${refundAmount} 分`
+    };
+  }
+
+  try {
+    // 3. 查询订单信息
+    const orderRes = await db.collection('orders')
+      .where({ orderNo })
+      .get();
+
+    if (orderRes.data.length === 0) {
+      return {
+        success: false,
+        code: 'ORDER_NOT_FOUND',
+        message: '订单不存在'
+      };
+    }
+
+    const order = orderRes.data[0];
+    const transactionId = order.transactionId;
+
+    if (!transactionId) {
+      return {
+        success: false,
+        code: 'NO_TRANSACTION_ID',
+        message: '订单无微信交易号，无法退款'
+      };
+    }
+
+    // 4. 调用微信支付退款API
+    const refundResult = await refund({
+      out_trade_no: orderNo,
+      out_refund_no: refundNo,
+      transaction_id: transactionId,
+      amount: {
+        refund: refundAmount,
+        total: order.totalAmount,
+        currency: 'CNY'
+      },
+      reason: reason || '用户申请退款'
+    }, config);
+
+    console.log('[微信退款] 退款申请成功:', refundResult);
+
+    return {
+      success: true,
+      data: {
+        refundNo,
+        status: refundResult.status || 'processing',
+        refundId: refundResult.refund_id
+      }
+    };
+  } catch (error) {
+    console.error('创建退款失败:', error);
+    return {
+      success: false,
+      code: error.code || 'CREATE_REFUND_FAILED',
+      message: error.message || '创建退款失败'
+    };
+  }
+}
+
+/**
+ * 查询退款
+ */
+async function queryRefundHandler(data, config) {
+  const { refundNo } = data;
+
+  if (!refundNo) {
+    return {
+      success: false,
+      code: 'INVALID_PARAMS',
+      message: '缺少退款单号'
+    };
+  }
+
+  try {
+    const result = await queryRefund(refundNo, config);
+
+    return {
+      success: true,
+      data: result
+    };
+  } catch (error) {
+    console.error('查询退款失败:', error);
+    return {
+      success: false,
+      code: error.code || 'QUERY_REFUND_FAILED',
+      message: error.message
+    };
+  }
+}
+
+/**
+ * 处理退款回调通知
+ * HTTP 触发器入口
+ */
+async function handleRefundCallback(event, config) {
+  try {
+    // HTTP 触发器的事件结构
+    const headers = event.headers || {};
+    const body = event.body || '';
+
+    // 1. 验证时间戳
+    const timestamp = headers['wechatpay-timestamp'];
+    if (!isTimestampValid(timestamp)) {
+      console.error('退款回调时间戳验证失败');
+      return buildFailResponse('时间戳验证失败');
+    }
+
+    // 2. 解析并验证签名
+    const result = await parseNotify(headers, body, config);
+
+    if (!result.success) {
+      console.log('退款回调验证失败:', result.summary);
+      return buildFailResponse(result.summary);
+    }
+
+    // 3. 获取退款信息
+    const { out_refund_no } = result.transaction;
+
+    // 4. 查询退款记录
+    const refundRes = await db.collection('refunds')
+      .where({ refundNo: out_refund_no })
+      .get();
+
+    if (refundRes.data.length === 0) {
+      console.error(`退款记录不存在: ${out_refund_no}`);
+      return buildFailResponse('退款记录不存在');
+    }
+
+    const refundRecord = refundRes.data[0];
+    const currentStatus = refundRecord.refundStatus;
+
+    // 5. 幂等性检查 - 如果已经处理过，直接返回成功
+    if (currentStatus === 'success') {
+      console.log(`退款 ${out_refund_no} 已处理，忽略重复回调`);
+      return buildSuccessResponse();
+    }
+
+    // 6. 检查退款状态
+    const refundStatus = result.transaction.trade_status;
+    let newStatus = 'failed';
+    let successTime = null;
+
+    if (refundStatus === 'SUCCESS') {
+      newStatus = 'success';
+      successTime = new Date();
+
+      // 7. 更新退款记录
+      await db.collection('refunds').doc(refundRecord._id).update({
+        data: {
+          refundStatus: newStatus,
+          transactionId: result.transaction.refund_id,
+          successTime: successTime,
+          updateTime: db.serverDate()
+        }
+      });
+
+      // 8. 更新订单的退款金额
+      await db.collection('orders').doc(refundRecord.orderId).update({
+        data: {
+          refundAmount: _.inc(refundRecord.refundAmount),
+          refundStatus: _.inc(refundRecord.refundAmount) >= (refundRecord.totalAmount || 0) ? 'full' : 'partial',
+          updateTime: db.serverDate()
+        }
+      });
+
+      // 9. 触发推广奖励扣回（在admin-api的confirmReceipt中处理）
+      console.log(`[退款成功] 退款单号: ${out_refund_no}, 金额: ${refundRecord.refundAmount}分`);
+    } else {
+      // 退款失败
+      await db.collection('refunds').doc(refundRecord._id).update({
+        data: {
+          refundStatus: newStatus,
+          failedReason: refundStatus,
+          updateTime: db.serverDate()
+        }
+      });
+
+      console.log(`[退款失败] 退款单号: ${out_refund_no}, 原因: ${refundStatus}`);
+    }
+
+    return buildSuccessResponse();
+  } catch (error) {
+    console.error('处理退款回调失败:', error);
+    return buildFailResponse(error.message);
+  }
+}
+

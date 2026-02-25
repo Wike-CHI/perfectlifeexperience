@@ -171,8 +171,28 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getProducts, formatPrice } from '@/utils/api';
-import type { Product } from '@/types';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
+
+// 类型定义（内联，避免分包导入问题）
+interface Product {
+  _id: string
+  name: string
+  enName?: string
+  description?: string
+  images: string[]
+  price: number
+  priceList?: Array<{ volume: string; price: number }>
+  volume?: string
+  originalPrice?: number
+  discount?: number
+  isLimited?: boolean
+  stock?: number
+  sales?: number
+  category?: string
+  tags?: string[]
+  alcoholContent?: number
+  brewery?: string
+}
 
 // 数据
 const products = ref<Product[]>([]);

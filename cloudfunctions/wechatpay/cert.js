@@ -23,9 +23,17 @@ const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12小时缓存
 async function getPlatformCertificates(config, forceRefresh = false) {
   // 检查缓存
   if (!forceRefresh && cachedCertificates && (Date.now() - lastDownloadTime) < CACHE_DURATION) {
-    return cachedCertificates;
+    // 验证缓存的证书是否都未过期
+    const hasValidCerts = cachedCertificates.every(cert => !isCertificateExpired(cert));
+
+    if (hasValidCerts) {
+      return cachedCertificates;
+    } else {
+      console.warn('缓存的证书中存在已过期的证书，强制刷新');
+      forceRefresh = true;
+    }
   }
-  
+
   try {
     const certificates = await downloadCertificates(config);
     cachedCertificates = certificates;
@@ -33,10 +41,15 @@ async function getPlatformCertificates(config, forceRefresh = false) {
     return certificates;
   } catch (error) {
     console.error('下载平台证书失败:', error);
-    // 如果有缓存，降级使用缓存
+    // 如果有缓存，降级使用缓存（但要检查是否过期）
     if (cachedCertificates) {
-      console.log('使用缓存的证书');
-      return cachedCertificates;
+      const hasValidCerts = cachedCertificates.every(cert => !isCertificateExpired(cert));
+      if (hasValidCerts) {
+        console.log('下载失败，使用缓存的证书');
+        return cachedCertificates;
+      } else {
+        console.error('缓存的证书已过期，无法降级使用');
+      }
     }
     throw error;
   }
@@ -136,19 +149,38 @@ async function downloadCertificates(config) {
 async function getPublicKeyBySerialNo(serialNo, config) {
   const certificates = await getPlatformCertificates(config);
   const cert = certificates.find(c => c.serial_no === serialNo);
-  
+
   if (!cert) {
     // 如果找不到，尝试强制刷新
     const freshCerts = await getPlatformCertificates(config, true);
     const freshCert = freshCerts.find(c => c.serial_no === serialNo);
-    
+
     if (!freshCert) {
       throw new Error(`找不到序列号为 ${serialNo} 的平台证书`);
     }
-    
+
     return freshCert.public_key;
   }
-  
+
+  // 验证证书是否过期
+  if (isCertificateExpired(cert)) {
+    console.warn(`证书 ${serialNo} 已过期，强制刷新证书缓存`);
+    // 强制刷新证书
+    const freshCerts = await getPlatformCertificates(config, true);
+    const freshCert = freshCerts.find(c => c.serial_no === serialNo);
+
+    if (!freshCert) {
+      throw new Error(`序列号为 ${serialNo} 的证书已过期且无法获取新证书`);
+    }
+
+    // 再次验证新证书是否过期
+    if (isCertificateExpired(freshCert)) {
+      throw new Error(`序列号为 ${serialNo} 的证书已过期`);
+    }
+
+    return freshCert.public_key;
+  }
+
   return cert.public_key;
 }
 

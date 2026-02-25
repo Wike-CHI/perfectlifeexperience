@@ -10,6 +10,26 @@
       </view>
     </view>
 
+    <!-- 距离提示 (外卖模式) -->
+    <view class="distance-info-section" v-if="deliveryType === 'delivery' && distance !== null">
+      <view v-if="loadingDistance" class="distance-loading">
+        <text class="loading-text">获取距离中...</text>
+      </view>
+      <view v-else-if="distance > 0" class="distance-info-content">
+        <view class="distance-main">
+          <text class="distance-label">距离门店</text>
+          <text class="distance-value">{{ formatDistance }}</text>
+        </view>
+        <view class="delivery-info">
+          <text class="delivery-fee">配送费: ¥{{ formatPrice(dynamicShippingFee) }}</text>
+          <text class="delivery-time">预计{{ estimatedTime }}分钟送达</text>
+        </view>
+      </view>
+      <view v-else class="distance-error" @click="loadDistance">
+        <text class="error-text">点击重新获取位置</text>
+      </view>
+    </view>
+
     <!-- 地址选择 (外卖模式) -->
     <view class="address-section" @click="selectAddress" v-if="deliveryType === 'delivery'">
       <view class="address-content" v-if="selectedAddress">
@@ -28,8 +48,8 @@
     <!-- 自提门店信息 (自提模式) -->
     <view class="store-section" v-if="deliveryType === 'pickup'" @click="openStoreLocation">
       <view class="store-info">
-        <text class="store-name">大友元气精酿啤酒屋</text>
-        <text class="store-address">浙江省温州市瑞安市瑞光大道1308号德信铂瑞湾二期30楼05-06</text>
+        <text class="store-name">{{ STORE_LOCATION.name }}</text>
+        <text class="store-address">{{ STORE_LOCATION.address }}</text>
         <text class="store-time">营业时间：10:00-22:00</text>
       </view>
       <text class="arrow">&#xe6a7;</text>
@@ -214,7 +234,55 @@ import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
-import type { CartItem, Address, OrderItem, UserCoupon } from '@/types';
+import { getDistanceToStore, formatDistance as formatDistanceUtil, calculateDeliveryFee, STORE_LOCATION } from '@/utils/distance';
+
+// 类型定义（内联，避免分包导入问题）
+interface CartItem {
+  productId: string
+  name: string
+  price: number
+  image: string
+  quantity: number
+  selected: boolean
+  stock?: number
+  category?: string
+  specs?: string
+  _id: string
+}
+
+interface Address {
+  _id?: string
+  name: string
+  phone: string
+  province: string
+  city: string
+  district: string
+  detail: string
+  isDefault?: boolean
+}
+
+interface OrderItem {
+  productId: string
+  name: string
+  price: number
+  quantity: number
+  specs?: string
+  image?: string
+}
+
+interface UserCoupon {
+  _id: string
+  template?: {
+    _id: string
+    name: string
+    type: 'cash' | 'discount'
+    value: number
+    description?: string
+    minAmount?: number
+  }
+  status: 'available' | 'used' | 'expired'
+  expireTime: Date
+}
 
 // 数据
 const cartItems = ref<CartItem[]>([]);
@@ -222,8 +290,12 @@ const selectedAddress = ref<Address | null>(null);
 const remark = ref('');
 const paymentMethod = ref<'wechat' | 'balance'>('wechat');
 const deliveryType = ref<'delivery' | 'pickup'>('delivery');
-const DELIVERY_FEE = 1000; // 10元运费
+const DELIVERY_FEE = 1000; // 10元基础运费
 const deliveryTimeIndex = ref(0);
+
+// 距离相关
+const distance = ref<number | null>(null);
+const loadingDistance = ref(false);
 const deliveryTimeOptions = ['随时送货', '工作日送货', '双休日/节假日送货'];
 
 const loading = ref(false);
@@ -248,6 +320,24 @@ const loadWalletBalance = async () => {
     console.error('获取钱包余额失败:', error);
   } finally {
     balanceLoading.value = false;
+  }
+};
+
+// 加载距离信息
+const loadDistance = async () => {
+  try {
+    loadingDistance.value = true;
+    distance.value = await getDistanceToStore();
+  } catch (error) {
+    console.error('获取距离失败:', error);
+    distance.value = 0; // 设置为0以显示错误状态
+    uni.showToast({
+      title: '无法获取位置，请检查权限设置',
+      icon: 'none',
+      duration: 2000
+    });
+  } finally {
+    loadingDistance.value = false;
   }
 };
 
@@ -278,16 +368,43 @@ const discountAmount = computed(() => {
   return calculateCouponDiscount(selectedCoupon.value, goodsTotal.value);
 });
 
-const shippingFee = computed(() => {
-  if (deliveryType.value === 'pickup') return 0;
-  
+// 格式化距离显示
+const formatDistance = computed(() => {
+  if (distance.value === null) return '--';
+  return formatDistanceUtil(distance.value);
+});
+
+// 预计送达时间
+const estimatedTime = computed(() => {
+  if (distance.value === null) return '--';
+  const drivingTime = Math.ceil(distance.value / (15000 / 60)); // 分钟
+  return drivingTime + 10; // 加上10分钟准备时间
+});
+
+// 动态配送费（基于距离）
+const dynamicShippingFee = computed(() => {
+  if (distance.value === null) return DELIVERY_FEE;
+
   // 检查是否有整箱商品
-  const hasBoxItem = orderItems.value.some(item => 
+  const hasBoxItem = orderItems.value.some(item =>
     item.specs && item.specs.includes('整箱')
   );
-  
+
   if (hasBoxItem) return 0;
-  return DELIVERY_FEE;
+
+  return calculateDeliveryFee(distance.value);
+});
+
+const shippingFee = computed(() => {
+  if (deliveryType.value === 'pickup') return 0;
+
+  // 检查是否有整箱商品
+  const hasBoxItem = orderItems.value.some(item =>
+    item.specs && item.specs.includes('整箱')
+  );
+
+  if (hasBoxItem) return 0;
+  return dynamicShippingFee.value;
 });
 
 const finalAmount = computed(() => {
@@ -669,6 +786,7 @@ onLoad((options) => {
   loadCartData();
   loadDefaultAddress();
   loadWalletBalance();
+  loadDistance();
 });
 
 // 监听地址选择
@@ -750,6 +868,79 @@ uni.$on('selectAddress', (address: Address) => {
 
 .store-time {
   font-size: 26rpx;
+  color: #9B8B7F;
+}
+
+/* 距离信息 */
+.distance-info-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #FFF8F0 0%, #FFF5E6 100%);
+  border: 2rpx solid #D4A574;
+  padding: 24rpx 30rpx;
+  margin: 0 20rpx 20rpx;
+  border-radius: 16rpx;
+  min-height: 80rpx;
+}
+
+.distance-loading,
+.distance-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.loading-text {
+  font-size: 26rpx;
+  color: #9B8B7F;
+}
+
+.error-text {
+  font-size: 26rpx;
+  color: #C44536;
+}
+
+.distance-info-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.distance-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.distance-label {
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.distance-value {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #D4A574;
+}
+
+.delivery-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  align-items: flex-end;
+}
+
+.delivery-fee {
+  font-size: 28rpx;
+  color: #C44536;
+  font-weight: 600;
+}
+
+.delivery-time {
+  font-size: 24rpx;
   color: #9B8B7F;
 }
 

@@ -50,6 +50,9 @@ const ErrorCodes = {
   UNKNOWN_ERROR: -1,
   INVALID_PARAMS: -2,
   NOT_LOGIN: -3,
+  NOT_FOUND: -4,
+  INVALID_STATUS: -5,
+  DUPLICATE_REQUEST: -6,
 
   // 用户相关 (100-199)
   USER_NOT_FOUND: 100,

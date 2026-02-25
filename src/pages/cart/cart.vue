@@ -95,9 +95,22 @@ import {
   updateCartSelected,
   removeFromCart,
   calculateCartTotal,
-  formatPrice 
+  formatPrice
 } from '@/utils/api';
-import type { CartItem } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface CartItem {
+  productId: string
+  name: string
+  price: number
+  image: string
+  quantity: number
+  selected: boolean
+  stock?: number
+  category?: string
+  specs?: string
+  _id: string
+}
 
 // 数据
 const cartItems = ref<CartItem[]>([]);

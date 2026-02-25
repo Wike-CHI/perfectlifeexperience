@@ -56,7 +56,17 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getWalletBalance, getWalletTransactions } from '@/utils/api';
-import type { Transaction } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface Transaction {
+  _id: string
+  type: 'recharge' | 'withdraw' | 'consume' | 'refund' | 'reward'
+  amount: number
+  balance: number
+  description: string
+  status: 'pending' | 'success' | 'failed'
+  createTime: Date
+}
 
 const balance = ref(0);
 const transactions = ref<Transaction[]>([]);

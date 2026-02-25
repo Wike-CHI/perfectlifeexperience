@@ -58,7 +58,18 @@
 import { ref, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getUserInfo, deleteAddress as apiDeleteAddress } from '@/utils/api';
-import type { Address } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface Address {
+  _id: string
+  name: string
+  phone: string
+  province: string
+  city: string
+  district: string
+  detail: string
+  isDefault: boolean
+}
 
 // 数据
 const addresses = ref<Address[]>([]);

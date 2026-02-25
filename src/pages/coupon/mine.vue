@@ -112,7 +112,30 @@
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getMyCoupons, formatPrice } from '@/utils/api';
-import type { UserCoupon, CouponTemplate } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface UserCoupon {
+  _id: string
+  template?: {
+    _id: string
+    name: string
+    type: 'cash' | 'discount'
+    value: number
+    description?: string
+    minAmount?: number
+  }
+  status: 'available' | 'used' | 'expired'
+  expireTime: Date
+}
+
+interface CouponTemplate {
+  _id: string
+  name: string
+  type: 'cash' | 'discount'
+  value: number
+  minAmount?: number
+  description?: string
+}
 
 // Tab 配置
 const tabs = [

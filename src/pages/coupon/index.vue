@@ -111,7 +111,21 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getCouponTemplates, receiveCoupon as receiveCouponApi, getMyCoupons, formatPrice } from '@/utils/api';
-import type { CouponTemplate } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface CouponTemplate {
+  _id: string
+  name: string
+  type: 'cash' | 'discount'
+  value: number
+  minAmount?: number
+  description?: string
+  startTime: Date
+  endTime: Date
+  totalCount: number
+  receivedCount: number
+  status: 'active' | 'inactive'
+}
 
 // 数据
 const templates = ref<CouponTemplate[]>([]);

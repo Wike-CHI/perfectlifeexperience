@@ -292,7 +292,7 @@ async function createOrder(openid, orderData) {
 
     // 兼容前端传递的 products 或 items 字段
     const orderItems = orderData.items || orderData.products || [];
-    
+
     // 输入验证
     const validation = validateObject(orderItems, '购物车数据');
     if (!validation.result) {
@@ -699,6 +699,16 @@ exports.main = async (event, context) => {
         return await updateOrderStatus(openid, data.orderId, 'cancelled');
       case 'payWithBalance':
         return await payWithBalance(openid, data);
+      case 'applyRefund':
+        return await applyRefund(openid, data);
+      case 'cancelRefund':
+        return await cancelRefund(openid, data);
+      case 'updateReturnLogistics':
+        return await updateReturnLogistics(openid, data);
+      case 'getRefundList':
+        return await getRefundList(openid, data);
+      case 'getRefundDetail':
+        return await getRefundDetail(openid, data);
       default:
         logger.warn('Unknown action', { action });
         return error(ErrorCodes.UNKNOWN_ERROR, '未知操作');
@@ -708,3 +718,303 @@ exports.main = async (event, context) => {
     return error(ErrorCodes.UNKNOWN_ERROR, '订单操作失败', err.message);
   }
 };
+
+// ==================== 退款功能 ====================
+
+/**
+ * 生成退款单号
+ * 格式：RF + 年月日时分秒 + 6位随机数
+ */
+function generateRefundNo() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  const second = String(now.getSeconds()).padStart(2, '0');
+  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+
+  return `RF${year}${month}${day}${hour}${minute}${second}${random}`;
+}
+
+/**
+ * 申请退款
+ */
+async function applyRefund(openid, data) {
+  try {
+    logger.info('Apply refund', { openid, orderId: data.orderId });
+
+    const { orderId, refundType, refundReason, products } = data;
+
+    // 参数验证
+    if (!orderId) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少订单ID');
+    }
+    if (!refundType || !['only_refund', 'return_refund'].includes(refundType)) {
+      return error(ErrorCodes.INVALID_PARAMS, '退款类型无效');
+    }
+    if (!refundReason) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少退款原因');
+    }
+
+    // 查询订单
+    const orderRes = await db.collection('orders')
+      .where({ _id: orderId, _openid: openid })
+      .get();
+
+    if (orderRes.data.length === 0) {
+      return error(ErrorCodes.NOT_FOUND, '订单不存在');
+    }
+
+    const order = orderRes.data[0];
+
+    // 验证订单状态（只有已支付订单可退款）
+    if (!['paid', 'shipping', 'completed'].includes(order.status)) {
+      return error(ErrorCodes.INVALID_STATUS, '订单状态不支持退款');
+    }
+
+    // 检查是否已有进行中的退款
+    const existingRefundRes = await db.collection('refunds')
+      .where({
+        orderId: orderId,
+        refundStatus: _.in(['pending', 'approved', 'waiting_receive', 'processing'])
+      })
+      .get();
+
+    if (existingRefundRes.data.length > 0) {
+      return error(ErrorCodes.DUPLICATE_REQUEST, '订单已有进行中的退款申请');
+    }
+
+    // 计算退款金额
+    let refundAmount = 0;
+    const refundProducts = [];
+
+    if (products && products.length > 0) {
+      // 部分退款
+      for (const item of order.items) {
+        const refundItem = products.find(p => p.productId === item.productId);
+        if (refundItem) {
+          const itemRefundAmount = item.price * refundItem.refundQuantity;
+          refundAmount += itemRefundAmount;
+          refundProducts.push({
+            productId: item.productId,
+            productName: item.productName,
+            productImage: item.productImage,
+            quantity: item.quantity,
+            refundQuantity: refundItem.refundQuantity,
+            price: item.price
+          });
+        }
+      }
+    } else {
+      // 全额退款
+      refundAmount = order.totalAmount;
+      refundProducts.push(...order.items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        productImage: item.productImage,
+        quantity: item.quantity,
+        refundQuantity: item.quantity,
+        price: item.price
+      })));
+    }
+
+    // 创建退款记录
+    const refundNo = generateRefundNo();
+    const refund = {
+      _openid: openid,
+      orderId: orderId,
+      orderNo: order.orderNo,
+      refundNo: refundNo,
+      refundAmount: refundAmount,
+      refundReason: refundReason,
+      refundType: refundType,
+      refundStatus: 'pending',
+      products: refundProducts,
+      createTime: new Date(),
+      updateTime: new Date()
+    };
+
+    const result = await db.collection('refunds').add({ data: refund });
+
+    logger.info('Refund applied successfully', {
+      refundId: result._id,
+      refundNo: refundNo,
+      amount: refundAmount
+    });
+
+    return success({
+      refundId: result._id,
+      refundNo: refundNo,
+      refundAmount: refundAmount
+    }, '退款申请成功');
+  } catch (err) {
+    logger.error('Apply refund failed', err);
+    return error(ErrorCodes.DATABASE_ERROR, '申请退款失败', err.message);
+  }
+}
+
+/**
+ * 取消退款申请
+ */
+async function cancelRefund(openid, data) {
+  try {
+    const { refundId } = data;
+
+    if (!refundId) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少退款ID');
+    }
+
+    // 查询退款记录
+    const refundRes = await db.collection('refunds')
+      .where({ _id: refundId, _openid: openid })
+      .get();
+
+    if (refundRes.data.length === 0) {
+      return error(ErrorCodes.NOT_FOUND, '退款记录不存在');
+    }
+
+    const refund = refundRes.data[0];
+
+    // 只有pending状态可以取消
+    if (refund.refundStatus !== 'pending') {
+      return error(ErrorCodes.INVALID_STATUS, '当前状态不允许取消');
+    }
+
+    // 更新状态为cancelled
+    await db.collection('refunds')
+      .doc(refundId)
+      .update({
+        data: {
+          refundStatus: 'cancelled',
+          updateTime: new Date()
+        }
+      });
+
+    logger.info('Refund cancelled', { refundId });
+
+    return success(null, '取消退款成功');
+  } catch (err) {
+    logger.error('Cancel refund failed', err);
+    return error(ErrorCodes.DATABASE_ERROR, '取消退款失败', err.message);
+  }
+}
+
+/**
+ * 更新退货物流
+ */
+async function updateReturnLogistics(openid, data) {
+  try {
+    const { refundId, company, trackingNo } = data;
+
+    if (!refundId || !company || !trackingNo) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少必需参数');
+    }
+
+    // 查询退款记录
+    const refundRes = await db.collection('refunds')
+      .where({ _id: refundId, _openid: openid })
+      .get();
+
+    if (refundRes.data.length === 0) {
+      return error(ErrorCodes.NOT_FOUND, '退款记录不存在');
+    }
+
+    const refund = refundRes.data[0];
+
+    // 只有approved状态可以填写物流
+    if (refund.refundStatus !== 'approved') {
+      return error(ErrorCodes.INVALID_STATUS, '当前状态不允许填写物流');
+    }
+
+    // 更新物流信息
+    await db.collection('refunds')
+      .doc(refundId)
+      .update({
+        data: {
+          returnLogistics: {
+            company: company,
+            trackingNo: trackingNo,
+            shipTime: new Date()
+          },
+          refundStatus: 'waiting_receive',
+          updateTime: new Date()
+        }
+      });
+
+    logger.info('Return logistics updated', { refundId });
+
+    return success(null, '物流信息更新成功');
+  } catch (err) {
+    logger.error('Update return logistics failed', err);
+    return error(ErrorCodes.DATABASE_ERROR, '更新物流失败', err.message);
+  }
+}
+
+/**
+ * 获取退款列表
+ */
+async function getRefundList(openid, data) {
+  try {
+    const { status } = data || {};
+
+    const query = {
+      _openid: openid
+    };
+
+    if (status) {
+      // 支持多个状态用逗号分隔
+      const statuses = status.split(',').map(s => s.trim());
+      query.refundStatus = _.in(statuses);
+    }
+
+    const res = await db.collection('refunds')
+      .where(query)
+      .orderBy('createTime', 'desc')
+      .get();
+
+    return success({ refunds: res.data }, '获取退款列表成功');
+  } catch (err) {
+    logger.error('Get refund list failed', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取退款列表失败', err.message);
+  }
+}
+
+/**
+ * 获取退款详情
+ */
+async function getRefundDetail(openid, data) {
+  try {
+    const { refundId } = data;
+
+    if (!refundId) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少退款ID');
+    }
+
+    const refundRes = await db.collection('refunds')
+      .where({ _id: refundId, _openid: openid })
+      .get();
+
+    if (refundRes.data.length === 0) {
+      return error(ErrorCodes.NOT_FOUND, '退款记录不存在');
+    }
+
+    const refund = refundRes.data[0];
+
+    // 获取关联订单信息
+    const orderRes = await db.collection('orders')
+      .where({ _id: refund.orderId })
+      .get();
+
+    const order = orderRes.data[0] || null;
+
+    return success({
+      refund: refund,
+      order: order
+    }, '获取退款详情成功');
+  } catch (err) {
+    logger.error('Get refund detail failed', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取退款详情失败', err.message);
+  }
+}

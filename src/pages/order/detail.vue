@@ -98,6 +98,7 @@
       <view class="action-btn primary" v-if="order.status === 'pending'" @click="payOrder">立即支付</view>
       <view class="action-btn primary" v-if="order.status === 'shipping'" @click="confirmReceive">确认收货</view>
       <view class="action-btn secondary" v-if="order.status === 'completed'" @click="buyAgain">再次购买</view>
+      <view class="action-btn secondary refund-btn" v-if="canApplyRefund" @click="applyRefund">申请退款</view>
     </view>
 
     <!-- 支付方式选择弹窗 -->
@@ -149,7 +150,31 @@ import { ref, onMounted, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction, getWalletBalance } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
-import type { Order } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface Order {
+  _id: string
+  orderNo: string
+  products: Array<{
+    name: string
+    price: number
+    quantity: number
+    image: string
+  }>
+  totalAmount: number
+  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled'
+  address?: {
+    name: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detail: string
+  }
+  createTime: Date
+  payTime?: Date
+  _openid?: string
+}
 
 // 数据
 const order = ref<Partial<Order>>({
@@ -165,6 +190,11 @@ const showPaymentPicker = ref(false);
 const paymentMethod = ref<'wechat' | 'balance'>('wechat');
 const walletBalance = ref(0);
 const balanceLoading = ref(false);
+
+// 检查是否可以申请退款
+const canApplyRefund = computed(() => {
+  return ['paid', 'shipping', 'completed'].includes(order.value.status || '');
+});
 
 // 检查余额是否充足
 const isBalanceSufficient = computed(() => {
@@ -445,6 +475,13 @@ const confirmReceive = () => {
 const buyAgain = () => {
   uni.switchTab({
     url: '/pages/index/index'
+  });
+};
+
+// 申请退款
+const applyRefund = () => {
+  uni.navigateTo({
+    url: `/pages/order/refund-apply?orderId=${order.value._id}`
   });
 };
 

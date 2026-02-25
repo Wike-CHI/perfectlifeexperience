@@ -59,7 +59,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { addToCart as apiAddToCart, formatPrice } from '@/utils/api';
-import type { Product } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface Product {
+  _id: string
+  name: string
+  images: string[]
+  price: number
+  priceList?: Array<{
+    volume: string
+    price: number
+  }>
+  volume?: string
+  stock?: number
+}
 
 const props = defineProps<{
   visible: boolean;

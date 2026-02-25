@@ -229,7 +229,8 @@ const loadDashboard = async (forceRefresh: boolean = false) => {
     uni.showLoading({ title: '加载中...' })
 
     const res = await callFunction('admin-api', {
-      action: 'getDashboardData'
+      action: 'getDashboardData',
+      adminToken: AdminAuthManager.getToken()
     })
 
     uni.hideLoading()

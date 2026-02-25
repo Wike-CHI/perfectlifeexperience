@@ -99,7 +99,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { getRewardRecords, getPromotionInfo } from '@/utils/api';
-import type { RewardRecord } from '@/types';
+
+// 类型定义（内联，避免分包导入问题）
+interface RewardRecord {
+  _id: string
+  orderId: string
+  amount: number
+  type: 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'
+  status: 'pending' | 'settled'
+  level: number
+  fromUserId?: string
+  createTime: Date
+  settleTime?: Date
+}
 
 const currentStatus = ref('');
 const currentType = ref('');

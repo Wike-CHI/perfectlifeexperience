@@ -9,7 +9,12 @@
       :scale="16"
       show-location
       @markertap="onMarkerTap"
-    />
+    >
+      <!-- 用户位置标记 -->
+      <cover-view class="user-location-marker" v-if="userLocation">
+        <cover-image class="user-marker-icon" src="/static/icons/user-location.png" />
+      </cover-view>
+    </map>
 
     <!-- 门店信息卡片 -->
     <view class="store-card">
@@ -21,11 +26,36 @@
           <text class="store-name">{{ storeInfo.name }}</text>
           <view class="store-status-row">
             <text class="store-status">营业中</text>
-            <text class="store-distance">距离您最近</text>
+            <text class="store-distance" :class="distanceLevel.level">
+              {{ distanceText }}
+            </text>
           </view>
         </view>
       </view>
 
+      <!-- 距离信息 -->
+      <view class="distance-info" v-if="distance !== null && !loading">
+        <view class="distance-main">
+          <text class="distance-value">{{ formattedDistance }}</text>
+          <text class="distance-label">距离您</text>
+        </view>
+        <view class="distance-details">
+          <text class="detail-item">预计{{ estimatedTime }}分钟到达</text>
+          <text class="detail-item" :class="{ 'in-range': inDeliveryRange }">
+            {{ inDeliveryRange ? '在配送范围内' : '超出配送范围' }}
+          </text>
+        </view>
+      </view>
+
+      <!-- 加载状态 -->
+      <view class="distance-info" v-if="loading">
+        <view class="distance-main">
+          <text class="distance-value">--</text>
+          <text class="distance-label">正在获取位置...</text>
+        </view>
+      </view>
+
+      <!-- 门店信息列表 -->
       <view class="store-info">
         <view class="info-item" @click="callStore">
           <image class="info-icon" :src="icons.phone" mode="aspectFit" />
@@ -64,43 +94,87 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import {
+  STORE_LOCATION,
+  getUserLocation,
+  calculateDistance,
+  formatDistance,
+  getDistanceLevel,
+  isInDeliveryRange
+} from '@/utils/distance';
 
 // 图标资源 (SVG Base64)
 const icons = {
-  phone: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNkI1QjRGIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIyIDE2.OTJ2M2EyIDIgMCAwIDEtMi4xOCAyIDE5Ljc5IDE5Ljc5IDAgMCAxLTguNjMtMy4wNyAxOS41IDE5LjUgMCAwIDEtNi02IDE5Ljc5IDE5Ljc5IDAgMCAxLTMuMDctOC42N0EyIDIgMCAwIDEgNC4xMSAyaDNhMiAyIDAgMCAxIDIgMS43MmMuMS43MS41NyAyLjM4IDEgMy4xMWEyIDIgMCAwIDEtLjQ1IDIuMTFsLTIuMiAyLjJhMTYgMTYgMCAwIDAgNiA2bDIuMi0yLjJhMiAyIDAgMCAxIDIuMTEtLjQ1YzcuNzMuNDMgMS40IDEuMDUgMi4xMyAxYTIgMiAwIDAgMSAxLjcyIDJ6Ij48L3BhdGg+PC9zdmc+',
+  phone: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNkI1QjRGIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIyIDE2LjkydjNhMiAyIDAgMCAxLTIuMTggMiAxOS43OSAxOS43OSAwIDAgMS04LjYzLTMuMDcgMTkuNSAxOS41IDAgMCAxLTYtNiAxOS43OSAxOS43OSAwIDAgMS0zLjA3LTguNjAyIDIgMCAwIDEgNC4xMSAyaDNhMiAyIDAgMCAxIDIgMS43MmMuMS43MS41NyAyLjM4IDEgMy4xMWEyIDIgMCAwIDEtLjQ1IDIuMTFsLTIuMiAyLjJhMTYgMTYgMCAwIDAgNiA2bDIuMi0yLjJhMiAyIDAgMCAxIDIuMTEtLjQ1YzcuNzMuNDMgMS40IDEuMDUgMi4xMyAxYTIgMiAwIDAgMSAxLjcyIDJ6Ij48L3BhdGg+PC9zdmc+',
   location: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNkI1QjRGIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIxIDEwYzAgNy05IDEzLTkgMTNzLTktNi05LTEzYSA5IDkgMCAwIDEgMTggMHoiPjwvcGF0aD48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIj48L2NpcmNsZT48L3N2Zz4=',
   time: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNkI1QjRGIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiPjwvY2lyY2xlPjxwb2x5bGluZSBwb2ludHM9IjEyIDYgMTIgMTIgMTYgMTQiPjwvcG9seWxpbmU+PC9zdmc+',
-  navigation: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZmZmZiI+PHBhdGggZD0iTTEyIDJMNCAyMC41bDguNS0zLjU4LjUtLjMuNS4zIDguNSAzLjU4TDEyIDJ6Ii8+PC9zdmc+',
+  navigation: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZmZmZiIj48cGF0aCBkPSJNMTIgMkw0IDIwLjVsOC41LTMuNTguNS0uMy41LjMgOC41IDMuNThMTIgMnoiLz48L3N2Zz4=',
   back: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjM0QyOTE0IiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWxpbmUgcG9pbnRzPSIxNSAxOCA5IDEyIDE1IDYiPjwvcG9seWxpbmU+PC9zdmc+'
 };
 
-// 门店位置信息（瑞安店示例坐标）
+// 门店位置信息
 const storeLocation = ref({
-  latitude: 27.744734,
-  longitude: 120.660902
+  latitude: STORE_LOCATION.latitude,
+  longitude: STORE_LOCATION.longitude
 });
 
 // 门店详细信息
 const storeInfo = ref({
-  name: '大友元气精酿啤酒屋',
+  name: STORE_LOCATION.name,
   phone: '0577-66668888',
-  address: '浙江省温州市瑞安市瑞光大道1308号德信铂瑞湾二期30楼05-06',
+  address: STORE_LOCATION.address,
   businessHours: '周一至周日 10:00 - 22:00'
+});
+
+// 用户位置
+const userLocation = ref<{ latitude: number; longitude: number } | null>(null);
+const distance = ref<number | null>(null);
+const loading = ref(true);
+
+// 距离相关计算属性
+const formattedDistance = computed(() => {
+  if (distance.value === null) return '--';
+  return formatDistance(distance.value);
+});
+
+const distanceLevel = computed(() => {
+  if (distance.value === null) {
+    return { level: 'near' as const, text: '很近', color: '#52C41A' };
+  }
+  return getDistanceLevel(distance.value);
+});
+
+const distanceText = computed(() => {
+  if (distance.value === null) return '获取中...';
+  return `${distanceLevel.value.text} · ${formattedDistance.value}`;
+});
+
+const estimatedTime = computed(() => {
+  if (distance.value === null) return '--';
+  // 假设步行速度为 5km/h，骑行速度为 15km/h
+  const walkingTime = Math.ceil(distance.value / (5000 / 60)); // 分钟
+  const drivingTime = Math.ceil(distance.value / (15000 / 60)); // 分钟
+  return Math.min(walkingTime, drivingTime);
+});
+
+const inDeliveryRange = computed(() => {
+  if (distance.value === null) return true;
+  return isInDeliveryRange(distance.value, 10000); // 10公里配送范围
 });
 
 // 地图标记点
 const markers = ref([
   {
     id: 1,
-    latitude: 27.744734,
-    longitude: 120.660902,
-    title: '大友元气精酿啤酒屋',
+    latitude: STORE_LOCATION.latitude,
+    longitude: STORE_LOCATION.longitude,
+    title: STORE_LOCATION.name,
     iconPath: '/static/icons/marker.png',
     width: 40,
     height: 40,
     callout: {
-      content: '大友元气精酿啤酒屋',
+      content: STORE_LOCATION.name,
       color: '#3D2914',
       fontSize: 14,
       borderRadius: 8,
@@ -115,6 +189,39 @@ const markers = ref([
 const onMarkerTap = (e: any) => {
   console.log('标记点被点击:', e);
 };
+
+// 加载用户位置和计算距离
+const loadDistance = async () => {
+  try {
+    loading.value = true
+
+    // 获取用户位置
+    userLocation.value = await getUserLocation()
+
+    // 计算距离
+    distance.value = calculateDistance(
+      userLocation.value.latitude,
+      userLocation.value.longitude,
+      STORE_LOCATION.latitude,
+      STORE_LOCATION.longitude
+    )
+
+    console.log('距离计算成功:', distance.value, '米')
+  } catch (error) {
+    console.error('获取位置失败:', error)
+    uni.showToast({
+      title: '无法获取位置信息',
+      icon: 'none'
+    })
+  } finally {
+    loading.value = false
+  }
+};
+
+// 页面加载时获取距离
+onMounted(() => {
+  loadDistance()
+});
 
 // 打开地图导航
 const openLocation = () => {
@@ -144,7 +251,7 @@ const callStore = () => {
       console.log('拨打电话成功');
     },
     fail: (err) => {
-      console.error('拨打电话失败:', err);
+      console.error('拨打电话失败:', err)
     }
   });
 };
@@ -160,13 +267,29 @@ const goBack = () => {
   position: relative;
   width: 100%;
   height: 100vh;
-  background-color: #FDF8F3;
+  background-color: #FDF8F3
 }
 
 /* 地图样式 */
 .store-map {
   width: 100%;
   height: 70%;
+}
+
+/* 用户位置标记 */
+.user-location-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60rpx;
+  height: 60rpx;
+  z-index: 999;
+}
+
+.user-marker-icon {
+  width: 60rpx;
+  height: 60rpx;
 }
 
 /* 门店信息卡片 */
@@ -177,7 +300,7 @@ const goBack = () => {
   right: 0;
   background: #FFFFFF;
   border-radius: 32rpx 32rpx 0 0;
-  padding: 40rpx 40rpx 60rpx; /* 底部增加 padding 适配安全区 */
+  padding: 40rpx 40rpx 60rpx;
   box-shadow: 0 -8rpx 30rpx rgba(212, 165, 116, 0.15);
   padding-bottom: calc(60rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(60rpx + env(safe-area-inset-bottom));
@@ -242,6 +365,63 @@ const goBack = () => {
   background: #F9F5F0;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
+}
+
+.store-distance.near {
+  color: #52C41A;
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.store-distance.medium {
+  color: #D4A574;
+  background: rgba(212, 165, 116, 0.1);
+}
+
+.store-distance.far {
+  color: #9B8B7F;
+  background: #F5F0E8;
+}
+
+/* 距离信息 */
+.distance-info {
+  margin-bottom: 32rpx;
+  padding: 24rpx;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.1) 0%, rgba(212, 165, 116, 0.05) 100%);
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(212, 165, 116, 0.2);
+}
+
+.distance-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.distance-value {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #D4A574;
+}
+
+.distance-label {
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.distance-details {
+  display: flex;
+  gap: 24rpx;
+}
+
+.detail-item {
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.detail-item.in-range {
+  color: #52C41A;
+  font-weight: 600;
 }
 
 /* 门店信息列表 */
@@ -330,7 +510,7 @@ const goBack = () => {
 /* 返回按钮 */
 .back-btn {
   position: absolute;
-  top: calc(var(--status-bar-height) + 20rpx); /* 适配刘海屏 */
+  top: calc(var(--status-bar-height) + 20rpx);
   left: 30rpx;
   width: 80rpx;
   height: 80rpx;
