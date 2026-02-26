@@ -12,6 +12,9 @@ const _ = db.command;
 const { createLogger } = require('./common/logger');
 const logger = createLogger('promotion');
 
+// ✅ 引入统一响应格式（新增：统一错误码）
+const { success, error, ErrorCodes } = require('./common/response');
+
 // ✅ 引入常量配置
 const {
   Time,
@@ -50,6 +53,60 @@ function parseEvent(event) {
     }
   }
   return event;
+}
+
+/**
+ * 精确计算金额，避免浮点数精度问题
+ * @param {number} amount - 订单金额（分）
+ * @param {number} ratio - 比例（如 0.04 表示 4%）
+ * @returns {number} 计算后的金额（分）
+ *
+ * 示例:
+ * calculateAmount(100000, 0.04) = 4000 (精确)
+ * calculateAmount(100001, 0.04) = 4000 (向下取整)
+ */
+function calculateAmount(amount, ratio) {
+  // 使用 Math.round 避免浮点精度问题，然后确保非负
+  const result = Math.max(0, Math.round(amount * ratio));
+  return result;
+}
+
+/**
+ * 验证并解析推广路径
+ * @param {string} promotionPath - 推广路径字符串 (格式: "parentId1/parentId2/...")
+ * @returns {Array<string>} 解析后的父级 ID 数组（如果格式无效则返回空数组）
+ *
+ * 安全修复：验证推广路径格式，防止恶意数据注入
+ */
+function validateAndParsePromotionPath(promotionPath) {
+  if (!promotionPath || typeof promotionPath !== 'string') {
+    return [];
+  }
+
+  const parts = promotionPath.split('/').filter(id => id);
+
+  // 验证每个 ID 格式 (假设是 OpenID 格式，以 o 开头，包含字母、数字、下划线、连字符)
+  const openIdPattern = /^[oO][0-9a-zA-Z_-]{20,}$/;
+
+  for (const id of parts) {
+    if (!openIdPattern.test(id)) {
+      logger.warn('Invalid promotion path format detected', {
+        invalidId: id.substring(0, 10) + '***'
+      });
+      return [];
+    }
+  }
+
+  // 限制深度，防止过深路径导致性能问题
+  if (parts.length > AgentLevel.MAX_LEVEL) {
+    logger.warn('Promotion path too deep, truncating', {
+      depth: parts.length,
+      maxDepth: AgentLevel.MAX_LEVEL
+    });
+    return parts.slice(0, AgentLevel.MAX_LEVEL);
+  }
+
+  return parts;
 }
 
 // ==================== 常量引用（已移至 common/constants.js）====================
@@ -199,7 +256,10 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
     }
 
     // 3. 🔒 新增：检查设备注册频率（更精确的防刷）
-    if (deviceInfo.deviceId) {
+    // 安全修复：验证 deviceId 格式，防止空字符串绕过
+    const deviceIdPattern = /^[a-zA-Z0-9_-]{10,}$/; // 设备ID格式：至少10位字母数字下划线连字符
+
+    if (deviceInfo.deviceId && typeof deviceInfo.deviceId === 'string' && deviceIdPattern.test(deviceInfo.deviceId)) {
       const deviceCount = await db.collection('users')
         .where({
           registerDeviceId: deviceInfo.deviceId,
@@ -219,6 +279,13 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
         });
         return { valid: false, reason: '该设备注册过于频繁，请稍后再试' };
       }
+    } else if (deviceInfo.deviceId) {
+      // deviceId 格式无效，记录可疑行为
+      logger.warn('Invalid deviceId format detected', {
+        deviceIdLength: deviceInfo.deviceId?.length,
+        deviceIdType: typeof deviceInfo.deviceId
+      });
+      // 格式无效的 deviceId 不信任，但不阻止注册
     }
 
     // 4. 记录注册尝试（用于风控分析）
@@ -511,7 +578,7 @@ async function calculatePromotionReward(event, context) {
     if (buyerRes.data.length === 0) {
       await transaction.rollback();
       logger.error('Buyer not found', { buyerId });
-      return { code: -1, msg: '买家信息不存在' };
+      return error(ErrorCodes.USER_NOT_FOUND, '买家信息不存在');
     }
 
     const buyer = buyerRes.data[0];
@@ -525,7 +592,14 @@ async function calculatePromotionReward(event, context) {
     }
 
     // 解析推广路径，获取上级链（从近到远）
-    const parentChain = promotionPath.split('/').filter(id => id).reverse();
+    // 安全修复：使用验证函数防止恶意数据注入
+    const parentChain = validateAndParsePromotionPath(promotionPath).reverse();
+    if (parentChain.length === 0 && promotionPath) {
+      // 如果路径非空但验证失败，可能是恶意数据
+      await transaction.rollback();
+      logger.warn('Invalid promotion path detected, rejecting', { buyerId });
+      return { code: -2, msg: '推广路径格式异常' };
+    }
     logger.debug('Promotion chain', { length: parentChain.length });
 
     // 记录推广订单（事务内）
@@ -584,7 +658,7 @@ async function calculatePromotionReward(event, context) {
 
       // ========== 1. 基础佣金 ==========
       const commissionRatio = AGENT_COMMISSION_RATIOS[agentLevel] || 0.05;
-      const commissionAmount = Math.floor(orderAmount * commissionRatio);
+      const commissionAmount = calculateAmount(orderAmount, commissionRatio);
 
       logger.debug('Commission calculated', {
         position,
@@ -613,7 +687,7 @@ async function calculatePromotionReward(event, context) {
 
       // ========== 2. 复购奖励 ==========
       if (isRepurchase && starLevel >= 1) {
-        const repurchaseAmount = Math.floor(orderAmount * REPURCHASE_RATIO);
+        const repurchaseAmount = calculateAmount(orderAmount, REPURCHASE_RATIO);
 
         logger.debug('Repurchase reward calculated', {
           position,
@@ -668,7 +742,7 @@ async function calculatePromotionReward(event, context) {
         });
 
         if (availableRatio > 0) {
-          const managementAmount = Math.floor(orderAmount * availableRatio);
+          const managementAmount = calculateAmount(orderAmount, availableRatio);
 
           if (managementAmount >= MIN_REWARD_AMOUNT) {
             await createRewardRecord({
@@ -696,7 +770,7 @@ async function calculatePromotionReward(event, context) {
 
       // ========== 4. 育成津贴 ==========
       if (mentorId && userMap[mentorId]) {
-        const nurtureAmount = Math.floor(orderAmount * NURTURE_RATIO);
+        const nurtureAmount = calculateAmount(orderAmount, NURTURE_RATIO);
 
         logger.debug('Nurture allowance calculated', {
           mentorId,
@@ -881,7 +955,7 @@ async function calculatePromotionRewardV2(event, context) {
     if (buyerRes.data.length === 0) {
       await transaction.rollback();
       logger.error('Buyer not found', { buyerId });
-      return { code: -1, msg: '买家信息不存在' };
+      return error(ErrorCodes.USER_NOT_FOUND, '买家信息不存在');
     }
 
     const buyer = buyerRes.data[0];
@@ -902,7 +976,7 @@ async function calculatePromotionRewardV2(event, context) {
     if (promoterRes.data.length === 0) {
       await transaction.rollback();
       logger.error('Promoter not found', { promoterId });
-      return { code: -1, msg: '推广人信息不存在' };
+      return error(ErrorCodes.USER_NOT_FOUND, '推广人信息不存在');
     }
 
     const promoter = promoterRes.data[0];
@@ -923,12 +997,13 @@ async function calculatePromotionRewardV2(event, context) {
     });
 
     // 5. 解析推广路径，获取上级链
+    // 安全修复：使用验证函数防止恶意数据注入
     const promotionPath = promoter.promotionPath || '';
-    const parentChain = promotionPath.split('/').filter(id => id).reverse(); // 从近到远
+    const parentChain = validateAndParsePromotionPath(promotionPath).reverse(); // 从近到远
 
     logger.debug('Promoter upstream chain', {
       length: parentChain.length,
-      chain: parentChain
+      chain: parentChain.map(id => id.substring(0, 8) + '***') // 脱敏日志
     });
 
     // 6. 批量获取上级用户信息
@@ -1199,18 +1274,50 @@ async function revertPromotionReward(event, context) {
         };
 
         // 根据原奖励状态扣回
+        // 安全修复：检查余额是否足够，防止负余额
         if (status === 'pending') {
-          // 扣回待结算奖励
-          updateData.pendingReward = _.inc(-revertAmount);
+          const currentPending = user.pendingReward || 0;
+          const actualRevert = Math.min(revertAmount, currentPending);
+
+          updateData.pendingReward = _.inc(-actualRevert);
+
+          if (actualRevert < revertAmount) {
+            logger.warn('Insufficient pending reward for full revert', {
+              beneficiaryId,
+              requested: revertAmount,
+              actual: actualRevert,
+              currentPending
+            });
+          }
         } else if (status === 'settled') {
-          // 扣回已结算奖励（从已提现或可提现中扣除）
-          // 这里假设 settled 奖励已经进入可提现余额
-          updateData.withdrawableReward = _.inc(-revertAmount);
+          const currentWithdrawable = user.withdrawableReward || 0;
+          const actualRevert = Math.min(revertAmount, currentWithdrawable);
+
+          updateData.withdrawableReward = _.inc(-actualRevert);
+
+          // 记录欠款（如果有）
+          if (actualRevert < revertAmount) {
+            const debtAmount = revertAmount - actualRevert;
+            updateData.debt = _.inc(debtAmount);
+
+            logger.warn('Insufficient withdrawable reward, recording debt', {
+              beneficiaryId,
+              requested: revertAmount,
+              actual: actualRevert,
+              debtAmount
+            });
+          }
         }
 
-        // 扣回分类奖励统计
+        // 扣回分类奖励统计（使用实际扣回金额）
         const rewardType = record.rewardType || 'commission';
-        updateData[`${rewardType}Reward`] = _.inc(-revertAmount);
+        const actualRevert = Math.min(
+          revertAmount,
+          status === 'pending'
+            ? (user.pendingReward || 0)
+            : (user.withdrawableReward || 0)
+        );
+        updateData[`${rewardType}Reward`] = _.inc(-actualRevert);
 
         await transaction
           .collection('users')
@@ -1347,6 +1454,24 @@ async function bindPromotionRelation(event, context) {
         logger.warn('Self-binding attempted');
         return { code: -1, msg: '不能绑定自己' };
       }
+
+      // 安全修复：检测循环引用
+      // 如果新用户尝试绑定自己的下级用户，会形成循环引用
+      // 需要检查 parentId 是否已经在当前用户的下级链中
+      if (parentId && parentPath) {
+        // 获取新用户的完整推广路径（包括新用户自己）
+        const currentPath = `${parentPath}/${OPENID}`;
+        const ancestors = currentPath.split('/').filter(id => id);
+
+        // 检查 parentId 是否在祖先链中
+        if (ancestors.includes(parentId)) {
+          logger.warn('Circular reference detected in promotion path', {
+            attemptingParent: parentId,
+            existingPath: currentPath
+          });
+          return { code: -1, msg: '不能绑定下级用户作为上级' };
+        }
+      }
     }
 
     // 查找导师（可选）
@@ -1453,16 +1578,21 @@ async function bindPromotionRelation(event, context) {
       logger.info('Parent team stats updated', { parentId });
 
       // 清除父级团队的缓存（级联清除所有上级缓存）
+      // 安全修复：同时清除 teamStatsCache 和 userCache
       teamStatsCache.delete(`teamStats_${parentId}`);
+      userCache.delete(`promotionInfo_${parentId}`);
       logger.debug('Team stats cache cleared for parent', { parentId });
 
       // 解析推广路径，清除所有上级的缓存
       if (parentPath) {
         const parentChain = parentPath.split('/').filter(id => id);
         parentChain.forEach(ancestorId => {
+          // 清除团队统计缓存
           teamStatsCache.delete(`teamStats_${ancestorId}`);
+          // 同时清除推广信息缓存（团队人数已更新）
+          userCache.delete(`promotionInfo_${ancestorId}`);
         });
-        logger.debug('Team stats cache cleared for ancestors', {
+        logger.debug('All ancestor caches cleared', {
           count: parentChain.length
         });
       }
@@ -1521,8 +1651,14 @@ async function getPromotionInfo(event, context) {
       .where({ _openid: OPENID })
       .get();
 
+    // 安全修复：缓存穿透防护
+    // 如果用户不存在，缓存空结果（TTL较短，1分钟），防止恶意请求穿透到数据库
     if (userRes.data.length === 0) {
-      return { code: -1, msg: '用户不存在' };
+      const notFoundResult = { code: -1, msg: '用户不存在', cached: true };
+      // 缓存空结果，TTL为1分钟（60000毫秒）
+      userCache.set(cacheKey, notFoundResult, 60000);
+      logger.debug('User not found, cached negative result', { OPENID });
+      return notFoundResult;
     }
 
     const user = userRes.data[0];

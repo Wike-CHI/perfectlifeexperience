@@ -175,9 +175,12 @@ async function handlePaymentSuccess(transaction, db) {
           updateTime: new Date()
         }
       });
-    
+
     console.log(`订单支付成功: ${out_trade_no}`);
-    
+
+    // 扣减商品库存（安全修复：防止超卖）
+    await deductProductStock(order.items, db);
+
     return { success: true, message: '订单状态更新成功' };
   } catch (error) {
     console.error('处理支付成功回调失败:', error);
@@ -313,6 +316,67 @@ async function handleRechargeSuccess(transaction, db) {
   }
 }
 
+/**
+ * 扣减商品库存
+ * @param {Array} items - 订单商品列表
+ * @param {object} db - 数据库实例
+ *
+ * 安全修复：使用原子操作扣减库存，防止超卖
+ */
+async function deductProductStock(items, db) {
+  const _ = db.command;
+
+  for (const item of items) {
+    try {
+      // 判断是否是 SKU 商品
+      if (item.skuId && item.skuId !== '') {
+        // SKU 商品：扣减 SKU 库存
+        const updateResult = await db.collection('products')
+          .where({
+            _id: item.productId,
+            'skus._id': item.skuId,
+            'skus.stock': _.gte(item.quantity)  // 确保库存足够
+          })
+          .update({
+            data: {
+              'skus.$[elem].stock': _.inc(-item.quantity)
+            }
+          });
+
+        if (updateResult.stats.updated === 0) {
+          console.error(`SKU库存扣减失败: productId=${item.productId}, skuId=${item.skuId}, quantity=${item.quantity}`);
+          // 库存扣减失败，记录日志但不影响支付流程
+          // 可以考虑后续人工处理或发送告警
+        } else {
+          console.log(`SKU库存扣减成功: productId=${item.productId}, skuId=${item.skuId}, quantity=${item.quantity}`);
+        }
+      } else {
+        // 普通 SKU 商品：扣减商品总库存
+        const updateResult = await db.collection('products')
+          .where({
+            _id: item.productId,
+            stock: _.gte(item.quantity)  // 确保库存足够
+          })
+          .update({
+            data: {
+              stock: _.inc(-item.quantity)
+            }
+          });
+
+        if (updateResult.stats.updated === 0) {
+          console.error(`商品库存扣减失败: productId=${item.productId}, quantity=${item.quantity}`);
+          // 库存扣减失败，记录日志但不影响支付流程
+        } else {
+          console.log(`商品库存扣减成功: productId=${item.productId}, quantity=${item.quantity}`);
+        }
+      }
+    } catch (error) {
+      console.error(`扣减库存异常: productId=${item.productId}, error=${error.message}`);
+      // 库存扣减异常，记录日志但不影响支付流程
+    }
+  }
+}
+
 module.exports = {
   parseNotify,
   buildSuccessResponse,
@@ -320,5 +384,6 @@ module.exports = {
   isTimestampValid,
   handlePaymentSuccess,
   handleRechargeSuccess,
-  getOrderType
+  getOrderType,
+  deductProductStock
 };

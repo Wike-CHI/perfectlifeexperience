@@ -29,22 +29,22 @@
       </view>
       
       <view v-else class="transaction-list">
-        <view 
-          v-for="item in transactions" 
-          :key="item._id" 
+        <view
+          v-for="item in transactions"
+          :key="item._id"
           class="transaction-item"
         >
           <view class="item-left">
-            <view :class="['icon-box', item.type === 'recharge' ? 'recharge' : 'payment']">
-              <text class="iconfont">{{ item.type === 'recharge' ? '&#xe6b0;' : '&#xe6b9;' }}</text>
+            <view :class="['icon-box', item.amount > 0 ? 'recharge' : 'payment']">
+              <text class="iconfont">{{ item.amount > 0 ? '&#xe6b0;' : '&#xe6b9;' }}</text>
             </view>
             <view class="item-info">
-              <text class="item-title">{{ item.title || (item.type === 'recharge' ? '钱包充值' : '消费') }}</text>
+              <text class="item-title">{{ getTransactionTitle(item.type, item.description) }}</text>
               <text class="item-time">{{ formatDate(item.createTime) }}</text>
             </view>
           </view>
-          <view :class="['item-amount', item.amount > 0 ? 'income' : 'expense']">
-            {{ item.amount > 0 ? '+' : '' }}{{ (item.amount / 100).toFixed(2) }}
+          <view class="item-amount" :style="{ color: getTransactionColor(item.type, item.amount) }">
+            {{ item.amount > 0 ? '+' : '' }}{{ formatPrice(item.amount) }}
           </view>
         </view>
       </view>
@@ -56,24 +56,19 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getWalletBalance, getWalletTransactions } from '@/utils/api';
+import { formatPrice, formatTime } from '@/utils/format';
+import { TRANSACTION_TYPE_TEXTS, TRANSACTION_TYPE_COLORS } from '@/constants/wallet';
+import type { WalletTransactionDB } from '@/types/database';
 
-// 类型定义（内联，避免分包导入问题）
-interface Transaction {
-  _id: string
-  type: 'recharge' | 'withdraw' | 'consume' | 'refund' | 'reward'
-  amount: number
-  balance: number
-  description: string
-  status: 'pending' | 'success' | 'failed'
-  createTime: Date
-}
+// 使用数据库类型定义
+type Transaction = WalletTransactionDB;
 
 const balance = ref(0);
 const transactions = ref<Transaction[]>([]);
 const loading = ref(false);
 
 const formattedBalance = computed(() => {
-  return (balance.value / 100).toFixed(2);
+  return formatPrice(balance.value);
 });
 
 const loadData = async () => {
@@ -101,9 +96,17 @@ const goToRecharge = () => {
 };
 
 const formatDate = (date: Date | string) => {
-  if (!date) return '';
-  const d = new Date(date);
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatTime(date, 'MM月DD日 HH:mm');
+};
+
+const getTransactionTitle = (type: string, description?: string) => {
+  if (description) return description;
+  return TRANSACTION_TYPE_TEXTS[type as keyof typeof TRANSACTION_TYPE_TEXTS] || '交易';
+};
+
+const getTransactionColor = (type: string, amount: number) => {
+  if (amount > 0) return TRANSACTION_TYPE_COLORS.recharge;  // 收入绿色
+  return '#3D2914';  // 支出深棕色
 };
 
 onShow(() => {

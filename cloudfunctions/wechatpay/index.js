@@ -226,12 +226,18 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
     // 6. ✅ 使用数据库条件更新实现原子性分布式锁
     // 只有当订单状态确实是 expectedStatus 时，才会更新成功
     // 如果并发请求中有其他请求已经修改了状态，这个更新会失败（updated === 0）
-    const updateResult = await db.collection('orders').doc(orderId).update({
-      data: {
-        paymentStatus: newStatus,
-        paymentUpdateTime: new Date()
-      }
-    });
+    // 安全修复：使用 where 子句确保条件更新
+    const updateResult = await db.collection('orders')
+      .where({
+        _id: orderId,
+        paymentStatus: actualStatus  // 条件：只有当前状态确实是 actualStatus 时才更新
+      })
+      .update({
+        data: {
+          paymentStatus: newStatus,
+          paymentUpdateTime: new Date()
+        }
+      });
 
     // 7. 验证更新是否成功（乐观锁检查）
     // updateResult.stats.updated 会告诉我们是否真的更新了数据
@@ -508,6 +514,7 @@ async function createRechargePayment(data, config) {
     console.log(`[充值订单] 创建成功: ${outTradeNo}, 金额: ${amount}分, 赠送: ${giftAmount}分`);
 
     // 6. 调用微信支付统一下单
+    // 修复：微信支付金额应包含本金+赠送金额
     const orderResult = await jsapiOrder({
       appid: config.appid,
       mchid: config.mchid,
@@ -515,7 +522,7 @@ async function createRechargePayment(data, config) {
       out_trade_no: outTradeNo,
       notify_url: config.notifyUrl,
       amount: {
-        total: amount,
+        total: amount + giftAmount,
         currency: 'CNY'
       },
       payer: {
@@ -1135,14 +1142,30 @@ async function handleRefundCallback(event, config) {
     const headers = event.headers || {};
     const body = event.body || '';
 
-    // 1. 验证时间戳
+    // 1. ✅ 验证请求来源 IP（安全修复）
+    const clientIP = event.requestContext?.sourceIp ||
+                     headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                     headers['x-real-ip'] ||
+                     headers['x-client-ip'];
+
+    if (!isValidWeChatPayIP(clientIP)) {
+      console.error('退款回调 IP 验证失败:', {
+        ip: clientIP,
+        sourceIp: event.requestContext?.sourceIp,
+        xForwardedFor: headers['x-forwarded-for'],
+        xRealIp: headers['x-real-ip']
+      });
+      return buildFailResponse('IP 验证失败');
+    }
+
+    // 2. 验证时间戳
     const timestamp = headers['wechatpay-timestamp'];
     if (!isTimestampValid(timestamp)) {
       console.error('退款回调时间戳验证失败');
       return buildFailResponse('时间戳验证失败');
     }
 
-    // 2. 解析并验证签名
+    // 3. 解析并验证签名
     const result = await parseNotify(headers, body, config);
 
     if (!result.success) {
@@ -1150,10 +1173,10 @@ async function handleRefundCallback(event, config) {
       return buildFailResponse(result.summary);
     }
 
-    // 3. 获取退款信息
+    // 4. 获取退款信息
     const { out_refund_no } = result.transaction;
 
-    // 4. 查询退款记录
+    // 5. 查询退款记录
     const refundRes = await db.collection('refunds')
       .where({ refundNo: out_refund_no })
       .get();
@@ -1166,7 +1189,16 @@ async function handleRefundCallback(event, config) {
     const refundRecord = refundRes.data[0];
     const currentStatus = refundRecord.refundStatus;
 
-    // 5. 幂等性检查 - 如果已经处理过，直接返回成功
+    // 6. ✅ 验证退款金额（安全修复）
+    if (result.transaction.trade_status === 'SUCCESS') {
+      const callbackRefundAmount = result.transaction.amount.refund;
+      if (refundRecord.refundAmount !== callbackRefundAmount) {
+        console.error(`退款金额不匹配: 记录=${refundRecord.refundAmount}, 回调=${callbackRefundAmount}`);
+        return buildFailResponse('金额验证失败');
+      }
+    }
+
+    // 7. 幂等性检查 - 如果已经处理过，直接返回成功
     if (currentStatus === 'success') {
       console.log(`退款 ${out_refund_no} 已处理，忽略重复回调`);
       return buildSuccessResponse();

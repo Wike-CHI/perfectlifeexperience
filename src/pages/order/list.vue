@@ -52,7 +52,12 @@
         <!-- 订单头部 -->
         <view class="order-header">
           <text class="order-no">订单号: {{ order.orderNo }}</text>
-          <text class="order-status" :class="order.status">{{ getStatusText(order.status) }}</text>
+          <text
+            class="order-status"
+            :style="{ color: getStatusColor(order.status) }"
+          >
+            {{ getStatusText(order.status) }}
+          </text>
         </view>
 
         <!-- 商品列表 -->
@@ -62,7 +67,7 @@
             <view class="goods-info">
               <text class="goods-name">{{ item.name }}</text>
               <view class="goods-bottom">
-                <text class="goods-price">¥{{ formatPrice(item.price) }}</text>
+                <text class="goods-price">¥{{ fp(item.price) }}</text>
                 <text class="goods-quantity">x{{ item.quantity }}</text>
               </view>
             </view>
@@ -72,7 +77,7 @@
         <!-- 订单金额 -->
         <view class="order-amount">
           <text class="amount-label">共{{ getTotalQuantity(order) }}件商品</text>
-          <text class="amount-total">合计: ¥{{ formatPrice(order.totalAmount) }}</text>
+          <text class="amount-total">合计: ¥{{ fp(order.totalAmount) }}</text>
         </view>
 
         <!-- 订单操作 -->
@@ -117,31 +122,12 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice } from '@/utils/api';
+import { formatPrice as fp } from '@/utils/format';
+import { ORDER_STATUS_TEXTS, ORDER_STATUS_COLORS, PAGINATION_CONFIG } from '@/constants/order';
+import type { OrderDB, OrderStatus } from '@/types/database';
 
-// 类型定义（内联，避免分包导入问题）
-interface Order {
-  _id: string
-  orderNo: string
-  products: Array<{
-    name: string
-    price: number
-    quantity: number
-    image: string
-  }>
-  totalAmount: number
-  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled'
-  address?: {
-    name: string
-    phone: string
-    province: string
-    city: string
-    district: string
-    detail: string
-  }
-  createTime: Date
-  payTime?: Date
-  _openid?: string
-}
+// 使用数据库类型定义
+type Order = OrderDB;
 
 // 数据
 const orders = ref<Order[]>([]);
@@ -149,7 +135,7 @@ const currentStatus = ref('all');
 const loading = ref(false);
 const hasMore = ref(true);
 const page = ref(1);
-const pageSize = 10;
+const pageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
 
 // 状态计数
 const statusCount = ref({
@@ -159,16 +145,14 @@ const statusCount = ref({
   completed: 0
 });
 
-// 获取状态文本
-const getStatusText = (status: string) => {
-  const statusMap: Record<string, string> = {
-    pending: '待付款',
-    paid: '待发货',
-    shipping: '待收货',
-    completed: '已完成',
-    cancelled: '已取消'
-  };
-  return statusMap[status] || status;
+// 获取状态文本（使用常量）
+const getStatusText = (status: OrderStatus | string) => {
+  return ORDER_STATUS_TEXTS[status as keyof typeof ORDER_STATUS_TEXTS] || status;
+};
+
+// 获取状态颜色（使用常量）
+const getStatusColor = (status: OrderStatus | string) => {
+  return ORDER_STATUS_COLORS[status as keyof typeof ORDER_STATUS_COLORS] || '#6B5B4F';
 };
 
 // 获取商品总数
@@ -261,7 +245,7 @@ const cancelOrder = (order: Order) => {
 const payOrder = (order: Order) => {
   uni.showModal({
     title: '模拟支付',
-    content: `支付金额: ¥${formatPrice(order.totalAmount)}`,
+    content: `支付金额: ¥${fp(order.totalAmount)}`,
     success: async (res) => {
       if (res.confirm) {
         try {
@@ -433,26 +417,6 @@ onShow(() => {
 .order-status {
   font-size: 26rpx;
   font-weight: 500;
-}
-
-.order-status.pending {
-  color: #E07B39;
-}
-
-.order-status.paid {
-  color: #2D5016;
-}
-
-.order-status.shipping {
-  color: #D4A574;
-}
-
-.order-status.completed {
-  color: #6B5B4F;
-}
-
-.order-status.cancelled {
-  color: #9B8B7F;
 }
 
 /* 商品列表 */

@@ -97,32 +97,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { getTeamMembers, getPromotionInfo } from '@/utils/api';
+import { formatPrice, formatTime } from '@/utils/format';
+import {
+  AGENT_LEVEL_TEXTS,
+  AGENT_LEVEL_ROMAN,
+  STAR_LEVEL_SHORT,
+  PROMOTION_LEVEL_TEXTS,
+  PAGINATION_CONFIG
+} from '@/constants/promotion';
+import type { UserDB, PromotionStatistics } from '@/types/database';
 
-// 类型定义（内联，避免分包导入问题）
-interface PromotionUser {
-  _id: string
-  _openid: string
-  nickname: string
-  avatarUrl: string
-  agentLevel: number
-  starLevel: number
-  performance: {
-    totalSales: number
-    monthSales: number
-    monthTag: string
-    directCount: number
-    teamCount: number
-  }
-  createTime: Date
-}
-
-interface TeamStats {
-  total: number
-  level1: number
-  level2: number
-  level3: number
-  level4: number
-}
+// 使用数据库类型定义
+type PromotionUser = UserDB;
+type TeamStats = PromotionStatistics['levelCounts'];
 
 const currentLevel = ref(0);
 const members = ref<PromotionUser[]>([]);
@@ -138,7 +125,7 @@ const loading = ref(false);
 const loadingMore = ref(false);
 const hasMore = ref(false);
 const page = ref(1);
-const pageSize = 20;
+const pageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
 
 const levelOptions = computed(() => [
   { label: '全部', value: 0, count: teamStats.value.total },
@@ -210,46 +197,18 @@ const loadMore = () => {
   }
 };
 
-const formatTime = (time: Date | string) => {
-  if (!time) return '';
-  const date = new Date(time);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
-
+// 工具函数使用常量
 const getLevelText = (level: number | undefined) => {
   if (level === undefined || level === 0) return '成员';
-  const texts: Record<number, string> = {
-    1: '一级',
-    2: '二级',
-    3: '三级',
-    4: '四级'
-  };
-  return texts[level] || '成员';
+  return PROMOTION_LEVEL_TEXTS[level] || '成员';
 };
 
 const getStarLevelShort = (level: number) => {
-  const names: Record<number, string> = {
-    0: '普',
-    1: '铜',
-    2: '银',
-    3: '金'
-  };
-  return names[level] || '普';
+  return STAR_LEVEL_SHORT[level] || '普';
 };
 
 const getAgentLevelRoman = (level: number) => {
-  const romans: Record<number, string> = {
-    0: 'HQ',
-    1: 'I',
-    2: 'II',
-    3: 'III',
-    4: 'IV'
-  };
-  return romans[level] || 'IV';
-};
-
-const formatPrice = (price: number) => {
-  return ((price || 0) / 100).toFixed(0);
+  return AGENT_LEVEL_ROMAN[level] || 'IV';
 };
 
 onMounted(() => {
@@ -473,18 +432,18 @@ onMounted(() => {
   font-weight: 600;
 }
 
-/* 星级徽章颜色 */
-.star-badge.star-0 { background: #9E9E9E; }
+/* 星级徽章颜色（东方美学暖色调） */
+.star-badge.star-0 { background: #9B8B7F; }
 .star-badge.star-1 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
 .star-badge.star-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
 .star-badge.star-3 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
 
-/* 代理等级徽章颜色 */
-.agent-badge.agent-0 { background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); }
-.agent-badge.agent-1 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
-.agent-badge.agent-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
-.agent-badge.agent-3 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
-.agent-badge.agent-4 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+/* 代理等级徽章颜色（东方美学暖色调） */
+.agent-badge.agent-0 { background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%); }
+.agent-badge.agent-1 { background: linear-gradient(135deg, #D4A574 0%, #C9A962 100%); }
+.agent-badge.agent-2 { background: linear-gradient(135deg, #C9A962 0%, #B8935F 100%); }
+.agent-badge.agent-3 { background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%); }
+.agent-badge.agent-4 { background: linear-gradient(135deg, #5D3924 0%, #3D2914 100%); }
 
 .member-time {
   font-size: 24rpx;

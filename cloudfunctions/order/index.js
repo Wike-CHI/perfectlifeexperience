@@ -190,8 +190,9 @@ async function validateCartItems(cartItems) {
       const specsStr = cartItem.specs.toString().trim();
       const matchedPrice = product.priceList.find(p => {
         const volumeStr = (p.volume || '').toString().trim();
-        // 完全匹配或包含匹配
-        return volumeStr === specsStr || volumeStr.includes(specsStr) || specsStr.includes(volumeStr);
+        // 安全修复：只使用完全匹配，避免子串匹配导致的误匹配
+        // 例如：用户提交"500ml"不应匹配"1500ml"
+        return volumeStr === specsStr;
       });
 
       if (matchedPrice) {
@@ -791,10 +792,18 @@ async function applyRefund(openid, data) {
     const refundProducts = [];
 
     if (products && products.length > 0) {
-      // 部分退款
+      // 部分退款 - 添加退款数量验证
       for (const item of order.items) {
         const refundItem = products.find(p => p.productId === item.productId);
         if (refundItem) {
+          // 验证退款数量
+          if (!refundItem.refundQuantity || refundItem.refundQuantity <= 0) {
+            return error(ErrorCodes.INVALID_PARAMS, `"${item.productName}"退款数量必须大于0`);
+          }
+          if (refundItem.refundQuantity > item.quantity) {
+            return error(ErrorCodes.INVALID_PARAMS, `"${item.productName}"退款数量不能超过购买数量(${item.quantity})`);
+          }
+
           const itemRefundAmount = item.price * refundItem.refundQuantity;
           refundAmount += itemRefundAmount;
           refundProducts.push({
@@ -806,6 +815,11 @@ async function applyRefund(openid, data) {
             price: item.price
           });
         }
+      }
+
+      // 验证总退款金额不超过订单金额
+      if (refundAmount > order.totalAmount) {
+        return error(ErrorCodes.INVALID_PARAMS, '退款金额不能超过订单金额');
       }
     } else {
       // 全额退款
