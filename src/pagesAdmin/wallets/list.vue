@@ -44,7 +44,7 @@
       >
         <view class="transaction-main">
           <view class="transaction-icon" :class="getTypeClass(item.type)">
-            <text class="icon-text">{{ getTransactionIcon(item.type) }}</text>
+            <AdminIcon :name="getTransactionIcon(item.type)" size="medium" />
           </view>
           <view class="transaction-info">
             <text class="transaction-type">{{ getTypeName(item.type) }}</text>
@@ -64,7 +64,7 @@
 
       <!-- 空状态 -->
       <view v-if="transactions.length === 0 && !loading" class="empty-state">
-        <text class="empty-icon">💳</text>
+        <AdminIcon name="card" size="large" />
         <text class="empty-text">暂无交易记录</text>
       </view>
 
@@ -89,6 +89,7 @@ import AdminAuthManager from '@/utils/admin-auth'
 import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 钱包管理页面
@@ -265,16 +266,16 @@ const getTypeName = (type: string): string => {
 }
 
 /**
- * 获取交易图标
+ * 获取交易图标名称
  */
 const getTransactionIcon = (type: string): string => {
   const icons = {
-    recharge: '💰',
-    consume: '🛒',
-    refund: '↩️',
-    withdraw: '💸'
+    recharge: 'money',
+    consume: 'cart',
+    refund: 'refund',
+    withdraw: 'refresh'
   }
-  return icons[type] || '💳'
+  return icons[type] || 'card'
 }
 
 /**
@@ -300,7 +301,7 @@ const getStatusName = (status: string): string => {
     failed: '失败',
     cancelled: '已取消'
   }
-  return names[status] || status
+  return names[status] || '未知状态'
 }
 
 /**

@@ -97,7 +97,7 @@ const ACTION_PERMISSIONS = {
   'updateOrderStatus': PERMISSIONS.ORDER_UPDATE,
   'searchOrderByExpress': PERMISSIONS.ORDER_VIEW,
   'updateOrderExpress': PERMISSIONS.ORDER_UPDATE,
-  'deleteOrder': PERMISSIONS.ORDER_DELETE,
+  // deleteOrder 未实现，已移除权限映射
 
   // 商品管理
   'getProducts': PERMISSIONS.PRODUCT_VIEW,

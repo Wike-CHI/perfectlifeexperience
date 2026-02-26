@@ -63,7 +63,7 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, saveUserInfo, updateCloudUserInfo } from '@/utils/api';
-import { uploadFile } from '@/utils/cloudbase';
+import { callFunction } from '@/utils/cloudbase';
 
 // 用户信息
 const userInfo = ref({
@@ -91,20 +91,33 @@ const onChooseAvatar = async (e: any) => {
 
   try {
     uni.showLoading({ title: '上传头像中...' });
-    
-    // 1. 上传到云存储
-    const fileID = await uploadFile(avatarUrl, `avatar/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-    
-    // 2. 更新本地显示
-    userInfo.value.avatarUrl = fileID; // 这里也可以用临时链接，但为了持久化最好用 fileID
-    
-    // 3. 更新云端用户信息
+
+    // 1. 读取图片文件并转换为 base64
+    const base64Data = await readImageAsBase64(avatarUrl);
+
+    // 2. 通过云函数上传到云存储（绕过客户端安全规则）
+    const uploadRes = await callFunction('upload', {
+      action: 'uploadAvatar',
+      base64Data,
+      fileName: `${Date.now()}.jpg`
+    });
+
+    if (uploadRes.code !== 0 || !uploadRes.data) {
+      throw new Error(uploadRes.msg || '上传失败');
+    }
+
+    const fileID = uploadRes.data.fileID;
+
+    // 3. 更新本地显示
+    userInfo.value.avatarUrl = fileID;
+
+    // 4. 更新云端用户信息
     const success = await updateCloudUserInfo({ avatarUrl: fileID });
     if (!success) throw new Error('同步到云端失败');
-    
-    // 4. 更新本地缓存
+
+    // 5. 更新本地缓存
     await saveUserInfo({ avatarUrl: fileID });
-    
+
     uni.hideLoading();
     uni.showToast({ title: '头像更新成功', icon: 'success' });
   } catch (error) {
@@ -112,6 +125,18 @@ const onChooseAvatar = async (e: any) => {
     uni.hideLoading();
     uni.showToast({ title: '头像更新失败', icon: 'none' });
   }
+};
+
+// 读取图片为 base64
+const readImageAsBase64 = (filePath: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    uni.getFileSystemManager().readFile({
+      filePath,
+      encoding: 'base64',
+      success: (res: any) => resolve(res.data),
+      fail: reject
+    });
+  });
 };
 
 // 处理昵称输入

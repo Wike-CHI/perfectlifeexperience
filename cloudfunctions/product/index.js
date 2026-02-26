@@ -6,6 +6,10 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// ✅ 引入安全日志工具
+const { createLogger } = require('./common/logger');
+const logger = createLogger('product');
+
 // ✅ 引入缓存模块
 const { productCache, categoryCache } = require('./common/cache');
 
@@ -17,35 +21,35 @@ async function initDataToDatabase(data) {
   const { categories } = data;
 
   try {
-    console.log('开始初始化商品数据，分类数:', categories.length);
+    logger.info('Initializing product data', { categoryCount: categories.length });
 
     // 1. 先删除旧数据（避免 _id 冲突）
     try {
       const oldCategories = await db.collection('categories').get();
       if (oldCategories.data.length > 0) {
-        console.log('删除旧分类数据...');
+        logger.debug('Deleting old category data');
         for (const cat of oldCategories.data) {
           await db.collection('categories').doc(cat._id).remove();
         }
       }
     } catch (error) {
-      console.log('删除旧分类数据失败或无数据:', error.message);
+      logger.debug('Failed to delete old category data or no data', { error: error.message });
     }
 
     try {
       const oldProducts = await db.collection('products').get();
       if (oldProducts.data.length > 0) {
-        console.log('删除旧商品数据...');
+        logger.debug('Deleting old product data');
         for (const prod of oldProducts.data) {
           await db.collection('products').doc(prod._id).remove();
         }
       }
     } catch (error) {
-      console.log('删除旧商品数据失败或无数据:', error.message);
+      logger.debug('Failed to delete old product data or no data', { error: error.message });
     }
 
     // 2. 创建分类（逐条添加）
-    console.log('开始添加分类数据...');
+    logger.debug('Adding category data');
     const categoryRecords = categories.map((cat, index) => ({
       _id: `cat_${index}`,
       name: cat.name,
@@ -60,23 +64,23 @@ async function initDataToDatabase(data) {
         await db.collection('categories').add({
           data: cat
         });
-        console.log('添加分类成功:', cat.name);
+        logger.debug('Category added', { name: cat.name });
       } catch (error) {
-        console.error('添加分类失败:', cat.name, error);
+        logger.error('Failed to add category', { name: cat.name, error });
         // 尝试使用 doc().set() 替代
         try {
           await db.collection('categories').doc(cat._id).set({
             data: cat
           });
-          console.log('使用 set 添加分类成功:', cat.name);
+          logger.debug('Category added using set', { name: cat.name });
         } catch (error2) {
-          console.error('set 方法也失败:', error2);
+          logger.error('Set method also failed', { error: error2 });
         }
       }
     }
 
     // 3. 创建商品（逐条添加）
-    console.log('开始添加商品数据...');
+    logger.debug('Adding product data');
     const productRecords = [];
     categories.forEach((cat, catIndex) => {
       cat.items.forEach((item, itemIndex) => {
@@ -160,25 +164,25 @@ async function initDataToDatabase(data) {
         await db.collection('products').add({
           data: prod
         });
-        console.log('添加商品成功:', prod.name);
+        logger.debug('Product added', { name: prod.name });
         successCount++;
       } catch (error) {
-        console.error('添加商品失败:', prod.name, error);
+        logger.error('Failed to add product', { name: prod.name, error });
         // 尝试使用 doc().set() 替代
         try {
           await db.collection('products').doc(prod._id).set({
             data: prod
           });
-          console.log('使用 set 添加商品成功:', prod.name);
+          logger.debug('Product added using set', { name: prod.name });
           successCount++;
         } catch (error2) {
-          console.error('set 方法也失败:', error2);
+          logger.error('Set method also failed', { error: error2 });
           failCount++;
         }
       }
     }
 
-    console.log(`初始化完成: 成功 ${successCount} 条, 失败 ${failCount} 条`);
+    logger.info('Product initialization completed', { success: successCount, failed: failCount });
 
     return {
       code: 0,
@@ -190,7 +194,7 @@ async function initDataToDatabase(data) {
       }
     };
   } catch (error) {
-    console.error('初始化商品数据失败:', error);
+    logger.error('Product data initialization failed', error);
     return {
       code: -1,
       msg: error.message,
@@ -200,14 +204,15 @@ async function initDataToDatabase(data) {
 }
 
 /**
- * 获取商品列表
+ * 获取商品列表（优化版）
  * 支持分类筛选、关键词搜索、分页、排序
+ * 优化点：字段投影、并行查询count、条件缓存
  */
 async function getProducts(params) {
-  const { category, keyword, page = 1, limit = 20, sort = 'createTime' } = params || {};
+  const { category, keyword, page = 1, limit = 20, sort = 'createTime', fields = 'list' } = params || {};
 
-  // 构建缓存键（包含所有查询参数）
-  const cacheKey = `products_${category || 'all'}_${keyword || 'none'}_page${page}_limit${limit}_sort${sort}`;
+  // 构建缓存键（包含所有查询参数和字段类型）
+  const cacheKey = `products_${fields}_${category || 'all'}_${keyword || 'none'}_page${page}_limit${limit}_sort${sort}`;
 
   // 1. 尝试从缓存获取
   const cached = productCache.get(cacheKey);
@@ -244,17 +249,54 @@ async function getProducts(params) {
     // 分页计算
     const skip = (page - 1) * limit;
 
-    // 执行查询
-    const result = await db.collection('products')
-      .where(where)
-      .skip(skip)
-      .limit(limit)
-      .get();
+    // 定义字段投影 - 根据场景返回不同字段
+    let fieldProjection = null;
+    if (fields === 'list') {
+      // 列表页只返回必要字段
+      fieldProjection = {
+        _id: true,
+        name: true,
+        enName: true,
+        description: true,
+        images: true,
+        price: true,
+        priceList: true,
+        volume: true,
+        sales: true,
+        category: true,
+        tags: true,
+        alcoholContent: true,
+        brewery: true,
+        isHot: true,
+        isNew: true
+      };
+    } else if (fields === 'minimal') {
+      // 最小字段集合（用于首页推荐等）
+      fieldProjection = {
+        _id: true,
+        name: true,
+        images: true,
+        price: true,
+        priceList: true,
+        volume: true,
+        sales: true,
+        isNew: true
+      };
+    }
+    // 'detail' 或其他情况返回所有字段
 
-    // 获取总数
-    const countResult = await db.collection('products')
-      .where(where)
-      .count();
+    // 并行执行查询和count
+    const [result, countResult] = await Promise.all([
+      db.collection('products')
+        .where(where)
+        .skip(skip)
+        .limit(limit)
+        .field(fieldProjection)
+        .get(),
+      db.collection('products')
+        .where(where)
+        .count()
+    ]);
 
     // 排序处理
     let data = result.data || [];
@@ -274,12 +316,14 @@ async function getProducts(params) {
       total: countResult.total
     };
 
-    // 2. 缓存结果（1小时TTL - 商品数据变化较少）
-    productCache.set(cacheKey, response, 3600000);
+    // 2. 缓存结果
+    // 列表数据缓存1小时，详情数据缓存2小时
+    const ttl = fields === 'list' ? 3600000 : 7200000;
+    productCache.set(cacheKey, response, ttl);
 
     return response;
   } catch (error) {
-    console.error('获取商品列表失败:', error);
+    logger.error('Get products failed', error);
     return {
       code: -1,
       msg: error.message || '获取商品列表失败'
@@ -324,7 +368,7 @@ async function getProductDetail(data) {
 
     return response;
   } catch (error) {
-    console.error('获取商品详情失败:', error);
+    logger.error('Get product detail failed', error);
     return {
       code: -1,
       msg: error.message || '获取商品详情失败'
@@ -333,27 +377,49 @@ async function getProductDetail(data) {
 }
 
 /**
- * 获取热门商品
+ * 获取热门商品（优化版 - 使用缓存）
  */
 async function getHotProducts(data) {
   const { limit = 6 } = data;
+
+  const cacheKey = `hot_products_${limit}`;
+
+  // 尝试从缓存获取
+  const cached = productCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
 
   try {
     const result = await db.collection('products')
       .where({
         isHot: true
       })
+      .field({
+        _id: true,
+        name: true,
+        images: true,
+        price: true,
+        priceList: true,
+        volume: true,
+        sales: true
+      })
       .limit(limit)
       .orderBy('createTime', 'desc')
       .get();
 
-    return {
+    const response = {
       code: 0,
       msg: 'success',
       data: result.data || []
     };
+
+    // 缓存30分钟
+    productCache.set(cacheKey, response, 1800000);
+
+    return response;
   } catch (error) {
-    console.error('获取热门商品失败:', error);
+    logger.error('Get hot products failed', error);
     return {
       code: -1,
       msg: error.message || '获取热门商品失败'
@@ -362,30 +428,127 @@ async function getHotProducts(data) {
 }
 
 /**
- * 获取新品
+ * 获取新品（优化版 - 使用缓存）
  */
 async function getNewProducts(data) {
   const { limit = 6 } = data;
+
+  const cacheKey = `new_products_${limit}`;
+
+  // 尝试从缓存获取
+  const cached = productCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
 
   try {
     const result = await db.collection('products')
       .where({
         isNew: true
       })
+      .field({
+        _id: true,
+        name: true,
+        images: true,
+        price: true,
+        priceList: true,
+        volume: true,
+        sales: true
+      })
       .limit(limit)
       .orderBy('createTime', 'desc')
       .get();
 
-    return {
+    const response = {
       code: 0,
       msg: 'success',
       data: result.data || []
     };
+
+    // 缓存30分钟
+    productCache.set(cacheKey, response, 1800000);
+
+    return response;
   } catch (error) {
-    console.error('获取新品失败:', error);
+    logger.error('Get new products failed', error);
     return {
       code: -1,
       msg: error.message || '获取新品失败'
+    };
+  }
+}
+
+/**
+ * 聚合查询 - 首页数据（一次性获取首页所需所有数据）
+ */
+async function getHomePageData(data) {
+  const cacheKey = 'homepage_aggregate';
+
+  // 尝试从缓存获取
+  const cached = productCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  try {
+    // 并行获取所有首页数据
+    const [hotResult, newResult, allProducts] = await Promise.all([
+      // 热门商品
+      db.collection('products')
+        .where({ isHot: true })
+        .field({
+          _id: true, name: true, images: true, price: true,
+          priceList: true, volume: true, sales: true
+        })
+        .limit(6)
+        .orderBy('createTime', 'desc')
+        .get(),
+
+      // 新品
+      db.collection('products')
+        .where({ isNew: true })
+        .field({
+          _id: true, name: true, images: true, price: true,
+          priceList: true, volume: true, sales: true
+        })
+        .limit(6)
+        .orderBy('createTime', 'desc')
+        .get(),
+
+      // 所有商品（用于销量排序）
+      db.collection('products')
+        .field({
+          _id: true, name: true, images: true, price: true,
+          priceList: true, volume: true, sales: true
+        })
+        .limit(20)
+        .get()
+    ]);
+
+    // 按销量排序取前4个
+    const sortedBySales = allProducts.data
+      .sort((a, b) => (b.sales || 0) - (a.sales || 0))
+      .slice(0, 4);
+
+    const response = {
+      code: 0,
+      msg: 'success',
+      data: {
+        hotProducts: hotResult.data || [],
+        newProducts: newResult.data || [],
+        topSalesProducts: sortedBySales
+      }
+    };
+
+    // 缓存15分钟
+    productCache.set(cacheKey, response, 900000);
+
+    return response;
+  } catch (error) {
+    logger.error('Get homepage data failed', error);
+    return {
+      code: -1,
+      msg: error.message || '获取首页数据失败'
     };
   }
 }
@@ -421,7 +584,7 @@ async function getCategories() {
 
     return response;
   } catch (error) {
-    console.error('获取分类列表失败:', error);
+    logger.error('Get categories failed', error);
     return {
       code: -1,
       msg: error.message || '获取分类列表失败'
@@ -434,12 +597,12 @@ async function getCategories() {
  */
 async function fixCategoryIcons() {
   try {
-    console.log('开始修复分类图标...');
+    logger.info('Fixing category icons');
 
     // 获取所有分类
     const categories = await db.collection('categories').get();
 
-    console.log('找到分类数:', categories.data.length);
+    logger.debug('Found categories', { count: categories.data.length });
 
     // 更新每个分类的图标为 emoji
     const iconMap = {
@@ -458,13 +621,13 @@ async function fixCategoryIcons() {
         }
       });
 
-      console.log(`更新分类 ${cat.name} 图标为: ${newIcon}`);
+      logger.debug('Category icon updated', { name: cat.name, icon: newIcon });
       updatedCount++;
     }
 
     // 清除分类缓存（分类数据已更新）
     categoryCache.delete('categories_list');
-    console.log('分类缓存已清除');
+    logger.debug('Category cache cleared');
 
     return {
       code: 0,
@@ -472,7 +635,7 @@ async function fixCategoryIcons() {
       data: { updated: updatedCount }
     };
   } catch (error) {
-    console.error('修复分类图标失败:', error);
+    logger.error('Fix category icons failed', error);
     return {
       code: -1,
       msg: error.message || '修复分类图标失败'
@@ -501,7 +664,7 @@ function clearProductCache(productId = null) {
 exports.main = async (event, context) => {
   const { action, data } = event;
 
-  console.log('收到请求:', { action, data });
+  logger.debug('Product request received', { action });
 
   switch (action) {
     case 'initData':
@@ -521,6 +684,9 @@ exports.main = async (event, context) => {
 
     case 'getCategories':
       return await getCategories();
+
+    case 'getHomePageData':
+      return await getHomePageData(data);
 
     case 'fixCategoryIcons':
       return await fixCategoryIcons();

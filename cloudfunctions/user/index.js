@@ -9,6 +9,10 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// ✅ 引入安全日志工具
+const { createLogger } = require('./common/logger');
+const logger = createLogger('user');
+
 const { getUserIdentity, parseEvent, withAuth, isDeprecatedAuth } = require('./common/auth');
 
 /**
@@ -46,8 +50,8 @@ async function loginOrUpdate(openid, userInfo) {
       await usersCollection.doc(user._id).update({
         data: updateData
       });
-      
-      console.log('用户登录信息更新成功:', openid);
+
+      logger.info('User login updated', { openid });
       
       // 获取最新的用户信息返回
       const latestUser = { ...user, ...updateData, loginCount: user.loginCount + 1, lastLoginTime: now };
@@ -81,8 +85,8 @@ async function loginOrUpdate(openid, userInfo) {
       const { _id } = await usersCollection.add({
         data: newUser
       });
-      
-      console.log('新用户创建成功:', openid, '用户ID:', _id);
+
+      logger.info('New user created', { openid, userId: _id });
       
       return {
         success: true,
@@ -93,7 +97,7 @@ async function loginOrUpdate(openid, userInfo) {
       };
     }
   } catch (error) {
-    console.error('登录或更新用户失败:', error);
+    logger.error('Login or update user failed', error);
     throw error;
   }
 }
@@ -143,7 +147,7 @@ async function getUserInfo(openid) {
       message: '获取成功'
     };
   } catch (error) {
-    console.error('获取用户信息失败:', error);
+    logger.error('Get user info failed', error);
     throw error;
   }
 }
@@ -191,26 +195,26 @@ async function updateUserInfo(openid, updateData) {
     await usersCollection.doc(user._id).update({
       data: filteredData
     });
-    
-    console.log('用户信息更新成功:', openid);
+
+    logger.info('User info updated', { openid });
     
     return {
       success: true,
       message: '更新成功'
     };
   } catch (error) {
-    console.error('更新用户信息失败:', error);
+    logger.error('Update user info failed', error);
     throw error;
   }
 }
 
 // 云函数入口函数
 exports.main = async (event, context) => {
-  console.log('User function called, Raw event:', JSON.stringify(event));
-  
+  logger.debug('User function called', { action: event.action });
+
   // 解析请求数据
   const requestData = parseEvent(event);
-  console.log('Parsed requestData:', requestData);
+  logger.debug('Request data parsed', { action: requestData.action });
 
   // 获取 openid
   const wxContext = cloud.getWXContext();
@@ -226,8 +230,8 @@ exports.main = async (event, context) => {
   }
   
   const { action, data } = requestData;
-  
-  console.log('Action:', action, 'OpenID:', openid);
+
+  logger.info('User action', { action, openid });
   
   try {
     switch (action) {
@@ -265,7 +269,7 @@ exports.main = async (event, context) => {
         };
     }
   } catch (error) {
-    console.error('云函数执行失败:', error);
+    logger.error('User function failed', error);
     return {
       success: false,
       error: error.message,

@@ -50,7 +50,7 @@
 
       <!-- 空状态 -->
       <view v-if="promotionProducts.length === 0 && !loading" class="empty-state">
-        <view class="empty-icon">📦</view>
+        <AdminIcon name="package" size="large" />
         <text class="empty-text">暂无商品</text>
         <view class="empty-action" @click="showProductSelector = true">
           <text class="empty-action-text">添加第一个商品</text>
@@ -110,6 +110,7 @@
 import { ref, onMounted } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
+import AdminIcon from '@/components/admin-icon.vue'
 
 const promotionId = ref('')
 const loading = ref(false)

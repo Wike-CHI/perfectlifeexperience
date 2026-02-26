@@ -11,7 +11,7 @@
     <view class="form-section">
       <view class="form-item">
         <view class="input-wrapper">
-          <text class="input-icon">👤</text>
+          <AdminIcon name="user" size="medium" variant="gold" />
           <input
             class="input-field"
             type="text"
@@ -24,7 +24,7 @@
 
       <view class="form-item">
         <view class="input-wrapper">
-          <text class="input-icon">🔒</text>
+          <AdminIcon name="lock" size="medium" variant="gold" />
           <input
             class="input-field"
             :type="showPassword ? 'text' : 'password'"
@@ -32,9 +32,9 @@
             v-model="formData.password"
             placeholder-class="input-placeholder"
           />
-          <text class="toggle-password" @click="togglePassword">
-            {{ showPassword ? '🙈' : '👁️' }}
-          </text>
+          <view class="toggle-password" @click="togglePassword">
+            <AdminIcon :name="showPassword ? 'eye-off' : 'eye'" size="small" />
+          </view>
         </view>
       </view>
 
@@ -66,6 +66,7 @@
 import { ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 管理员登录页面
@@ -228,7 +229,8 @@ const goBack = () => {
 }
 
 .input-icon {
-  font-size: 40rpx;
+  display: flex;
+  align-items: center;
 }
 
 .input-field {
@@ -242,7 +244,8 @@ const goBack = () => {
 }
 
 .toggle-password {
-  font-size: 40rpx;
+  display: flex;
+  align-items: center;
   cursor: pointer;
 }
 

@@ -1,0 +1,29 @@
+{
+  "rules": [
+    {
+      "path": "avatar/*",
+      "read": true,
+      "write": "auth.openid != null"
+    },
+    {
+      "path": "product/*",
+      "read": true,
+      "write": false
+    },
+    {
+      "path": "category/*",
+      "read": true,
+      "write": false
+    },
+    {
+      "path": "banner/*",
+      "read": true,
+      "write": false
+    },
+    {
+      "path": "public/*",
+      "read": true,
+      "write": false
+    }
+  ]
+}

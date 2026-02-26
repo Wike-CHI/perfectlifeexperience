@@ -57,7 +57,7 @@
 
       <!-- 空状态 -->
       <view v-if="products.length === 0 && !loading" class="empty-state">
-        <text class="empty-icon">📦</text>
+        <AdminIcon name="package" size="large" />
         <text class="empty-text">暂无商品</text>
       </view>
 
@@ -74,6 +74,7 @@ import { ref, onMounted } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import { callFunction } from '@/utils/cloudbase'
 import AdminSearch from '@/components/admin-search.vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 商品管理页面

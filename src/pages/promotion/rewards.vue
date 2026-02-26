@@ -99,19 +99,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { getRewardRecords, getPromotionInfo } from '@/utils/api';
+import { formatPrice, formatTime } from '@/utils/format';
+import {
+  REWARD_LEVEL_TEXTS,
+  REWARD_STATUS_TEXTS,
+  REWARD_STATUS_ICONS,
+  REWARD_STATUS_COLORS,
+  REWARD_TYPE_SHORT_NAMES,
+  REWARD_TYPE_CLASSES,
+  PAGINATION_CONFIG
+} from '@/constants/reward';
+import type { RewardRecordDB, RewardStatus } from '@/types/database';
 
-// 类型定义（内联，避免分包导入问题）
-interface RewardRecord {
-  _id: string
-  orderId: string
-  amount: number
-  type: 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'
-  status: 'pending' | 'settled'
-  level: number
-  fromUserId?: string
-  createTime: Date
-  settleTime?: Date
-}
+// 使用数据库类型定义
+type RewardRecord = RewardRecordDB;
 
 const currentStatus = ref('');
 const currentType = ref('');
@@ -122,7 +123,7 @@ const loading = ref(false);
 const loadingMore = ref(false);
 const hasMore = ref(false);
 const page = ref(1);
-const pageSize = 20;
+const pageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -196,74 +197,45 @@ const loadMore = () => {
   }
 };
 
-const formatPrice = (price: number) => {
-  return (price / 100).toFixed(2);
-};
-
-const formatTime = (time: Date | string) => {
-  if (!time) return '';
-  const date = new Date(time);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-};
-
+// 工具函数使用常量
 const getLevelText = (level: number) => {
-  const texts: Record<number, string> = {
-    1: '直接推广',
-    2: '二级推广',
-    3: '三级推广',
-    4: '四级推广'
-  };
-  return texts[level] || '推广';
+  return REWARD_LEVEL_TEXTS[level] || '推广';
 };
 
-const getStatusIcon = (status: string) => {
-  const icons: Record<string, string> = {
-    pending: 'clock-filled',
-    settled: 'checkmarkempty',
-    cancelled: 'closeempty',
-    deducted: 'refreshempty'
-  };
-  return icons[status] || 'help-filled';
+const getStatusIcon = (status: RewardStatus) => {
+  return REWARD_STATUS_ICONS[status] || 'help-filled';
 };
 
-const getStatusColor = (status: string) => {
-  const colors: Record<string, string> = {
-    pending: '#FFB085',
-    settled: '#06D6A0',
-    cancelled: '#C44536',
-    deducted: '#9B8B7F'
-  };
-  return colors[status] || '#9B8B7F';
+const getStatusColor = (status: RewardStatus) => {
+  return REWARD_STATUS_COLORS[status] || '#9B8B7F';
 };
 
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待结算',
-    settled: '已结算',
-    cancelled: '已取消',
-    deducted: '已扣回'
-  };
-  return texts[status] || status;
+const getStatusText = (status: RewardStatus) => {
+  return REWARD_STATUS_TEXTS[status] || status;
 };
 
-const getRewardTypeClass = (type: string) => {
-  const classes: Record<string, string> = {
-    commission: 'type-commission',
-    repurchase: 'type-repurchase',
-    management: 'type-management',
-    nurture: 'type-nurture'
+const getRewardTypeClass = (rewardType: string) => {
+  // 从 rewardType 映射到常量中的 key
+  const typeMap: Record<string, 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'> = {
+    'commission': 'basic_commission',
+    'repurchase': 'repurchase_reward',
+    'management': 'team_management',
+    'nurture': 'nurture_allowance'
   };
-  return classes[type] || 'type-commission';
+  const mappedType = typeMap[rewardType] || rewardType as any;
+  return REWARD_TYPE_CLASSES[mappedType] || 'type-commission';
 };
 
-const getRewardTypeShortName = (type: string) => {
-  const names: Record<string, string> = {
-    commission: '佣',
-    repurchase: '复',
-    management: '管',
-    nurture: '育'
+const getRewardTypeShortName = (rewardType: string) => {
+  // 从 rewardType 映射到常量中的 key
+  const typeMap: Record<string, 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'> = {
+    'commission': 'basic_commission',
+    'repurchase': 'repurchase_reward',
+    'management': 'team_management',
+    'nurture': 'nurture_allowance'
   };
-  return names[type] || '奖';
+  const mappedType = typeMap[rewardType] || rewardType as any;
+  return REWARD_TYPE_SHORT_NAMES[mappedType] || '奖';
 };
 
 onMounted(() => {
@@ -517,19 +489,19 @@ onMounted(() => {
 }
 
 .reward-type-tag.type-commission {
-  background: linear-gradient(135deg, #0052D9 0%, #00A1FF 100%);
+  background: linear-gradient(135deg, #D4A574 0%, #C9A962 100%);
 }
 
 .reward-type-tag.type-repurchase {
-  background: linear-gradient(135deg, #00A870 0%, #4CD964 100%);
+  background: linear-gradient(135deg, #7A9A8E 0%, #5F7A6E 100%);
 }
 
 .reward-type-tag.type-management {
-  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+  background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%);
 }
 
 .reward-type-tag.type-nurture {
-  background: linear-gradient(135deg, #FF6B00 0%, #FFB800 100%);
+  background: linear-gradient(135deg, #C9A962 0%, #B8935F 100%);
 }
 
 .record-desc {

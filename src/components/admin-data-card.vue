@@ -10,6 +10,7 @@
     <!-- 左侧图标 -->
     <view v-if="icon" class="card-icon">
       <image v-if="isImageUrl(icon)" :src="icon" mode="aspectFit" class="icon-image" />
+      <AdminIcon v-else-if="isIconName(icon)" :name="icon" size="large" variant="gold" />
       <text v-else class="icon-emoji">{{ icon }}</text>
     </view>
 
@@ -42,6 +43,7 @@
  */
 
 import { computed } from 'vue'
+import AdminIcon from './admin-icon.vue'
 
 interface Props {
   label: string           // 数据标签
@@ -82,6 +84,17 @@ const trendIcon = computed(() => {
 
 const isImageUrl = (url: string): boolean => {
   return url.startsWith('/') || url.startsWith('http')
+}
+
+// 有效的 AdminIcon 名称列表
+const validIconNames = [
+  'user', 'search', 'eye', 'eye-off', 'location', 'package', 'money', 'cart',
+  'users', 'chart', 'plus', 'list', 'refund', 'refresh', 'check', 'close',
+  'alert', 'bulb', 'trophy', 'image', 'coupon', 'lock', 'box', 'card', 'truck', 'clock'
+]
+
+const isIconName = (name: string): boolean => {
+  return validIconNames.includes(name)
 }
 
 const handleClick = () => {

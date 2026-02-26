@@ -138,12 +138,13 @@ const pendingCommission = ref(0)
 const withdrawnAmount = ref(0)
 const pendingWithdrawals = ref(0)
 
-// 状态筛选选项
+// 状态筛选选项 (reward_records 的有效状态)
 const statusTabs = [
   { label: '全部', value: 'all' },
   { label: '待结算', value: 'pending' },
   { label: '已结算', value: 'settled' },
-  { label: '已提现', value: 'withdrawn' }
+  { label: '已取消', value: 'cancelled' },
+  { label: '已扣除', value: 'deducted' }
 ]
 
 // 类型选项
@@ -356,9 +357,9 @@ const getStatusName = (status: string): string => {
   const names = {
     pending: '待结算',
     settled: '已结算',
-    withdrawn: '已提现',
     cancelled: '已取消',
-    deducted: '已扣除'
+    deducted: '已扣除',
+    success: '成功'
   }
   return names[status] || status
 }
@@ -679,7 +680,7 @@ const goToWithdrawals = () => {
 }
 
 .status-badge.settled,
-.status-badge.withdrawn {
+.status-badge.success {
   background: rgba(122, 154, 142, 0.2);
   color: #7A9A8E;
 }

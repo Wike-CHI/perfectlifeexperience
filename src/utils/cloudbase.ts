@@ -245,9 +245,9 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
     let requestData = { ...data };
 
     if (name === 'admin-api' && !requestData.adminToken) {
-      // 动态导入 AdminAuthManager 以避免循环依赖
-      const { default: AdminAuthManager } = await import('./admin-auth');
-      const token = AdminAuthManager.getToken();
+      // 🔧 修复：使用静态导入避免小程序环境动态 import 问题
+      // 直接从本地存储读取 token
+      const token = uni.getStorageSync('admin_token');
 
       if (token) {
         requestData.adminToken = token;

@@ -285,7 +285,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
-import { getProducts, addToCart as addToCartApi, formatPrice } from '@/utils/api';
+import { getHomePageData, addToCart as addToCartApi, formatPrice } from '@/utils/api';
 import { rechargeOptions } from '@/config/recharge';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
@@ -356,19 +356,26 @@ const loading = ref(false);
 const skuPopupVisible = ref(false);
 const currentProduct = ref<Product | null>(null);
 
-// 获取首页数据
+// 获取首页数据（最终优化版 - 使用聚合查询）
 const loadData = async () => {
   try {
     loading.value = true;
-    
-    // 获取热销商品
-    const hotRes = await getProducts({ page: 1, limit: 4 });
-    hotProducts.value = hotRes.map((p: any) => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
 
-    // 获取新品
-    const newRes = await getProducts({ page: 1, limit: 6 });
-    newProducts.value = newRes.filter((p: any) => p.isNew).map((p: any) => ({...p, spec: p.volume ? `${p.volume}ml` : ''}));
-    
+    // 使用聚合查询接口，一次性获取所有首页数据
+    const homeData = await getHomePageData();
+
+    // 热销商品（已按销量排序）
+    hotProducts.value = homeData.topSalesProducts.map((p: any) => ({
+      ...p,
+      spec: p.volume ? `${p.volume}ml` : ''
+    }));
+
+    // 新品商品
+    newProducts.value = homeData.newProducts.map((p: any) => ({
+      ...p,
+      spec: p.volume ? `${p.volume}ml` : ''
+    }));
+
   } catch (error) {
     console.error('加载数据失败:', error);
   } finally {

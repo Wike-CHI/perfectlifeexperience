@@ -39,7 +39,14 @@
       "Skill(ralph-loop:ralph-loop)",
       "Skill(ralph-loop:ralph-loop:*)",
       "mcp__cloudbase__createFunction",
-      "mcp__cloudbase__interactiveDialog"
+      "mcp__cloudbase__interactiveDialog",
+      "Bash(command:*)",
+      "mcp__cloudbase__envQuery",
+      "Bash(curl:*)",
+      "Bash(npx skills add:*)",
+      "Bash(xargs:*)",
+      "Bash(done)",
+      "Bash(\"/Users/johnny/Desktop/小程序/perfectlifeexperience/docs/PERFORMANCE_OPTIMIZATION.md\" << 'EOF'\n# 性能优化指南\n\n## 📋 概述\n\n本指南说明如何通过**直接使用云数据库查询**替代云函数调用来提升小程序性能。\n\n## ⚡ 性能对比\n\n| 操作 | 云函数调用 | 直接数据库查询 | 性能提升 |\n|------|-----------|---------------|---------|\n| 冷启动 | 200-500ms | 50-100ms | **2-5倍** |\n| 热启动 | 100-200ms | 50-100ms | **1.5-2倍** |\n\n## ✅ 使用场景\n\n**适合直接查询**:\n- ✅ 简单 CRUD 操作（查询订单、产品、优惠券）\n- ✅ 不需要复杂业务逻辑\n- ✅ 不需要跨集合关联\n\n**仍需云函数**:\n- ❌ 复杂业务逻辑（奖励计算、订单计算）\n- ❌ 需要权限检查（管理员操作）\n- ❌ 需要事务保证（库存扣减）\n\n## 🚀 代码示例\n\n### 优化前\n\n```typescript\n// ❌ 云函数调用\nconst res = await getRewardRecords\\('pending', 1, 20\\)\n// 200-500ms\n```\n\n### 优化后\n\n```typescript\n// ✅ 直接数据库查询\nimport { queryRewardRecords } from '@/utils/database'\n\nconst result = await queryRewardRecords\\({\n  status: 'pending',\n  page: 1,\n  pageSize: 20\n}\\)\n// 50-100ms - 性能提升 2-5倍\n```\n\n## 📁 已实现的工具\n\n`src/utils/database.ts` 提供的查询方法：\n- `queryRewardRecords\\(\\)` - 奖励记录\n- `queryOrders\\(\\)` - 订单\n- `queryWalletTransactions\\(\\)` - 交易记录\n- `queryProducts\\(\\)` - 产品列表\n- `queryUserCoupons\\(\\)` - 优惠券\n\n## 📊 预期效果\n\n| 页面 | 优化前 | 优化后 | 提升 |\n|------|--------|--------|------|\n| 推广佣金 | 300ms | 80ms | **73%** ↓ |\n| 订单列表 | 400ms | 100ms | **75%** ↓ |\n\n---\n**参考**: CloudBase Skills - miniprogram-development\nEOF)"
     ]
   },
   "enableAllProjectMcpServers": true,

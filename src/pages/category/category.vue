@@ -193,7 +193,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getProducts, getCategories, addToCart as addToCartApi, formatPrice } from '@/utils/api';
-import { getDistanceToStore, formatDistance, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
+import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import CategoryIcon from '@/components/CategoryIcon.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
@@ -235,7 +235,7 @@ const loadingDistance = ref(false);
 const formatDistance = computed(() => {
   if (loadingDistance.value) return '获取中...';
   if (distance.value === null) return '--';
-  return formatDistance(distance.value);
+  return formatDistanceUtil(distance.value);
 });
 
 // 加载距离
@@ -304,27 +304,28 @@ const loadRecommendProducts = async () => {
   }
 };
 
-// 获取商品列表
+// 获取商品列表（优化版）
 const loadProducts = async (isRefresh = false) => {
   if (loading.value) return;
-  
+
   try {
     loading.value = true;
-    
+
     if (isRefresh) {
       page.value = 1;
       products.value = [];
     }
-    
+
     const params: any = {
       page: page.value,
-      limit: pageSize
+      limit: pageSize,
+      fields: 'list'  // 使用列表字段投影，减少数据传输
     };
-    
+
     if (currentCategory.value !== 'all') {
       params.category = currentCategory.value;
     }
-    
+
     const res = await getProducts(params);
     
     if (res.length < pageSize) {

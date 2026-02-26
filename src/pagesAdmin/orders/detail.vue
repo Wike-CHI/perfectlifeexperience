@@ -4,7 +4,7 @@
     <admin-card class="status-card">
       <view class="status-content">
         <view :class="['status-icon', order.status]">
-          <text class="icon-text">{{ statusIcon }}</text>
+          <AdminIcon :name="statusIcon" size="large" :variant="getStatusVariant(order.status)" />
         </view>
         <view class="status-info">
           <text class="status-text">{{ statusText }}</text>
@@ -55,7 +55,8 @@
         </view>
         <text class="address-detail">{{ order.fullAddress }}</text>
         <button v-if="order.location" class="location-btn" @click="showLocation">
-          <text>📍 查看位置</text>
+          <AdminIcon name="location" size="small" />
+          <text>查看位置</text>
         </button>
       </view>
     </admin-card>
@@ -89,7 +90,8 @@
           <text class="express-value">{{ order.expressCode }}</text>
         </view>
         <button class="scan-express-btn" @click="scanExpress">
-          <text>📷 重新扫描</text>
+          <AdminIcon name="search" size="small" />
+          <text>重新扫描</text>
         </button>
       </view>
     </admin-card>
@@ -114,6 +116,7 @@ import { ref, onMounted } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
 import AdminCard from '@/components/admin-card.vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 订单详情页面
@@ -143,16 +146,28 @@ const order = ref<any>({
 
 // 状态映射
 const statusConfig: Record<string, { icon: string; text: string; desc: string }> = {
-  pending: { icon: '⏰', text: '待付款', desc: '等待用户支付' },
-  paid: { icon: '📦', text: '待发货', desc: '请尽快发货' },
-  shipping: { icon: '🚚', text: '待收货', desc: '商品配送中' },
-  completed: { icon: '✅', text: '已完成', desc: '订单已完成' },
-  cancelled: { icon: '❌', text: '已取消', desc: '订单已取消' }
+  pending: { icon: 'clock', text: '待付款', desc: '等待用户支付' },
+  paid: { icon: 'package', text: '待发货', desc: '请尽快发货' },
+  shipping: { icon: 'truck', text: '待收货', desc: '商品配送中' },
+  completed: { icon: 'check', text: '已完成', desc: '订单已完成' },
+  cancelled: { icon: 'close', text: '已取消', desc: '订单已取消' }
 }
 
 const statusIcon = computed(() => statusConfig[order.value.status]?.icon || '')
 const statusText = computed(() => statusConfig[order.value.status]?.text || '')
 const statusDesc = computed(() => statusConfig[order.value.status]?.desc || '')
+
+// 获取状态图标颜色变体
+const getStatusVariant = (status: string): 'default' | 'gold' | 'success' | 'warning' | 'danger' => {
+  const variants: Record<string, 'default' | 'gold' | 'success' | 'warning' | 'danger'> = {
+    pending: 'warning',
+    paid: 'gold',
+    shipping: 'default',
+    completed: 'success',
+    cancelled: 'danger'
+  }
+  return variants[status] || 'default'
+}
 
 // 加载订单详情
 const loadOrderDetail = async () => {
@@ -369,10 +384,6 @@ const handleAddExpress = () => {
   align-items: center;
   justify-content: center;
   background: rgba(201, 169, 98, 0.2);
-}
-
-.icon-text {
-  font-size: 48rpx;
 }
 
 .status-info {

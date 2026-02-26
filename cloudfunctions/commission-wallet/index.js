@@ -47,10 +47,10 @@ function parseEvent(event) {
  * 主入口函数
  */
 exports.main = async (event, context) => {
-  logger.debug('Commission wallet event received', { action: event.action });
-
   const requestData = parseEvent(event);
   const { action, data } = requestData;
+
+  logger.debug('Commission wallet event received', { action });
 
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;

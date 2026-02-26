@@ -71,7 +71,7 @@
 
       <!-- 空状态 -->
       <view v-if="addresses.length === 0 && !loading" class="empty-state">
-        <text class="empty-icon">📍</text>
+        <AdminIcon name="location" size="large" />
         <text class="empty-text">暂无地址数据</text>
       </view>
 
@@ -97,6 +97,7 @@ import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
 import AdminSearch from '@/components/admin-search.vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 地址管理页面

@@ -68,7 +68,7 @@
 
       <!-- 空状态 -->
       <view v-if="banners.length === 0 && !loading" class="empty-state">
-        <view class="empty-icon">🖼️</view>
+        <AdminIcon name="image" size="large" />
         <text class="empty-text">暂无Banner</text>
         <view class="empty-action" @click="goToCreate">
           <text class="empty-action-text">创建第一个Banner</text>
@@ -89,6 +89,7 @@ import { ref, onMounted, computed } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * Banner管理列表页

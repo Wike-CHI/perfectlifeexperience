@@ -50,7 +50,7 @@
           @click="handleQuickAction(action)"
         >
           <view class="action-icon-wrapper">
-            <text class="action-icon">{{ action.icon }}</text>
+            <AdminIcon :name="action.icon" size="medium" variant="gold" />
           </view>
           <text class="action-label">{{ action.label }}</text>
         </view>
@@ -103,6 +103,7 @@ import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
 import AdminCard from '@/components/admin-card.vue'
 import AdminDataCard from '@/components/admin-data-card.vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 管理后台仪表盘
@@ -129,7 +130,7 @@ const stats = ref([
     label: '今日销售额',
     value: 0,
     unit: '元',
-    icon: '💰',
+    icon: 'money',
     trend: '+12%',
     trendType: 'up',
     link: '/pagesAdmin/statistics/index'
@@ -139,7 +140,7 @@ const stats = ref([
     label: '今日订单',
     value: 0,
     unit: '单',
-    icon: '📦',
+    icon: 'package',
     trend: '+8%',
     trendType: 'up',
     link: '/pagesAdmin/orders/list'
@@ -149,7 +150,7 @@ const stats = ref([
     label: '待发货',
     value: 0,
     unit: '单',
-    icon: '🚚',
+    icon: 'truck',
     trend: '',
     trendType: 'neutral',
     link: '/pagesAdmin/orders/list?status=paid'
@@ -159,7 +160,7 @@ const stats = ref([
     label: '总用户数',
     value: 0,
     unit: '人',
-    icon: '👥',
+    icon: 'users',
     trend: '+5%',
     trendType: 'up',
     link: '/pagesAdmin/users/list'
@@ -196,10 +197,10 @@ const todos = ref([
 
 // 快捷操作
 const quickActions = ref([
-  { id: 'scan-order', icon: '🔍', label: '扫快递单', handler: scanExpressCode },
-  { id: 'add-product', icon: '➕', label: '添加商品', handler: goToProductAdd },
-  { id: 'new-order', icon: '📋', label: '订单管理', handler: goToOrders },
-  { id: 'promotion', icon: '📊', label: '推广数据', handler: goToPromotion }
+  { id: 'scan-order', icon: 'search', label: '扫快递单', handler: scanExpressCode },
+  { id: 'add-product', icon: 'plus', label: '添加商品', handler: goToProductAdd },
+  { id: 'new-order', icon: 'list', label: '订单管理', handler: goToOrders },
+  { id: 'promotion', icon: 'chart', label: '推广数据', handler: goToPromotion }
 ])
 
 // 最近订单

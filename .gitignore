@@ -14,6 +14,9 @@ cloudfunctions/*/config.js
 *.backup
 config.js.backup
 
+# 微信支付证书文件夹 (包含私钥)
+cloudfunctions/*/certs/
+
 # IDE 配置
 .vscode/
 .idea/

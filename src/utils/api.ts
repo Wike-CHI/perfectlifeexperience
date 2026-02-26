@@ -8,6 +8,31 @@ declare const wx: any;
 
 // ==================== 商品相关 API ====================
 
+/**
+ * 获取首页聚合数据（优化版 - 单次请求获取所有首页数据）
+ */
+export const getHomePageData = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getHomePageData',
+      data: {}
+    });
+
+    if (res.code === 0 && res.data) {
+      const result = res.data as { code: number; msg: string; data: { hotProducts: any[]; newProducts: any[]; topSalesProducts: any[] } };
+      return result.data;
+    }
+    throw new Error(res.msg || '获取首页数据失败');
+  } catch (error) {
+    console.error('获取首页数据失败:', error);
+    throw error;
+  }
+};
+
 // 获取商品列表
 export const getProducts = async (params?: {
   category?: string;

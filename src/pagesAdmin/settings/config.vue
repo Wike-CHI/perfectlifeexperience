@@ -261,7 +261,7 @@
 
     <!-- 保存提示 -->
     <view class="save-tip">
-      <text class="tip-icon">⚠️</text>
+      <AdminIcon name="alert" size="medium" variant="warning" />
       <text class="tip-text">修改配置将影响新的订单佣金计算，请谨慎操作</text>
     </view>
   </view>
@@ -271,6 +271,7 @@
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 系统设置页面

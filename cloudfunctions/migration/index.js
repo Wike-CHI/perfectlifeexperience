@@ -164,6 +164,115 @@ exports.main = async (event, context) => {
     msg: '未知操作'
   };
 
+  // 创建商品表索引（输出索引配置，需要在控制台手动创建或使用 CLI）
+  if (action === 'createProductIndexes') {
+    try {
+      console.log('[迁移] 生成商品数据库索引配置');
+
+      const indexes = [
+        {
+          collection: 'products',
+          indexes: [
+            {
+              name: 'idx_category_createTime',
+              fields: [
+                { name: 'category', order: 'asc' },
+                { name: 'createTime', order: 'desc' }
+              ],
+              comment: '分类商品查询索引（支持分类筛选和时间倒序）'
+            },
+            {
+              name: 'idx_isHot_createTime',
+              fields: [
+                { name: 'isHot', order: 'asc' },
+                { name: 'createTime', order: 'desc' }
+              ],
+              comment: '热门商品查询索引'
+            },
+            {
+              name: 'idx_isNew_createTime',
+              fields: [
+                { name: 'isNew', order: 'asc' },
+                { name: 'createTime', order: 'desc' }
+              ],
+              comment: '新品查询索引'
+            },
+            {
+              name: 'idx_sales',
+              fields: [
+                { name: 'sales', order: 'desc' }
+              ],
+              comment: '销量排序索引'
+            },
+            {
+              name: 'idx_price',
+              fields: [
+                { name: 'price', order: 'asc' }
+              ],
+              comment: '价格排序索引'
+            },
+            {
+              name: 'idx_category_isHot_isNew',
+              fields: [
+                { name: 'category', order: 'asc' },
+                { name: 'isHot', order: 'asc' },
+                { name: 'isNew', order: 'asc' }
+              ],
+              comment: '组合查询索引（分类+状态筛选）'
+            }
+          ]
+        }
+      ];
+
+      // 索引配置输出
+      const indexConfigs = indexes.flatMap(idxGroup => {
+        return idxGroup.indexes.map(idx => {
+          const mergedFields = idx.fields.map(f => `${f.name}:${f.order}`).join(',');
+          return {
+            collection: idxGroup.collection,
+            indexName: idx.name,
+            unique: !!idx.unique,
+            MergedFields: mergedFields,
+            comment: idx.comment || ''
+          };
+        });
+      });
+
+      console.log('[迁移] 商品索引配置生成完成');
+      console.log(JSON.stringify(indexConfigs, null, 2));
+
+      return {
+        code: 0,
+        msg: '商品索引配置生成成功，请在 CloudBase 控制台数据库页面或使用 CLI 创建索引',
+        data: {
+          totalCount: indexConfigs.length,
+          indexes: indexConfigs,
+          instructions: `
+创建索引步骤：
+1. 打开腾讯云 CloudBase 控制台
+2. 进入数据库 -> products 集合
+3. 点击"索引管理" -> "添加索引"
+4. 按照以下配置创建索引：
+
+${indexConfigs.map(idx => `
+索引名: ${idx.indexName}
+字段: ${idx.MergedFields}
+唯一: ${idx.unique ? '是' : '否'}
+说明: ${idx.comment}
+`).join('\n')}
+          `
+        }
+      };
+
+    } catch (error) {
+      console.error('[迁移] 生成商品索引配置失败:', error);
+      return {
+        code: -1,
+        msg: error.message
+      };
+    }
+  }
+
   // 创建数据库索引（输出索引配置，需要在控制台手动创建或使用 CLI）
   if (action === 'createIndexesV3') {
     try {

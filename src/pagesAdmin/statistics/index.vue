@@ -22,7 +22,7 @@
         label="销售额"
         :value="formatMoney(stats.todaySales)"
         unit="元"
-        icon="💰"
+        icon="money"
         :trend="salesTrend"
         trend-type="up"
       />
@@ -30,7 +30,7 @@
         label="订单数"
         :value="stats.todayOrders"
         unit="单"
-        icon="📦"
+        icon="package"
         :trend="ordersTrend"
         trend-type="up"
       />
@@ -38,13 +38,13 @@
         label="新增用户"
         :value="stats.newUsers"
         unit="人"
-        icon="👥"
+        icon="users"
       />
       <admin-data-card
         label="推广员"
         :value="stats.totalPromoters"
         unit="人"
-        icon="🏆"
+        icon="trophy"
       />
     </view>
 

@@ -16,7 +16,7 @@
     <!-- 搜索栏 -->
     <view class="search-bar">
       <view class="search-input-wrapper">
-        <text class="search-icon">🔍</text>
+        <AdminIcon name="search" size="small" variant="default" />
         <input
           class="search-input"
           type="text"
@@ -25,10 +25,10 @@
           placeholder-class="search-placeholder"
           @confirm="handleSearch"
         />
-        <text v-if="searchKeyword" class="clear-icon" @click="clearSearch">✕</text>
+        <AdminIcon v-if="searchKeyword" name="close" size="small" class="clear-icon" @click="clearSearch" />
       </view>
       <button class="scan-btn" @click="handleScan">
-        <text>📷</text>
+        <AdminIcon name="search" size="small" variant="gold" />
       </button>
     </view>
 
@@ -45,7 +45,7 @@
 
       <!-- 空状态 -->
       <view v-if="orders.length === 0 && !isLoading" class="empty-state">
-        <text class="empty-icon">📦</text>
+        <AdminIcon name="box" size="large" />
         <text class="empty-text">暂无订单</text>
       </view>
 
@@ -73,6 +73,7 @@ import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
 import OrderCard from './components/OrderCard.vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 订单管理列表页面
@@ -149,8 +150,6 @@ const clearSearch = () => {
 const handleScan = () => {
   uni.scanCode({
     success: async (res) => {
-      console.log('扫码结果:', res.result)
-      // TODO: 根据扫码结果查找订单
       await searchOrderByCode(res.result)
     },
     fail: () => {

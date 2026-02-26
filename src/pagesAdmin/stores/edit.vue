@@ -85,7 +85,7 @@
           </view>
         </view>
         <view class="coordinate-tip">
-          <text class="tip-icon">💡</text>
+          <AdminIcon name="bulb" size="small" />
           <text class="tip-text">可在地图应用中获取精确坐标</text>
         </view>
       </view>
@@ -143,6 +143,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 门店管理页面

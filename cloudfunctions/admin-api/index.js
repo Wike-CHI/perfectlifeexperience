@@ -9,6 +9,13 @@ const db = cloud.database()
 const _ = db.command
 const { verifyAdmin, hasPermission, logOperation, getDefaultPermissions } = require('./auth')
 const { getRequiredPermission } = require('./permissions')
+// 微信商家转账功能 (需先开通权限)
+let wechatTransfer = null
+try {
+  wechatTransfer = require('./wechat-transfer')
+} catch (error) {
+  console.warn('微信转账模块未加载,请确保已开通权限并配置正确:', error.message)
+}
 const {
   isValidObjectId,
   validateOrderStatus,
@@ -1323,8 +1330,61 @@ async function approveWithdrawalAdmin(data, wxContext) {
       }
     });
 
-    // TODO: 调用微信企业付款API将钱打入用户微信余额
-    // 需要实现微信商家转账功能
+    // 调用微信商家转账API将钱打入用户微信余额
+    if (wechatTransfer) {
+      try {
+        // 生成商家批次单号 (格式: WD + 年月日时分秒 + 6位随机数)
+        const outBatchNo = `WD${new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)}${Math.random().toString().slice(2, 8)}`;
+
+        const transferResult = await wechatTransfer.transferToWechatBalance({
+          outBatchNo,
+          openid: withdrawal._openid,
+          amount: withdrawal.amount,
+          transferRemark: '佣金钱包提现'
+          // userName: withdrawal.realName, // 可选: >0.5元需要填写用户真实姓名(需加密)
+        });
+
+        if (transferResult.success) {
+          // 更新提现记录为转账中状态
+          await db.collection('withdrawals').doc(withdrawalId).update({
+            data: {
+              transferStatus: 'processing',
+              transferBatchId: transferResult.batchId,
+              transferTime: new Date()
+            }
+          });
+        } else {
+          // 转账失败,记录错误但批准流程已完成
+          console.error('微信转账失败:', transferResult.message);
+          await db.collection('withdrawals').doc(withdrawalId).update({
+            data: {
+              transferStatus: 'failed',
+              transferError: transferResult.message,
+              transferTime: new Date()
+            }
+          });
+        }
+      } catch (transferError) {
+        // 转账异常,记录错误但不影响批准流程
+        console.error('微信转账异常:', transferError);
+        await db.collection('withdrawals').doc(withdrawalId).update({
+          data: {
+            transferStatus: 'failed',
+            transferError: transferError.message,
+            transferTime: new Date()
+          }
+        });
+      }
+    } else {
+      // 转账功能未启用,记录为需手动转账
+      await db.collection('withdrawals').doc(withdrawalId).update({
+        data: {
+          transferStatus: 'manual',
+          transferError: '微信转账功能未配置,需手动转账',
+          transferTime: new Date()
+        }
+      });
+    }
 
     await logOperation(adminInfo.id, 'approveWithdrawal', { withdrawalId, amount: withdrawal.amount });
 
@@ -3159,7 +3219,7 @@ async function getCommissionWalletsAdmin(data) {
     const allCommissions = await db.collection('reward_records').get();
     const totalCommission = allCommissions.data.reduce((sum, r) => sum + (r.amount || 0), 0);
     const settledCommission = allCommissions.data
-      .filter(r => r.status === 'settled' || r.status === 'withdrawn')
+      .filter(r => r.status === 'settled')
       .reduce((sum, r) => sum + (r.amount || 0), 0);
     const pendingCommission = allCommissions.data
       .filter(r => r.status === 'pending')
