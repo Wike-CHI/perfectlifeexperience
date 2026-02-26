@@ -31,6 +31,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
+
+/**
+ * 商品编辑页面 - 添加/编辑商品
+ * 需要管理员权限
+ */
 
 const isEdit = ref(false)
 const productId = ref('')
@@ -42,7 +48,10 @@ const formData = ref({
   description: ''
 })
 
+// 权限检查
 onMounted(() => {
+  if (!AdminAuthManager.checkAuth()) return
+
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1] as any
   const options = currentPage.options || {}

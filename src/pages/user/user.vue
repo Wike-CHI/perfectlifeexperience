@@ -74,6 +74,23 @@
       </view>
     </view>
 
+    <!-- 佣金钱包入口 -->
+    <view class="menu-section">
+      <view class="menu-item" @click="goToCommissionWallet">
+        <view class="menu-left">
+          <view class="menu-icon commission">
+            <text class="commission-icon">💰</text>
+          </view>
+          <text class="menu-text">佣金钱包</text>
+        </view>
+        <view class="menu-right">
+          <text class="commission-balance" v-if="isLoggedIn && commissionBalance > 0">¥{{ (commissionBalance/100).toFixed(2) }}</text>
+          <view class="commission-tag" v-else>可提现</view>
+          <image class="arrow-icon" src="/static/icons/arrow-right.svg" mode="aspectFit" />
+        </view>
+      </view>
+    </view>
+
     <!-- 推广中心入口 -->
     <view class="menu-section">
       <view class="menu-item" @click="goToPromotion">
@@ -166,7 +183,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin } from '@/utils/api';
+import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin, getCommissionWalletBalance } from '@/utils/api';
 import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
 
 // 类型定义（内联，避免分包导入问题）
@@ -205,6 +222,7 @@ const userInfo = ref<Partial<UserInfo>>({});
 const isLoggedIn = ref(false);
 const isAdmin = ref(false); // 管理员状态
 const balance = ref(0);
+const commissionBalance = ref(0); // 佣金余额
 const promotionReward = ref(0);
 const orderCount = ref({
   pending: 0,
@@ -223,12 +241,14 @@ const loadUserInfo = async () => {
       // 加载其他数据
       loadOrderCount();
       loadWalletBalance();
+      loadCommissionWalletBalance();
       loadPromotionReward();
     } else {
       userInfo.value = {};
       isLoggedIn.value = false;
       // 重置数据
       balance.value = 0;
+      commissionBalance.value = 0;
       promotionReward.value = 0;
       orderCount.value = { pending: 0, paid: 0, shipping: 0, completed: 0 };
     }
@@ -260,14 +280,14 @@ const handleLogin = async () => {
     if (!openid) {
       openid = await checkCloudLogin();
     }
-    
+
     if (!openid) {
       throw new Error('云服务连接失败');
     }
-    
+
     // 2. 执行完整登录流程（获取头像昵称 + 同步云端）
     const result = await fullLogin(openid);
-    
+
     // 先隐藏 loading，避免与 showToast 冲突
     uni.hideLoading();
 
@@ -281,11 +301,11 @@ const handleLogin = async () => {
   } catch (error: any) {
     // 先隐藏 loading
     uni.hideLoading();
-    
+
     console.error('登录失败:', error);
-    uni.showToast({ 
-      title: error.message || '登录失败', 
-      icon: 'none' 
+    uni.showToast({
+      title: error.message || '登录失败',
+      icon: 'none'
     });
   }
 };
@@ -316,6 +336,17 @@ const loadWalletBalance = async () => {
     balance.value = res.balance || 0;
   } catch (error) {
     console.error('加载余额失败:', error);
+  }
+};
+
+// 加载佣金钱包余额
+const loadCommissionWalletBalance = async () => {
+  if (!isLoggedIn.value) return;
+  try {
+    const res = await getCommissionWalletBalance();
+    commissionBalance.value = res.balance || 0;
+  } catch (error) {
+    console.error('加载佣金余额失败:', error);
   }
 };
 
@@ -389,6 +420,14 @@ const goToWallet = () => {
   if (!checkAuth()) return;
   uni.navigateTo({
     url: '/pages/wallet/index'
+  });
+};
+
+// 跳转到佣金钱包
+const goToCommissionWallet = () => {
+  if (!checkAuth()) return;
+  uni.navigateTo({
+    url: '/pages/commission-wallet/index'
   });
 };
 
@@ -665,6 +704,31 @@ const goToAdmin = () => {
 
 .menu-icon.promotion {
   background: rgba(212, 165, 116, 0.15);
+}
+
+.menu-icon.commission {
+  background: rgba(201, 169, 98, 0.15);
+}
+
+.commission-icon {
+  font-size: 32rpx;
+}
+
+.commission-balance {
+  font-size: 28rpx;
+  color: #C9A962;
+  margin-right: 10rpx;
+  font-weight: bold;
+}
+
+.commission-tag {
+  font-size: 22rpx;
+  color: #C9A962;
+  background: rgba(201, 169, 98, 0.1);
+  padding: 6rpx 12rpx;
+  border-radius: 12rpx;
+  margin-right: 10rpx;
+  border: 1rpx solid rgba(201, 169, 98, 0.3);
 }
 
 .menu-icon.admin {

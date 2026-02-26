@@ -34,7 +34,12 @@
       "Bash(grep:*)",
       "Bash(npx cloudbase-cli login:*)",
       "mcp__cloudbase__writeNoSqlDatabaseStructure",
-      "mcp__cloudbase__readNoSqlDatabaseStructure"
+      "mcp__cloudbase__readNoSqlDatabaseStructure",
+      "mcp__cloudbase__updateFunctionConfig",
+      "Skill(ralph-loop:ralph-loop)",
+      "Skill(ralph-loop:ralph-loop:*)",
+      "mcp__cloudbase__createFunction",
+      "mcp__cloudbase__interactiveDialog"
     ]
   },
   "enableAllProjectMcpServers": true,

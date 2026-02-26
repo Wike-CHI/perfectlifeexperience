@@ -393,10 +393,8 @@ const goToPromoterDetail = (userId: string) => {
  * 跳转到佣金列表
  */
 const goToCommissions = () => {
-  // TODO: 创建佣金列表页面
-  uni.showToast({
-    title: '功能开发中',
-    icon: 'none'
+  uni.navigateTo({
+    url: '/pagesAdmin/commissions/list'
   })
 }
 </script>

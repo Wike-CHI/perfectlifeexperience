@@ -177,7 +177,7 @@ async function updateUserInfo(openid, updateData) {
     const user = users[0];
     
     // 过滤允许更新的字段
-    const allowedFields = ['nickName', 'avatarUrl', 'gender', 'country', 'province', 'city', 'phone'];
+    const allowedFields = ['nickName', 'avatarUrl', 'gender', 'country', 'province', 'city', 'phone', 'addresses'];
     const filteredData = {};
     
     for (const key of allowedFields) {

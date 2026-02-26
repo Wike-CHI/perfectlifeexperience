@@ -169,6 +169,7 @@ const searchOrderByCode = async (code: string) => {
 
     const res = await callFunction('admin-api', {
       action: 'searchOrderByExpress',
+      adminToken: AdminAuthManager.getToken(),
       data: { expressCode: code }
     })
 
@@ -181,8 +182,9 @@ const searchOrderByCode = async (code: string) => {
       })
     } else {
       uni.showToast({
-        title: '未找到该订单',
-        icon: 'none'
+        title: res.msg || '未找到该订单',
+        icon: 'none',
+        duration: 2000
       })
     }
   } catch (error: any) {

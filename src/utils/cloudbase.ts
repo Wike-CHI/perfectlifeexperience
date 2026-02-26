@@ -312,7 +312,7 @@ export const uploadFile = async (filePath: string, cloudPath: string): Promise<s
       filePath
     });
 
-    if (res.statusCode === 0) {
+    if (res.statusCode === 200) {
       console.log('文件上传成功:', res.fileID);
       return res.fileID;
     } else {

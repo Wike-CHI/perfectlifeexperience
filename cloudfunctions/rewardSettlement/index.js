@@ -155,9 +155,23 @@ async function settleOrderRewards(promotionOrder) {
     // 收集所有受益人ID，用于后续晋升检查
     const beneficiaryIds = new Set();
 
+    // 批量获取佣金钱包信息（不是充值钱包！）
+    const commissionWalletRes = await transaction.collection('commission_wallets')
+      .where({ _openid: _.in([...new Set(rewardsRes.data.map(r => r.beneficiaryId))]) })
+      .get();
+
+    const walletMap = {};
+    commissionWalletRes.data.forEach(w => {
+      walletMap[w._openid] = w;
+    });
+
     for (const reward of rewardsRes.data) {
       beneficiaryIds.add(reward.beneficiaryId);
 
+      // 获取奖励类型名称
+      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
+
+      // 1. 更新奖励记录状态
       await transaction.collection('reward_records')
         .doc(reward._id)
         .update({
@@ -167,9 +181,7 @@ async function settleOrderRewards(promotionOrder) {
           }
         });
 
-      // 获取奖励类型名称
-      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
-
+      // 2. 更新用户奖励统计
       await transaction.collection('users')
         .where({ _openid: reward.beneficiaryId })
         .update({
@@ -180,14 +192,44 @@ async function settleOrderRewards(promotionOrder) {
           }
         });
 
-      await transaction.collection('wallet_transactions').add({
+      // 3. 更新或创建佣金钱包余额（与充值钱包分离！）
+      const existingWallet = walletMap[reward.beneficiaryId];
+      if (existingWallet) {
+        // 佣金钱包存在，增加余额
+        await transaction.collection('commission_wallets')
+          .doc(existingWallet._id)
+          .update({
+            data: {
+              balance: _.inc(reward.amount),
+              totalCommission: _.inc(reward.amount),
+              updateTime: db.serverDate()
+            }
+          });
+      } else {
+        // 佣金钱包不存在，创建新钱包
+        await transaction.collection('commission_wallets')
+          .add({
+            data: {
+              _openid: reward.beneficiaryId,
+              balance: reward.amount,
+              totalCommission: reward.amount,
+              totalWithdrawn: 0,
+              createTime: db.serverDate(),
+              updateTime: db.serverDate()
+            }
+          });
+      }
+
+      // 4. 记录佣金钱包交易流水
+      await transaction.collection('commission_transactions').add({
         data: {
           _openid: reward.beneficiaryId,
-          type: 'reward',
+          type: 'reward_settlement',
           amount: reward.amount,
-          title: `${rewardTypeName}`,
+          title: rewardTypeName,
           description: `订单 ${promotionOrder.orderId} 的${rewardTypeName}`,
           orderId: promotionOrder.orderId,
+          rewardId: reward._id,
           status: 'success',
           createTime: db.serverDate()
         }

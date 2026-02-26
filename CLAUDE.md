@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-notice:alawys chinese output
+notice:always chinese output
 
 ## Project Overview
 
@@ -103,6 +103,8 @@ npm run build:h5
   - `uploadFile()` - File upload to cloud storage
   - Manages 7-day login session with local storage
 - **`utils/api.ts`** - Frontend API layer
+- **`utils/distance.ts`** - Distance calculation utilities
+- **`utils/admin-auth.ts`** - Admin authentication utilities
 
   - Product/Category APIs (currently local mock data)
   - Cart management (local storage)
@@ -161,6 +163,7 @@ All cloud functions share common utilities from the `common/` directory:
 - **`order/`** - Order management
 
   - Actions: `createOrder`, `getOrders`, `getOrderDetail`, `updateOrderStatus`
+  - Refund support: refund application, status tracking
 - **`wallet/`** - Wallet balance and transactions
 
   - Actions: `getBalance`, `getTransactions`, `recharge`, `withdraw`
@@ -267,6 +270,10 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - **`PromotionProgress.vue`** - Promotion progress bars with dual-track display
 - **`ProductSkuPopup.vue`** - Product SKU selection popup
 - **`CategoryIcon.vue`** - Category icon with SVG rendering
+- **`admin-chart.vue`** - Chart component for admin dashboard
+- **`admin-search.vue`** - Search component for admin pages
+- **`distance-badge.vue`** - Distance/location badge component
+- **`promotion-icon.vue`** - Promotional icon component
 
 ### Page Organization
 
@@ -274,7 +281,7 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - **`pages/product/detail.vue`** - Product details
 - **`pages/category/`** - Category browsing
 - **`pages/cart/`** - Shopping cart
-- **`pages/order/*`** - Order management (list, confirm, detail)
+- **`pages/order/*`** - Order management (list, confirm, detail, refund-apply, refund-detail, refund-list)
 - **`pages/address/*`** - Address management (list, edit)
 - **`pages/wallet/*`** - Wallet and recharge
 - **`pages/coupon/*`** - Coupon center and my coupons
@@ -285,6 +292,20 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - **`pages/promotion/*`** - Promotion center, team, rewards, QR code, rules
 - **`pages/common/*`** - Common pages (user agreement, privacy policy, about us)
 
+### Admin Pages (`src/pagesAdmin/`)
+
+- **`dashboard/index.vue`** - Admin dashboard with statistics
+- **`products/list.vue`** - Product management
+- **`promotion/index.vue`** - Promotion campaign management
+- **`statistics/index.vue`** - System statistics and analytics
+- **`banners/*`** - Banner/promotional image management
+- **`coupons/*`** - Coupon template management
+- **`refunds/*`** - Refund request management
+
+### Admin Dashboard (`admin_dash/`)
+
+Separate admin application template for CloudBase/UniApp development. See `admin_dash/README.md` for setup instructions.
+
 ## Testing Notes
 
 - Use WeChat Developer Tools for preview/debugging
@@ -292,6 +313,22 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - Verify OPENID propagation through cloud function chain
 - Test promotion reward calculation with different user hierarchies
 - Validate monthly performance reset logic at month boundaries
+
+### Testing Cloud Functions
+
+Tests are located in cloud function directories (e.g., `cloudfunctions/promotion/test.test.js`). Since there's no npm script for running tests, invoke tests via:
+
+1. **Cloud Function Invocation**: Call the cloud function directly with test actions
+2. **test-helper Cloud Function**: Use `test-helper` for database queries during testing
+3. **WeChat Developer Tools**: Run and debug cloud functions in the console
+
+Test files:
+- `cloudfunctions/promotion/test.test.js` - Promotion system tests
+- `cloudfunctions/promotion/test-v2.test.js` - V2 promotion tests
+- `cloudfunctions/order/test.test.js` - Order management tests
+- `cloudfunctions/order/refund.test.js` - Refund processing tests
+- `cloudfunctions/admin-api/refund.test.js` - Admin refund tests
+- `cloudfunctions/wallet/test.test.js` - Wallet tests
 
 ## Deployment
 
@@ -582,6 +619,9 @@ CloudBase NoSQL (MongoDB-like) has limitations:
 - **SVG Icons**: Added SVG icon system replacing emoji
 - **Admin System**: Initialized admin dashboard with authentication
 - **Order Management**: Enhanced order management cloud functions
+- **Refund System**: Added refund application, review, and processing pages (`pages/order/refund-*.vue`)
+- **Security Hardening**: Implemented comprehensive database security rules
+- **Admin Pages**: Created `src/pagesAdmin/` for backend management interface
 - **Documentation**: Comprehensive design and deployment documentation
 
 See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit details.

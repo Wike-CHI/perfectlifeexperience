@@ -171,6 +171,19 @@
 			]
 		},
 		{
+			"root": "pages/commission-wallet",
+			"pages": [
+				{
+					"path": "index",
+					"style": {
+						"navigationBarTitleText": "佣金钱包",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				}
+			]
+		},
+		{
 			"root": "pages/coupon",
 			"pages": [
 				{
@@ -499,6 +512,58 @@
 					"path": "refunds/detail",
 					"style": {
 						"navigationBarTitleText": "退款详情",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "commissions/list",
+					"style": {
+						"navigationBarTitleText": "佣金明细",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "addresses/list",
+					"style": {
+						"navigationBarTitleText": "地址管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "stores/edit",
+					"style": {
+						"navigationBarTitleText": "门店管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "wallets/list",
+					"style": {
+						"navigationBarTitleText": "钱包管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "commission-wallets/list",
+					"style": {
+						"navigationBarTitleText": "佣金钱包",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "settings/config",
+					"style": {
+						"navigationBarTitleText": "系统设置",
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white"
 					}

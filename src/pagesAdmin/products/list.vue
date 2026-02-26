@@ -125,7 +125,7 @@ const loadCategories = async () => {
   try {
     const res = await callFunction('admin-api', {
       action: 'getCategories',
-      adminToken: ''
+      adminToken: AdminAuthManager.getToken()
     })
 
     if (res.code === 0 && res.data) {
@@ -145,7 +145,7 @@ const loadProducts = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getProducts',
-      adminToken: '',
+      adminToken: AdminAuthManager.getToken(),
       data: {
         page: page.value,
         limit: 20,
@@ -185,7 +185,7 @@ const handleSearch = async (keyword: string, filters: Record<string, any>) => {
 
     const res = await callFunction('admin-api', {
       action: 'getProducts',
-      adminToken: '',
+      adminToken: AdminAuthManager.getToken(),
       data: {
         page: 1,
         limit: 20,

@@ -517,7 +517,7 @@ onMounted(() => {
 <style scoped>
 .container {
   min-height: 100vh;
-  background-color: #F5F5F5;
+  background-color: #1A1A1A;
   padding-bottom: 40rpx;
 }
 
@@ -531,15 +531,16 @@ onMounted(() => {
 
 .loading-text, .error-text {
   font-size: 28rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
   margin-bottom: 20rpx;
 }
 
 .retry-btn {
   font-size: 28rpx;
-  color: #1A1A1A;
+  color: #F5F5F0;
   padding: 16rpx 32rpx;
-  background: #fff;
+  background: rgba(201, 169, 98, 0.2);
+  border: 1rpx solid rgba(201, 169, 98, 0.3);
   border-radius: 8rpx;
 }
 
@@ -548,7 +549,8 @@ onMounted(() => {
 }
 
 .page-header {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
   padding: 32rpx;
   border-radius: 12rpx;
   margin-bottom: 20rpx;
@@ -560,7 +562,7 @@ onMounted(() => {
 .page-title {
   font-size: 36rpx;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #F5F5F0;
 }
 
 .status-badge {
@@ -591,7 +593,8 @@ onMounted(() => {
 }
 
 .status-timeline {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
   padding: 40rpx 32rpx;
   border-radius: 12rpx;
   margin-bottom: 20rpx;
@@ -611,7 +614,7 @@ onMounted(() => {
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  background: #E0E0E0;
+  background: rgba(201, 169, 98, 0.2);
   margin-bottom: 12rpx;
   transition: all 0.3s;
 }
@@ -623,23 +626,24 @@ onMounted(() => {
 
 .timeline-text {
   font-size: 24rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
 }
 
 .timeline-item.active .timeline-text {
-  color: #1A1A1A;
+  color: #F5F5F0;
   font-weight: 500;
 }
 
 .timeline-line {
   flex: 1;
   height: 2rpx;
-  background: #E0E0E0;
+  background: rgba(201, 169, 98, 0.2);
   min-width: 40rpx;
 }
 
 .card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
   border-radius: 12rpx;
   margin-bottom: 20rpx;
   overflow: hidden;
@@ -649,8 +653,8 @@ onMounted(() => {
   padding: 24rpx 32rpx;
   font-size: 28rpx;
   font-weight: 600;
-  color: #1A1A1A;
-  border-bottom: 1rpx solid #F5F5F5;
+  color: #F5F5F0;
+  border-bottom: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .card-body {
@@ -664,13 +668,13 @@ onMounted(() => {
 }
 
 .label {
-  color: #666;
+  color: rgba(245, 245, 240, 0.5);
   min-width: 160rpx;
   flex-shrink: 0;
 }
 
 .value {
-  color: #1A1A1A;
+  color: #F5F5F0;
   flex: 1;
   word-break: break-all;
 }
@@ -682,11 +686,11 @@ onMounted(() => {
 }
 
 .value.reject {
-  color: #F44336;
+  color: #B85C5C;
 }
 
 .value.error {
-  color: #F44336;
+  color: #B85C5C;
 }
 
 .product-item {
@@ -699,7 +703,7 @@ onMounted(() => {
   width: 120rpx;
   height: 120rpx;
   border-radius: 8rpx;
-  background: #F0F0F0;
+  background: rgba(201, 169, 98, 0.1);
   flex-shrink: 0;
 }
 
@@ -712,13 +716,13 @@ onMounted(() => {
 
 .product-name {
   font-size: 28rpx;
-  color: #1A1A1A;
+  color: #F5F5F0;
   font-weight: 500;
 }
 
 .product-quantity, .product-refund-quantity {
   font-size: 24rpx;
-  color: #666;
+  color: rgba(245, 245, 240, 0.5);
 }
 
 .actions {
@@ -726,7 +730,8 @@ onMounted(() => {
 }
 
 .action-section {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
   border-radius: 12rpx;
   padding: 32rpx;
 }
@@ -739,14 +744,14 @@ onMounted(() => {
   display: block;
   font-size: 28rpx;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #F5F5F0;
   margin-bottom: 8rpx;
 }
 
 .title-desc {
   display: block;
   font-size: 24rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
 }
 
 .form-group {
@@ -756,17 +761,18 @@ onMounted(() => {
 .form-label {
   display: block;
   font-size: 26rpx;
-  color: #666;
+  color: rgba(245, 245, 240, 0.6);
   margin-bottom: 12rpx;
 }
 
 .form-input, .form-textarea {
   width: 100%;
   padding: 20rpx;
-  border: 1rpx solid #E0E0E0;
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 8rpx;
   font-size: 28rpx;
-  background: #FAFAFA;
+  background: rgba(255, 255, 255, 0.03);
+  color: #F5F5F0;
 }
 
 .form-textarea {
@@ -776,7 +782,7 @@ onMounted(() => {
 
 .logistics-info {
   padding: 20rpx;
-  background: #F5F5F5;
+  background: rgba(201, 169, 98, 0.1);
   border-radius: 8rpx;
   margin-bottom: 20rpx;
 }
@@ -784,14 +790,14 @@ onMounted(() => {
 .logistics-label {
   display: block;
   font-size: 24rpx;
-  color: #666;
+  color: rgba(245, 245, 240, 0.5);
   margin-bottom: 8rpx;
 }
 
 .logistics-value {
   display: block;
   font-size: 26rpx;
-  color: #1A1A1A;
+  color: #F5F5F0;
   font-family: monospace;
 }
 
@@ -840,13 +846,13 @@ onMounted(() => {
 .info-text {
   display: block;
   font-size: 28rpx;
-  color: #1A1A1A;
+  color: #F5F5F0;
   margin-bottom: 12rpx;
 }
 
 .info-time {
   display: block;
   font-size: 24rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
 }
 </style>

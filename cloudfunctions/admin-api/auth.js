@@ -40,22 +40,16 @@ async function verifyAdmin(username, password) {
 
     const admin = admins[0];
 
-    // 🔧 密码验证：支持 bcrypt 哈希和明文（开发环境）
+    // 🔒 密码验证：仅支持 bcrypt 哈希（生产安全）
     let isValid = false;
 
-    // 首先尝试 bcrypt 验证（适用于已哈希的密码）
+    // 使用 bcrypt 验证密码
     try {
       isValid = await verifyPassword(password, admin.password);
     } catch (error) {
-      // 如果 bcrypt 验证失败（密码不是哈希格式），尝试明文比较
-      if (error.message && error.message.includes('invalid salt')) {
-        isValid = (password === admin.password);
-      }
-    }
-
-    // 如果 bcrypt 验证失败，也尝试明文比较（兼容明文密码）
-    if (!isValid && typeof admin.password === 'string') {
-      isValid = (password === admin.password);
+      console.error('密码验证失败:', error.message);
+      // bcrypt 验证失败时，不进行明文比较
+      isValid = false;
     }
 
     if (!isValid) {
@@ -203,7 +197,17 @@ function getDefaultPermissions(role) {
       // 库存管理
       'inventory.view',
       // 退款管理
-      'refund.view', 'refund.approve'
+      'refund.view', 'refund.approve',
+      // 地址管理
+      'address.view', 'address.delete',
+      // 门店管理
+      'store.view', 'store.update',
+      // 钱包管理
+      'wallet.view',
+      // 佣金钱包
+      'commission_wallet.view',
+      // 系统配置
+      'system_config.view', 'system_config.update'
     ],
     'operator': [
       // 仪表盘
@@ -221,7 +225,19 @@ function getDefaultPermissions(role) {
       // 用户管理
       'user.view',
       // 库存管理
-      'inventory.view'
+      'inventory.view',
+      // 退款管理
+      'refund.view',
+      // 地址管理
+      'address.view',
+      // 门店管理
+      'store.view',
+      // 钱包管理
+      'wallet.view',
+      // 佣金钱包
+      'commission_wallet.view',
+      // 系统配置
+      'system_config.view'
     ],
     'finance': [
       // 仪表盘
@@ -233,7 +249,11 @@ function getDefaultPermissions(role) {
       // 财务管理
       'finance.view', 'finance.approve',
       // 退款管理
-      'refund.view', 'refund.approve'
+      'refund.view', 'refund.approve',
+      // 钱包管理
+      'wallet.view',
+      // 佣金钱包
+      'commission_wallet.view'
     ]
   }
 

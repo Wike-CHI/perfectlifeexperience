@@ -407,27 +407,27 @@ uni.onReachBottom(() => {
 <style scoped>
 .container {
   min-height: 100vh;
-  background-color: #F5F5F5;
+  background-color: #1A1A1A;
 }
 
 .page-header {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
   padding: 40rpx 32rpx 20rpx;
-  border-bottom: 1rpx solid #EAEAEA;
+  border-bottom: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .page-title {
   font-size: 36rpx;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #F5F5F0;
 }
 
 .filter-bar {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
   padding: 20rpx 32rpx;
   display: flex;
   gap: 20rpx;
-  border-bottom: 1rpx solid #EAEAEA;
+  border-bottom: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .filter-item {
@@ -436,22 +436,23 @@ uni.onReachBottom(() => {
 
 .picker {
   padding: 16rpx 24rpx;
-  border: 1rpx solid #E0E0E0;
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 8rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-width: 180rpx;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .picker-text {
   font-size: 28rpx;
-  color: #1A1A1A;
+  color: #F5F5F0;
 }
 
 .picker-arrow {
   font-size: 20rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
 }
 
 .search-box {
@@ -463,17 +464,20 @@ uni.onReachBottom(() => {
 .search-input {
   flex: 1;
   padding: 16rpx 20rpx;
-  border: 1rpx solid #E0E0E0;
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 8rpx;
   font-size: 28rpx;
+  background: rgba(255, 255, 255, 0.03);
+  color: #F5F5F0;
 }
 
 .search-btn {
   padding: 16rpx 24rpx;
-  background: #1A1A1A;
-  color: #fff;
+  background: #C9A962;
+  color: #0D0D0D;
   border-radius: 8rpx;
   font-size: 28rpx;
+  font-weight: 600;
 }
 
 .refund-list {
@@ -484,7 +488,8 @@ uni.onReachBottom(() => {
 }
 
 .refund-card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
   border-radius: 12rpx;
   overflow: hidden;
 }
@@ -494,7 +499,7 @@ uni.onReachBottom(() => {
   justify-content: space-between;
   align-items: center;
   padding: 24rpx;
-  border-bottom: 1rpx solid #F5F5F5;
+  border-bottom: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .status-badge {
@@ -527,7 +532,7 @@ uni.onReachBottom(() => {
 .amount {
   font-size: 32rpx;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #C9A962;
 }
 
 .card-body {
@@ -541,12 +546,12 @@ uni.onReachBottom(() => {
 }
 
 .label {
-  color: #666;
+  color: rgba(245, 245, 240, 0.5);
   min-width: 160rpx;
 }
 
 .value {
-  color: #1A1A1A;
+  color: #F5F5F0;
   flex: 1;
   word-break: break-all;
 }
@@ -555,7 +560,7 @@ uni.onReachBottom(() => {
   display: flex;
   gap: 12rpx;
   padding: 0 24rpx 24rpx;
-  border-top: 1rpx solid #F5F5F5;
+  border-top: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .action-btn {
@@ -598,7 +603,7 @@ uni.onReachBottom(() => {
 
 .empty-text {
   font-size: 28rpx;
-  color: #999;
+  color: rgba(245, 245, 240, 0.4);
 }
 
 .load-more {
@@ -608,6 +613,6 @@ uni.onReachBottom(() => {
 
 .load-more-text {
   font-size: 26rpx;
-  color: #999;
+  color: #C9A962;
 }
 </style>

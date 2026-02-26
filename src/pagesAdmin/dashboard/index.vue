@@ -294,15 +294,37 @@ const handleQuickAction = (action: any) => {
 }
 
 // 扫快递单
-const scanExpressCode = () => {
+const scanExpressCode = async () => {
   uni.scanCode({
-    success: (res) => {
-      console.log('扫码结果:', res.result)
-      // TODO: 根据快递单号查找订单
-      uni.showToast({
-        title: '扫码成功',
-        icon: 'success'
-      })
+    success: async (res) => {
+      try {
+        uni.showLoading({ title: '搜索中...' })
+
+        const result = await callFunction('admin-api', {
+          action: 'searchOrderByExpress',
+          adminToken: AdminAuthManager.getToken(),
+          data: { expressCode: res.result }
+        })
+
+        uni.hideLoading()
+
+        if (result.code === 0 && result.data) {
+          uni.navigateTo({
+            url: `/pagesAdmin/orders/detail?id=${result.data.id}`
+          })
+        } else {
+          uni.showToast({
+            title: result.msg || '未找到该订单',
+            icon: 'none'
+          })
+        }
+      } catch (error: any) {
+        uni.hideLoading()
+        uni.showToast({
+          title: error.message || '搜索失败',
+          icon: 'none'
+        })
+      }
     },
     fail: () => {
       uni.showToast({

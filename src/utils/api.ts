@@ -356,6 +356,7 @@ interface CloudUserInfo {
   createTime: Date;
   lastLoginTime: Date;
   loginCount: number;
+  addresses?: Address[];
 }
 
 // 获取微信用户信息（需要用户点击按钮触发）
@@ -463,18 +464,25 @@ export const saveWxUserInfo = async (wxProfile: WxUserProfile, openid?: string) 
   return saveUserInfo(userInfo);
 };
 
-// 添加地址
+// 添加地址（同步到云端）
 export const addAddress = async (address: Address) => {
   const user = await getUserInfo();
   if (!user) throw new Error('用户不存在');
-  
+
   if (!user.addresses) user.addresses = [];
-  
+
   if (address.isDefault) {
     user.addresses.forEach(addr => addr.isDefault = false);
   }
-  
+
   user.addresses.push(address);
+
+  // 同步到云端
+  const success = await updateCloudUserInfo({ addresses: user.addresses });
+  if (!success) {
+    console.warn('地址同步到云端失败，但本地已更新');
+  }
+
   uni.setStorageSync(USER_KEY, JSON.stringify(user));
   return { stats: { updated: 1 } };
 };
@@ -664,27 +672,42 @@ export const checkAndRefreshLoginStatus = async (): Promise<boolean> => {
 };
 
 // 更新地址
+// 更新地址（同步到云端）
 export const updateAddress = async (index: number, address: Address) => {
   const user = await getUserInfo();
   if (!user) throw new Error('用户不存在');
-  
+
   if (address.isDefault) {
     user.addresses.forEach((addr, i) => {
       if (i !== index) addr.isDefault = false;
     });
   }
-  
+
   user.addresses[index] = address;
+
+  // 同步到云端
+  const success = await updateCloudUserInfo({ addresses: user.addresses });
+  if (!success) {
+    console.warn('地址同步到云端失败，但本地已更新');
+  }
+
   uni.setStorageSync(USER_KEY, JSON.stringify(user));
   return { stats: { updated: 1 } };
 };
 
-// 删除地址
+// 删除地址（同步到云端）
 export const deleteAddress = async (index: number) => {
   const user = await getUserInfo();
   if (!user) throw new Error('用户不存在');
-  
+
   user.addresses.splice(index, 1);
+
+  // 同步到云端
+  const success = await updateCloudUserInfo({ addresses: user.addresses });
+  if (!success) {
+    console.warn('地址同步到云端失败，但本地已更新');
+  }
+
   uni.setStorageSync(USER_KEY, JSON.stringify(user));
   return { stats: { updated: 1 } };
 };
@@ -829,6 +852,106 @@ export const confirmRecharge = async (orderNo: string) => {
     throw new Error((res.data as any)?.message || res.msg || '确认充值失败');
   } catch (error) {
     console.error('确认充值失败:', error);
+    throw error;
+  }
+};
+
+// ==================== 佣金钱包相关 API ====================
+
+// 获取佣金钱包余额
+export const getCommissionWalletBalance = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('commission-wallet', { action: 'getBalance' });
+    if (res.code === 0 && res.data) {
+      const walletData = (res.data as any).data || res.data;
+      return {
+        balance: walletData.balance || 0,
+        totalCommission: walletData.totalCommission || 0,
+        totalWithdrawn: walletData.totalWithdrawn || 0
+      };
+    }
+    throw new Error(res.msg || '获取佣金钱包失败');
+  } catch (error) {
+    console.error('获取佣金钱包失败:', error);
+    // 降级处理
+    return { balance: 0, totalCommission: 0, totalWithdrawn: 0 };
+  }
+};
+
+// 申请提现到微信余额
+export const applyCommissionWithdraw = async (amount: number) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('commission-wallet', {
+      action: 'applyWithdraw',
+      data: { amount }
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '提现申请失败');
+  } catch (error) {
+    console.error('提现申请失败:', error);
+    throw error;
+  }
+};
+
+// 获取提现记录列表
+export const getCommissionWithdrawals = async (params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('commission-wallet', {
+      action: 'getWithdrawals',
+      data: params || {}
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取提现记录失败');
+  } catch (error) {
+    console.error('获取提现记录失败:', error);
+    throw error;
+  }
+};
+
+// 获取佣金钱包交易记录
+export const getCommissionTransactions = async (params?: {
+  type?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('commission-wallet', {
+      action: 'getTransactions',
+      data: params || {}
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取交易记录失败');
+  } catch (error) {
+    console.error('获取交易记录失败:', error);
     throw error;
   }
 };

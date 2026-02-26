@@ -455,7 +455,37 @@ function calculatePromotionProgress(user) {
  * 计算订单推广奖励（四重分润）
  */
 async function calculatePromotionReward(event, context) {
-  const { orderId, buyerId, orderAmount, isRepurchase = false } = event;
+  const { orderId, buyerId, orderAmount } = event;
+
+  // ✅ 后端自动判断是否为复购（不再依赖前端传入的 isRepurchase 参数）
+  // 复购定义：用户之前有过已支付的订单（非当前订单）
+  let isRepurchase = false;
+
+  try {
+    const existingOrdersRes = await db.collection('orders')
+      .where({
+        _openid: buyerId,
+        paymentStatus: 'paid',
+        _id: _.neq(orderId) // 排除当前订单
+      })
+      .limit(1)
+      .get();
+
+    isRepurchase = existingOrdersRes.data.length > 0;
+
+    logger.info('Repurchase status determined', {
+      buyerId,
+      orderId,
+      isRepurchase,
+      existingOrdersCount: existingOrdersRes.data.length
+    });
+  } catch (error) {
+    logger.warn('Failed to check repurchase status, defaulting to false', {
+      buyerId,
+      error: error.message
+    });
+    isRepurchase = false;
+  }
 
   logger.info('Reward calculation started', {
     orderId,
@@ -1048,6 +1078,216 @@ async function calculatePromotionRewardV2(event, context) {
       logger.error('V2 Reward calculation failed', error);
     }
     return { code: -1, msg: '计算失败', error: error.message };
+  }
+}
+
+/**
+ * 退款后扣回推广奖励
+ *
+ * 当订单退款时，需要扣回已发放的推广奖励
+ * 支持部分退款（按比例扣回）
+ *
+ * @param {Object} event - 事件参数
+ * @param {string} event.orderId - 订单ID
+ * @param {number} event.refundAmount - 退款金额（分）
+ * @param {number} event.totalAmount - 订单总金额（分）
+ * @param {Object} context - 云函数上下文
+ */
+async function revertPromotionReward(event, context) {
+  const { orderId, refundAmount, totalAmount } = event;
+
+  logger.info('Reward revert started', {
+    orderId,
+    refundAmount,
+    totalAmount
+  });
+
+  // 参数验证
+  if (!orderId || !refundAmount || !totalAmount) {
+    logger.error('Missing required parameters', { orderId, refundAmount, totalAmount });
+    return { code: -2, msg: '缺少必要参数: orderId, refundAmount, totalAmount' };
+  }
+
+  if (refundAmount > totalAmount) {
+    logger.error('Refund amount exceeds total amount', { refundAmount, totalAmount });
+    return { code: -2, msg: '退款金额不能超过订单金额' };
+  }
+
+  let transaction = null;
+
+  try {
+    // 启动事务
+    transaction = await db.startTransaction();
+
+    // 1. 查询该订单的所有奖励记录
+    const rewardRecordsRes = await transaction
+      .collection('reward_records')
+      .where({ orderId })
+      .get();
+
+    if (rewardRecordsRes.data.length === 0) {
+      logger.warn('No reward records found for order', { orderId });
+      await transaction.commit();
+      return {
+        code: 0,
+        msg: '该订单无推广奖励',
+        data: { revertedCount: 0, revertedAmount: 0 }
+      };
+    }
+
+    const rewardRecords = rewardRecordsRes.data;
+    let revertedCount = 0;
+    let totalRevertedAmount = 0;
+
+    // 计算扣回比例（部分退款按比例扣回）
+    const revertRatio = refundAmount / totalAmount;
+
+    logger.info('Revert ratio calculated', {
+      refundAmount,
+      totalAmount,
+      ratio: (revertRatio * 100).toFixed(2) + '%'
+    });
+
+    // 2. 遍历每条奖励记录，进行扣回
+    for (const record of rewardRecords) {
+      const { _id, beneficiaryId, amount, status } = record;
+
+      // 只扣回待结算或已结算的奖励
+      if (status === 'revoked') {
+        logger.debug('Reward already revoked', { recordId: _id });
+        continue;
+      }
+
+      // 计算本次扣回金额（按比例）
+      const revertAmount = Math.floor(amount * revertRatio);
+
+      if (revertAmount < 1) {
+        logger.debug('Revert amount too small, skipping', {
+          recordId: _id,
+          amount,
+          revertAmount
+        });
+        continue;
+      }
+
+      // 3. 更新奖励记录状态为已撤销
+      await transaction
+        .collection('reward_records')
+        .doc(_id)
+        .update({
+          data: {
+            status: 'revoked',
+            revokeAmount: revertAmount,
+            revokeRatio: revertRatio,
+            revokeTime: db.serverDate(),
+            revokeReason: '订单退款'
+          }
+        });
+
+      // 4. 扣回用户表中的待结算/已结算奖励
+      const userRes = await transaction
+        .collection('users')
+        .where({ _openid: beneficiaryId })
+        .get();
+
+      if (userRes.data.length > 0) {
+        const user = userRes.data[0];
+
+        // 更新用户奖励统计
+        const updateData = {
+          updateTime: db.serverDate()
+        };
+
+        // 根据原奖励状态扣回
+        if (status === 'pending') {
+          // 扣回待结算奖励
+          updateData.pendingReward = _.inc(-revertAmount);
+        } else if (status === 'settled') {
+          // 扣回已结算奖励（从已提现或可提现中扣除）
+          // 这里假设 settled 奖励已经进入可提现余额
+          updateData.withdrawableReward = _.inc(-revertAmount);
+        }
+
+        // 扣回分类奖励统计
+        const rewardType = record.rewardType || 'commission';
+        updateData[`${rewardType}Reward`] = _.inc(-revertAmount);
+
+        await transaction
+          .collection('users')
+          .doc(user._id)
+          .update({ data: updateData });
+
+        logger.info('User reward reverted', {
+          beneficiaryId,
+          rewardType,
+          revertAmount,
+          originalStatus: status
+        });
+      }
+
+      revertedCount++;
+      totalRevertedAmount += revertAmount;
+    }
+
+    // 5. 更新推广订单状态
+    const promotionOrdersRes = await transaction
+      .collection('promotion_orders')
+      .where({ orderId })
+      .get();
+
+    if (promotionOrdersRes.data.length > 0) {
+      const promoOrder = promotionOrdersRes.data[0];
+      await transaction
+        .collection('promotion_orders')
+        .doc(promoOrder._id)
+        .update({
+          data: {
+            status: 'refunded',
+            refundAmount: _.inc(refundAmount),
+            refundTime: db.serverDate(),
+            settleTime: db.serverDate()
+          }
+        });
+    }
+
+    // 提交事务
+    await transaction.commit();
+
+    logger.info('Reward revert completed', {
+      orderId,
+      revertedCount,
+      totalRevertedAmount
+    });
+
+    return {
+      code: 0,
+      msg: '奖励扣回成功',
+      data: {
+        revertedCount,
+        revertedAmount: totalRevertedAmount,
+        refundAmount,
+        revertRatio
+      }
+    };
+
+  } catch (error) {
+    // 回滚事务
+    if (transaction) {
+      try {
+        await transaction.rollback();
+        logger.error('Reward revert transaction rolled back', error);
+      } catch (rollbackError) {
+        logger.error('Failed to rollback transaction', rollbackError);
+      }
+    } else {
+      logger.error('Reward revert failed', error);
+    }
+
+    return {
+      code: -1,
+      msg: '奖励扣回失败',
+      error: error.message
+    };
   }
 }
 
@@ -1816,6 +2056,9 @@ exports.main = async (event, context) => {
         requestData.newStarLevel,
         requestData.oldStarLevel
       );
+    case 'revertReward':
+      // 退款后扣回推广奖励
+      return await revertPromotionReward(requestData, context);
     default:
       return { code: -1, msg: '未知操作' };
   }

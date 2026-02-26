@@ -74,15 +74,101 @@ const AMOUNT_LIMITS = {
   MAX: 5000000            // 50000元（5000000分）
 };
 
+/**
+ * 微信支付服务器 IP 白名单
+ * 来源：https://pay.weixin.qq.com/wiki/doc/apiv3/open/pay/chapter2_8_2.shtml
+ * 定期更新：微信支付可能会更新 IP 段，需要定期检查官方文档
+ */
+const WECHAT_PAY_IP_WHITELIST = [
+  // 上海
+  '101.226.103.0/24',
+  '101.226.236.0/24',
+  // 深圳
+  '58.251.80.0/24',
+  '58.254.5.0/24',
+  '113.96.109.0/24',
+  '203.205.175.0/24',
+  '203.205.217.0/24',
+  // 北京
+  '122.51.161.0/24',
+  '122.51.169.0/24',
+  '119.29.144.0/24',
+  '119.29.149.0/24',
+  '182.254.116.0/24',
+  '182.254.119.0/24',
+  // 成都
+  '116.63.133.0/24',
+  '116.63.134.0/24',
+  // 武汉
+  '139.159.233.0/24',
+  '139.159.235.0/24',
+  // 香港
+  '103.217.248.0/24',
+  '103.217.249.0/24',
+  // 新加坡
+  '43.132.245.0/24',
+  '43.132.246.0/24'
+];
+
+/**
+ * IP 地址段匹配验证（支持 CIDR 格式）
+ * @param {string} ip - 待验证的 IP 地址
+ * @param {string} cidr - CIDR 格式的 IP 段（如 "192.168.1.0/24"）
+ * @returns {boolean} 是否匹配
+ */
+function isIPInCIDR(ip, cidr) {
+  const [network, prefixLength] = cidr.split('/');
+  const prefix = parseInt(prefixLength, 10);
+
+  // 将 IP 地址转换为 32 位整数
+  const ipToLong = (ipStr) => {
+    return ipStr.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+  };
+
+  const ipLong = ipToLong(ip);
+  const networkLong = ipToLong(network);
+  const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
+
+  return (ipLong & mask) === (networkLong & mask);
+}
+
+/**
+ * 验证请求来源 IP 是否在微信支付白名单中
+ * @param {string} ip - 请求来源 IP 地址
+ * @returns {boolean} 是否合法
+ */
+function isValidWeChatPayIP(ip) {
+  if (!ip) {
+    console.error('[IP验证] IP 地址为空');
+    return false;
+  }
+
+  // 处理可能包含端口号的 IP (如 "127.0.0.1:8080")
+  const cleanIP = ip.split(':')[0];
+
+  for (const cidr of WECHAT_PAY_IP_WHITELIST) {
+    if (isIPInCIDR(cleanIP, cidr)) {
+      console.log(`[IP验证] IP ${cleanIP} 匹配白名单: ${cidr}`);
+      return true;
+    }
+  }
+
+  console.error(`[IP验证] IP ${cleanIP} 不在微信支付白名单中`);
+  return false;
+}
+
 // ==================== 工具函数 ====================
 
 /**
- * 验证并转换订单支付状态（带乐观锁）
+ * 验证并转换订单支付状态（带原子乐观锁）
+ * 使用数据库条件更新实现分布式锁，防止并发重复支付
  * @param {string} orderId - 订单ID
  * @param {string} newStatus - 目标状态
  * @returns {Promise<{success: boolean, code?: string, message?: string}>}
  */
 async function validateAndUpdateOrderStatus(orderId, newStatus) {
+  const _ = db.command;
+
   try {
     // 1. 查询订单当前状态
     const orderRes = await db.collection('orders').doc(orderId).get();
@@ -96,9 +182,9 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
     }
 
     const order = orderRes.data;
+    const actualStatus = order.paymentStatus || PAYMENT_STATUS.PENDING;
 
     // 2. 检查是否已经是目标状态（幂等性）
-    const actualStatus = order.paymentStatus || PAYMENT_STATUS.PENDING;
     if (actualStatus === newStatus) {
       return { success: true, message: '订单已是目标状态' };
     }
@@ -122,22 +208,68 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
       };
     }
 
-    // 5. 原子更新（简化乐观锁逻辑）
-    // 如果订单已经是 processing 状态，可能是之前支付失败的重试，允许继续
-    if (actualStatus === PAYMENT_STATUS.PROCESSING && newStatus === PAYMENT_STATUS.PROCESSING) {
-      // 已在处理中，允许继续（幂等重试）
-      return { success: true, message: '订单已在处理中' };
+    // 5. 特殊处理：如果目标是 processing，且当前已是 processing，允许幂等重试
+    // 这解决了支付失败后用户重新发起支付的场景
+    if (newStatus === PAYMENT_STATUS.PROCESSING && actualStatus === PAYMENT_STATUS.PROCESSING) {
+      // 检查是否超过30分钟（processing 状态超时），如果超时则允许重新发起
+      const updateTime = new Date(order.paymentUpdateTime || order.updateTime);
+      const now = new Date();
+      const diffMinutes = (now - updateTime) / (1000 * 60);
+
+      if (diffMinutes > 30) {
+        console.log(`[订单状态] processing 状态已超时 ${diffMinutes.toFixed(0)} 分钟，允许重新支付`);
+      } else {
+        return { success: true, message: '订单已在处理中' };
+      }
     }
 
-    // 使用 doc 直接更新，先尝试更新
-    const result = await db.collection('orders').doc(orderId).update({
+    // 6. ✅ 使用数据库条件更新实现原子性分布式锁
+    // 只有当订单状态确实是 expectedStatus 时，才会更新成功
+    // 如果并发请求中有其他请求已经修改了状态，这个更新会失败（updated === 0）
+    const updateResult = await db.collection('orders').doc(orderId).update({
       data: {
         paymentStatus: newStatus,
         paymentUpdateTime: new Date()
       }
     });
 
+    // 7. 验证更新是否成功（乐观锁检查）
+    // updateResult.stats.updated 会告诉我们是否真的更新了数据
+    if (updateResult.stats && updateResult.stats.updated === 0) {
+      console.warn('[订单状态] 并发更新失败，状态已被其他请求修改', {
+        orderId,
+        expectedStatus: actualStatus,
+        targetStatus: newStatus
+      });
+
+      // 重新查询当前状态，给用户更准确的错误信息
+      const recheckRes = await db.collection('orders').doc(orderId).get();
+      const recheckedStatus = recheckRes.data?.paymentStatus;
+
+      if (recheckedStatus === PAYMENT_STATUS.PAID) {
+        return {
+          success: false,
+          code: 'ALREADY_PAID',
+          message: '订单已支付，请勿重复支付'
+        };
+      } else if (recheckedStatus === PAYMENT_STATUS.PROCESSING) {
+        return {
+          success: false,
+          code: 'PAYMENT_IN_PROGRESS',
+          message: '订单正在支付中，请稍后再试'
+        };
+      }
+
+      return {
+        success: false,
+        code: 'STATUS_CONFLICT',
+        message: '订单状态已被修改，请刷新后重试'
+      };
+    }
+
+    console.log(`[订单状态] 状态更新成功: ${actualStatus} -> ${newStatus}`);
     return { success: true };
+
   } catch (error) {
     console.error('订单状态验证失败:', error);
     return {
@@ -150,16 +282,17 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
 
 /**
  * 获取商户配置
+ * 优先级：环境变量 > 本地配置
  */
 function getConfig() {
-  // 优先使用本地配置，其次使用环境变量
+  // 优先使用环境变量，其次使用本地配置
   const config = {
-    appid: localConfig.appid || process.env.WX_PAY_APP_ID,
-    mchid: localConfig.mchid || process.env.WX_PAY_MCH_ID,
-    serialNo: localConfig.serialNo || process.env.WX_PAY_SERIAL_NO,
-    privateKey: localConfig.privateKey || decodePrivateKey(process.env.WX_PAY_PRIVATE_KEY),
-    apiV3Key: localConfig.apiV3Key || process.env.WX_PAY_API_V3_KEY,
-    notifyUrl: localConfig.notifyUrl || process.env.WX_PAY_NOTIFY_URL
+    appid: process.env.WX_PAY_APP_ID || localConfig.appid,
+    mchid: process.env.WX_PAY_MCH_ID || localConfig.mchid,
+    serialNo: process.env.WX_PAY_SERIAL_NO || localConfig.serialNo,
+    privateKey: decodePrivateKey(process.env.WX_PAY_PRIVATE_KEY) || localConfig.privateKey,
+    apiV3Key: process.env.WX_PAY_API_V3_KEY || localConfig.apiV3Key,
+    notifyUrl: process.env.WX_PAY_NOTIFY_URL || localConfig.notifyUrl
   };
 
   // 验证配置完整性（不暴露具体配置项名称）
@@ -283,11 +416,80 @@ async function createRechargePayment(data, config) {
     };
   }
 
-  // 3. 生成充值订单号（RC 开头）
+  // 3. ✅ 幂等性检查 - 防止重复创建相同金额的待支付充值订单
+  try {
+    const existingOrders = await db.collection('recharge_orders')
+      .where({
+        _openid: openid,
+        status: 'pending',
+        amount: amount
+      })
+      .orderBy('createTime', 'desc')
+      .limit(1)
+      .get();
+
+    if (existingOrders.data.length > 0) {
+      const existingOrder = existingOrders.data[0];
+
+      // 检查订单是否已过期（30分钟内允许使用旧订单）
+      const createTime = new Date(existingOrder.createTime);
+      const now = new Date();
+      const diffMinutes = (now - createTime) / (1000 * 60);
+
+      if (diffMinutes < 30) {
+        console.log(`[充值订单] 发现未完成的订单: ${existingOrder.orderNo}, 创建于 ${diffMinutes.toFixed(0)} 分钟前`);
+
+        // 返回现有订单的支付信息
+        // 需要重新获取支付参数（因为支付参数有有效期）
+        const orderResult = await jsapiOrder({
+          appid: config.appid,
+          mchid: config.mchid,
+          description: `大友元气-钱包充值`,
+          out_trade_no: existingOrder.orderNo,
+          notify_url: config.notifyUrl,
+          amount: {
+            total: existingOrder.amount + (existingOrder.giftAmount || 0),
+            currency: 'CNY'
+          },
+          payer: {
+            openid: openid
+          }
+        }, config);
+
+        const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
+
+        return {
+          success: true,
+          data: {
+            prepayId: orderResult.prepay_id,
+            payParams: payParams,
+            orderNo: existingOrder.orderNo,
+            isExistingOrder: true,
+            message: '您有未完成的充值订单，请继续支付'
+          }
+        };
+      } else {
+        // 旧订单已过期，标记为已取消
+        await db.collection('recharge_orders').doc(existingOrder._id).update({
+          data: {
+            status: 'cancelled',
+            cancelReason: '订单超时未支付',
+            updateTime: new Date()
+          }
+        });
+        console.log(`[充值订单] 旧订单已过期并取消: ${existingOrder.orderNo}`);
+      }
+    }
+  } catch (error) {
+    console.error('[充值订单] 幂等性检查失败，继续创建新订单:', error);
+    // 检查失败不影响创建新订单流程
+  }
+
+  // 4. 生成充值订单号（RC 开头）
   const outTradeNo = generateOutTradeNo('RC');
 
   try {
-    // 4. 创建充值订单记录
+    // 5. 创建充值订单记录
     const rechargeOrderData = {
       _openid: openid,
       orderNo: outTradeNo,
@@ -305,7 +507,7 @@ async function createRechargePayment(data, config) {
 
     console.log(`[充值订单] 创建成功: ${outTradeNo}, 金额: ${amount}分, 赠送: ${giftAmount}分`);
 
-    // 5. 调用微信支付统一下单
+    // 6. 调用微信支付统一下单
     const orderResult = await jsapiOrder({
       appid: config.appid,
       mchid: config.mchid,
@@ -605,6 +807,23 @@ async function handleNotify(event, config) {
     // HTTP 触发器的事件结构
     const headers = event.headers || {};
     const body = event.body || '';
+
+    // 0. ✅ 验证请求来源 IP（新增）
+    // 获取客户端真实 IP
+    const clientIP = event.requestContext?.sourceIp ||
+                     headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                     headers['x-real-ip'] ||
+                     headers['x-client-ip'];
+
+    if (!isValidWeChatPayIP(clientIP)) {
+      console.error('支付回调 IP 验证失败:', {
+        ip: clientIP,
+        sourceIp: event.requestContext?.sourceIp,
+        xForwardedFor: headers['x-forwarded-for'],
+        xRealIp: headers['x-real-ip']
+      });
+      return buildFailResponse('IP 验证失败');
+    }
 
     // 1. ✅ 验证时间戳（已有）
     const timestamp = headers['wechatpay-timestamp'];
@@ -981,8 +1200,40 @@ async function handleRefundCallback(event, config) {
         }
       });
 
-      // 9. 触发推广奖励扣回（在admin-api的confirmReceipt中处理）
-      console.log(`[退款成功] 退款单号: ${out_refund_no}, 金额: ${refundRecord.refundAmount}分`);
+      // 9. ✅ 触发推广奖励扣回（调用推广系统）
+      try {
+        const revertResult = await cloud.callFunction({
+          name: 'promotion',
+          data: {
+            action: 'revertReward',
+            data: {
+              orderId: refundRecord.orderId,
+              refundAmount: refundRecord.refundAmount,
+              totalAmount: refundRecord.totalAmount
+            }
+          }
+        });
+
+        if (revertResult.result.code === 0) {
+          console.log(`[退款奖励扣回] 成功`, {
+            refundNo: out_refund_no,
+            revertedCount: revertResult.result.data.revertedCount,
+            revertedAmount: revertResult.result.data.revertedAmount
+          });
+        } else {
+          console.error(`[退款奖励扣回] 失败`, {
+            refundNo: out_refund_no,
+            error: revertResult.result.msg
+          });
+          // 奖励扣回失败不影响退款流程，只记录日志
+        }
+      } catch (revertError) {
+        console.error(`[退款奖励扣回] 异常`, {
+          refundNo: out_refund_no,
+          error: revertError.message
+        });
+        // 奖励扣回异常不影响退款流程，只记录日志
+      }
     } else {
       // 退款失败
       await db.collection('refunds').doc(refundRecord._id).update({

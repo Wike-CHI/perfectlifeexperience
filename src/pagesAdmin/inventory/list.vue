@@ -2,9 +2,12 @@
   <view class="inventory-page">
     <view class="page-title">库存管理</view>
 
-    <view class="search-bar">
-      <input class="search-input" v-model="keyword" placeholder="搜索商品" @confirm="handleSearch" />
-    </view>
+    <admin-search
+      placeholder="搜索商品名称或SKU"
+      :show-filter="true"
+      :filter-options="filterOptions"
+      @search="handleSearch"
+    />
 
     <view class="products-list">
       <view v-for="product in products" :key="product._id" class="product-item">
@@ -13,9 +16,9 @@
           <text class="product-sku">SKU: {{ product.sku || '未设置' }}</text>
         </view>
         <view class="stock-control">
-          <button class="stock-btn" @click="adjustStock(product._id, -1)">-</button>
+          <button class="stock-btn" @click="handleStockAdjust(product, -1)">-</button>
           <text class="stock-value">{{ product.stock }}</text>
-          <button class="stock-btn" @click="adjustStock(product._id, 1)">+</button>
+          <button class="stock-btn" @click="handleStockAdjust(product, 1)">+</button>
         </view>
       </view>
     </view>
@@ -25,9 +28,18 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
+import AdminSearch from '@/components/admin-search.vue'
 
 const products = ref<any[]>([])
 const keyword = ref('')
+const selectedFilters = ref<Record<string, any>>({})
+
+// 筛选选项
+const filterOptions = [
+  { key: 'lowStock', label: '库存预警' },
+  { key: 'outOfStock', label: '已售罄' }
+]
 
 onMounted(() => {
   loadProducts()
@@ -35,25 +47,76 @@ onMounted(() => {
 
 const loadProducts = async () => {
   try {
-    const res = await callFunction('product', {
+    const res = await callFunction('admin-api', {
       action: 'getProducts',
-      data: {}
+      adminToken: AdminAuthManager.getToken(),
+      data: {
+        keyword: keyword.value || undefined
+      }
     })
     if (res.code === 0) {
-      products.value = res.data || []
+      let productList = res.data.list || []
+
+      // 前端筛选库存预警和售罄
+      if (selectedFilters.value.lowStock) {
+        productList = productList.filter((p: any) => p.stock > 0 && p.stock <= 10)
+      }
+      if (selectedFilters.value.outOfStock) {
+        productList = productList.filter((p: any) => p.stock === 0)
+      }
+
+      products.value = productList
+    } else {
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
     console.error('加载商品失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
   }
 }
 
-const handleSearch = () => {
-  // TODO: 实现搜索
+const handleSearch = (searchKeyword: string, filters: Record<string, any>) => {
+  keyword.value = searchKeyword
+  selectedFilters.value = filters
+  loadProducts()
 }
 
-const adjustStock = async (id: string, delta: number) => {
-  // TODO: 实现库存调整
-  uni.showToast({ title: '功能开发中', icon: 'none' })
+const handleStockAdjust = async (product: any, delta: number) => {
+  try {
+    uni.showLoading({ title: '调整中...' })
+
+    const res = await callFunction('admin-api', {
+      action: 'adjustProductStock',
+      adminToken: AdminAuthManager.getToken(),
+      data: {
+        productId: product._id,
+        delta,
+        reason: delta > 0 ? '手动入库' : '手动出库'
+      }
+    })
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
+      uni.showToast({
+        title: `${delta > 0 ? '+' : ''}${delta} ${res.data.oldStock} → ${res.data.newStock}`,
+        icon: 'none'
+      })
+      // 刷新列表
+      await loadProducts()
+    } else {
+      uni.showToast({
+        title: res.msg || '调整失败',
+        icon: 'none'
+      })
+    }
+  } catch (e: any) {
+    uni.hideLoading()
+    uni.showToast({
+      title: e.message || '网络错误',
+      icon: 'none'
+    })
+  }
 }
 </script>
 

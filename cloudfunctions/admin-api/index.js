@@ -18,8 +18,11 @@ const {
   sanitizeUpdateData
 } = require('./validator')
 
-// JWT配置 - 生产环境应该从环境变量获取
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+// JWT配置 - 必须从环境变量获取
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required')
+}
 const JWT_EXPIRES_IN = '7d' // 7天过期
 
 // Main entry point
@@ -77,6 +80,8 @@ exports.main = async (event, context) => {
         return await updateProductAdmin(data, wxContext)
       case 'deleteProduct':
         return await deleteProductAdmin(data, wxContext)
+      case 'adjustProductStock':
+        return await adjustProductStock(data, wxContext)
       case 'getCategories':
         return await getCategoriesAdmin()
       case 'getOrders':
@@ -175,6 +180,27 @@ exports.main = async (event, context) => {
         return await rejectRefundAdmin(data, wxContext)
       case 'retryRefund':
         return await retryRefundAdmin(data, wxContext)
+      // Address Management APIs
+      case 'getAddresses':
+        return await getAddressesAdmin(data)
+      case 'deleteAddress':
+        return await deleteAddressAdmin(data, wxContext)
+      // Store Management APIs
+      case 'getStoreInfo':
+        return await getStoreInfoAdmin(data)
+      case 'updateStoreInfo':
+        return await updateStoreInfoAdmin(data, wxContext)
+      // Wallet Management APIs
+      case 'getWalletTransactions':
+        return await getWalletTransactionsAdmin(data)
+      // Commission Wallet APIs
+      case 'getCommissionWallets':
+        return await getCommissionWalletsAdmin(data)
+      // System Configuration APIs
+      case 'getSystemConfig':
+        return await getSystemConfigAdmin(data)
+      case 'updateSystemConfig':
+        return await updateSystemConfigAdmin(data, wxContext)
       default:
         return {
           code: 400,
@@ -594,6 +620,66 @@ async function deleteProductAdmin(data, wxContext) {
     };
   } catch (error) {
     console.error('Delete product error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 调整商品库存
+ */
+async function adjustProductStock(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+    const { productId, delta, reason } = data;
+
+    // 参数验证
+    if (!isValidObjectId(productId)) {
+      return { code: 400, msg: '商品ID格式无效' };
+    }
+
+    if (typeof delta !== 'number' || delta === 0) {
+      return { code: 400, msg: '调整量必须为非零数字' };
+    }
+
+    // 获取当前商品
+    const productResult = await db.collection('products').doc(productId).get();
+    if (!productResult.data) {
+      return { code: 404, msg: '商品不存在' };
+    }
+
+    const currentStock = productResult.data.stock || 0;
+    const newStock = currentStock + delta;
+
+    // 检查库存是否足够
+    if (newStock < 0) {
+      return { code: 400, msg: '库存不足，无法调整' };
+    }
+
+    // 更新库存
+    await db.collection('products').doc(productId).update({
+      data: {
+        stock: newStock,
+        updateTime: new Date()
+      }
+    });
+
+    // 记录操作日志
+    await logOperation(adminInfo.id, 'adjustProductStock', {
+      productId,
+      productName: productResult.data.name,
+      delta,
+      oldStock: currentStock,
+      newStock,
+      reason: reason || (delta > 0 ? '手动入库' : '手动出库')
+    });
+
+    return {
+      code: 0,
+      data: { oldStock: currentStock, newStock },
+      msg: '库存调整成功'
+    };
+  } catch (error) {
+    console.error('Adjust product stock error:', error);
     return { code: 500, msg: error.message };
   }
 }
@@ -1212,29 +1298,33 @@ async function approveWithdrawalAdmin(data, wxContext) {
       }
     });
 
-    // 更新用户钱包余额 - 减少冻结余额，增加已提现金额
-    await db.collection('wallets')
+    // 更新佣金钱包余额 - 解冻并减少余额，增加已提现金额
+    await db.collection('commission_wallets')
       .where({ _openid: withdrawal._openid })
       .update({
         data: {
-          frozenBalance: _.inc(-withdrawal.amount),
-          withdrawn: _.inc(withdrawal.amount),
+          frozenAmount: _.inc(-withdrawal.amount), // 解冻
+          balance: _.inc(-withdrawal.amount),       // 实际扣除
+          totalWithdrawn: _.inc(withdrawal.amount), // 增加累计提现
           updateTime: new Date()
         }
       });
 
     // 创建交易记录
-    await db.collection('wallet_transactions').add({
+    await db.collection('commission_transactions').add({
       data: {
         _openid: withdrawal._openid,
-        type: 'withdrawal',
+        type: 'withdraw_success',
         amount: -withdrawal.amount,
-        status: 'completed',
+        status: 'success',
         withdrawalId: withdrawalId,
         description: '提现申请已批准',
         createTime: new Date()
       }
     });
+
+    // TODO: 调用微信企业付款API将钱打入用户微信余额
+    // 需要实现微信商家转账功能
 
     await logOperation(adminInfo.id, 'approveWithdrawal', { withdrawalId, amount: withdrawal.amount });
 
@@ -1276,22 +1366,22 @@ async function rejectWithdrawalAdmin(data, wxContext) {
       }
     });
 
-    // 更新用户钱包 - 释放冻结金额回余额
-    await db.collection('wallets')
+    // 更新用户佣金钱包 - 释放冻结金额回余额
+    await db.collection('commission_wallets')
       .where({ _openid: withdrawal._openid })
       .update({
         data: {
-          balance: _.inc(withdrawal.amount),
-          frozenBalance: _.inc(-withdrawal.amount),
+          balance: _.inc(withdrawal.amount),   // 余额恢复
+          frozenAmount: _.inc(-withdrawal.amount), // 解冻
           updateTime: new Date()
         }
       });
 
     // 创建交易记录
-    await db.collection('wallet_transactions').add({
+    await db.collection('commission_transactions').add({
       data: {
         _openid: withdrawal._openid,
-        type: 'withdrawal',
+        type: 'withdraw_rejected',
         amount: withdrawal.amount,
         status: 'failed',
         withdrawalId: withdrawalId,
@@ -2725,6 +2815,500 @@ async function triggerRewardDeduction(orderId, refundAmount, totalOrderAmount) {
     }
   } catch (error) {
     console.error('触发奖励扣回失败:', error);
+  }
+}
+
+// ==================== Address Management Functions ====================
+
+/**
+ * 获取地址列表
+ */
+async function getAddressesAdmin(data) {
+  try {
+    const { page = 1, limit = 20, keyword } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    // 关键词搜索：按用户昵称搜索
+    if (keyword) {
+      // 首先搜索匹配的用户
+      const usersResult = await db.collection('users')
+        .where({
+          nickName: db.RegExp({
+            regexp: keyword,
+            options: 'i'
+          })
+        })
+        .field({
+          _openid: true
+        })
+        .get();
+
+      if (usersResult.data.length > 0) {
+        const openidList = usersResult.data.map(u => u._openid);
+        query._openid = _.in(openidList);
+      } else {
+        // 如果没有匹配用户，返回空结果
+        query._openid = _.in(['__nonexistent__']);
+      }
+    }
+
+    const [addressesResult, countResult] = await Promise.all([
+      db.collection('addresses')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('addresses').where(query).count()
+    ]);
+
+    // 获取关联的用户信息
+    const addressesWithUsers = await Promise.all(
+      addressesResult.data.map(async (address) => {
+        const userResult = await db.collection('users')
+          .where({ _openid: address._openid })
+          .field({
+            _id: true,
+            _openid: true,
+            nickName: true,
+            avatarUrl: true
+          })
+          .limit(1)
+          .get();
+
+        return {
+          ...address,
+          user: userResult.data[0] || null
+        };
+      })
+    );
+
+    // 统计数据
+    const [totalAddresses, defaultAddresses, totalUsers] = await Promise.all([
+      db.collection('addresses').count(),
+      db.collection('addresses').where({ isDefault: true }).count(),
+      db.collection('users').count()
+    ]);
+
+    return {
+      code: 0,
+      data: {
+        list: addressesWithUsers,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit),
+        totalAddresses: totalAddresses.total,
+        defaultAddresses: defaultAddresses.total,
+        totalUsers: totalUsers.total
+      }
+    };
+  } catch (error) {
+    console.error('Get addresses error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 删除地址
+ */
+async function deleteAddressAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+    const { addressId, openid } = data;
+
+    if (!addressId) {
+      return { code: 400, msg: '缺少地址ID' };
+    }
+
+    if (!openid) {
+      return { code: 400, msg: '缺少用户openid' };
+    }
+
+    // 删除地址
+    await db.collection('addresses').doc(addressId).remove();
+
+    await logOperation(adminInfo.id, 'deleteAddress', { addressId, openid });
+
+    return {
+      code: 0,
+      msg: '地址删除成功'
+    };
+  } catch (error) {
+    console.error('Delete address error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// ==================== Store Management Functions ====================
+
+/**
+ * 获取门店信息
+ */
+async function getStoreInfoAdmin(data) {
+  try {
+    // 从配置集合中获取门店信息
+    const result = await db.collection('system_config')
+      .where({ type: 'store_info' })
+      .limit(1)
+      .get();
+
+    if (result.data.length === 0) {
+      // 返回默认门店信息
+      return {
+        code: 0,
+        data: {
+          name: '大友元气精酿啤酒总店',
+          address: '',
+          phone: '',
+          latitude: null,
+          longitude: null,
+          openTime: '09:00',
+          closeTime: '22:00',
+          isOpen: true,
+          description: ''
+        }
+      };
+    }
+
+    return {
+      code: 0,
+      data: result.data[0].config || {}
+    };
+  } catch (error) {
+    console.error('Get store info error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 更新门店信息
+ */
+async function updateStoreInfoAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    // 检查是否已存在门店配置
+    const existingResult = await db.collection('system_config')
+      .where({ type: 'store_info' })
+      .limit(1)
+      .get();
+
+    const configData = {
+      type: 'store_info',
+      config: {
+        ...data,
+        updateTime: new Date()
+      },
+      updateTime: new Date()
+    };
+
+    if (existingResult.data.length > 0) {
+      // 更新现有配置
+      await db.collection('system_config')
+        .doc(existingResult.data[0]._id)
+        .update({ data: configData });
+    } else {
+      // 创建新配置
+      await db.collection('system_config').add({
+        data: {
+          ...configData,
+          createTime: new Date()
+        }
+      });
+    }
+
+    await logOperation(adminInfo.id, 'updateStoreInfo', data);
+
+    return {
+      code: 0,
+      msg: '门店信息更新成功'
+    };
+  } catch (error) {
+    console.error('Update store info error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// ==================== Wallet Management Functions ====================
+
+/**
+ * 获取钱包交易记录
+ */
+async function getWalletTransactionsAdmin(data) {
+  try {
+    const { page = 1, limit = 20, type } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (type && type !== 'all') {
+      query.type = type;
+    }
+
+    const [transactionsResult, countResult] = await Promise.all([
+      db.collection('wallet_transactions')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('wallet_transactions').where(query).count()
+    ]);
+
+    // 获取关联的用户信息
+    const transactionsWithUsers = await Promise.all(
+      transactionsResult.data.map(async (transaction) => {
+        const userResult = await db.collection('users')
+          .where({ _openid: transaction._openid })
+          .field({
+            _id: true,
+            _openid: true,
+            nickName: true,
+            avatarUrl: true
+          })
+          .limit(1)
+          .get();
+
+        return {
+          ...transaction,
+          user: userResult.data[0] || null
+        };
+      })
+    );
+
+    // 统计数据
+    const walletsResult = await db.collection('user_wallets').get();
+    const totalBalance = walletsResult.data.reduce((sum, w) => sum + (w.balance || 0), 0);
+    const totalRecharge = walletsResult.data.reduce((sum, w) => sum + (w.totalRecharge || 0), 0);
+    const totalConsume = walletsResult.data.reduce((sum, w) => sum + (w.totalConsume || 0), 0);
+
+    return {
+      code: 0,
+      data: {
+        list: transactionsWithUsers,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit),
+        totalBalance,
+        totalRecharge,
+        totalConsume
+      }
+    };
+  } catch (error) {
+    console.error('Get wallet transactions error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// ==================== Commission Wallet Functions ====================
+
+/**
+ * 获取佣金钱包数据
+ */
+async function getCommissionWalletsAdmin(data) {
+  try {
+    const { page = 1, limit = 20, status, type } = data;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (type && type !== 'all') {
+      query.rewardType = type;
+    }
+
+    const [commissionsResult, countResult] = await Promise.all([
+      db.collection('reward_records')
+        .where(query)
+        .orderBy('createTime', 'desc')
+        .skip(skip)
+        .limit(limit)
+        .get(),
+      db.collection('reward_records').where(query).count()
+    ]);
+
+    // 获取关联的用户信息
+    const commissionsWithUsers = await Promise.all(
+      commissionsResult.data.map(async (commission) => {
+        const userResult = await db.collection('users')
+          .where({ _openid: commission._openid })
+          .field({
+            _id: true,
+            _openid: true,
+            nickName: true,
+            avatarUrl: true
+          })
+          .limit(1)
+          .get();
+
+        return {
+          ...commission,
+          user: userResult.data[0] || null
+        };
+      })
+    );
+
+    // 统计数据
+    const allCommissions = await db.collection('reward_records').get();
+    const totalCommission = allCommissions.data.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const settledCommission = allCommissions.data
+      .filter(r => r.status === 'settled' || r.status === 'withdrawn')
+      .reduce((sum, r) => sum + (r.amount || 0), 0);
+    const pendingCommission = allCommissions.data
+      .filter(r => r.status === 'pending')
+      .reduce((sum, r) => sum + (r.amount || 0), 0);
+
+    // 从佣金钱包获取提现数据
+    const commissionWalletsResult = await db.collection('commission_wallets').get();
+    const withdrawnAmount = commissionWalletsResult.data
+      .reduce((sum, w) => sum + (w.totalWithdrawn || 0), 0);
+
+    // 待审核提现数量
+    const pendingWithdrawalsResult = await db.collection('withdrawals')
+      .where({ status: 'pending' })
+      .count();
+
+    return {
+      code: 0,
+      data: {
+        list: commissionsWithUsers,
+        total: countResult.total,
+        page,
+        limit,
+        totalPages: Math.ceil(countResult.total / limit),
+        totalCommission,
+        settledCommission,
+        pendingCommission,
+        withdrawnAmount,
+        pendingWithdrawals: pendingWithdrawalsResult.total
+      }
+    };
+  } catch (error) {
+    console.error('Get commission wallets error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+// ==================== System Configuration Functions ====================
+
+/**
+ * 获取系统配置
+ */
+async function getSystemConfigAdmin(data) {
+  try {
+    // 从配置集合中获取系统配置
+    const result = await db.collection('system_config')
+      .where({ type: 'commission_config' })
+      .limit(1)
+      .get();
+
+    if (result.data.length === 0) {
+      // 返回默认配置
+      return {
+        code: 0,
+        data: {
+          level1Commission: 25,
+          level2Commission: 20,
+          level3Commission: 15,
+          level4Commission: 10,
+          repurchaseReward: 3,
+          teamAward: 2,
+          nurtureAllowance: 2,
+          bronzeThreshold: 1000,
+          silverSalesThreshold: 10000,
+          goldSalesThreshold: 50000,
+          silverTeamThreshold: 20,
+          goldTeamThreshold: 50,
+          withdrawalMinAmount: 100,
+          withdrawalMaxAmount: 50000,
+          withdrawalFeeRate: 0
+        }
+      };
+    }
+
+    return {
+      code: 0,
+      data: result.data[0].config || {}
+    };
+  } catch (error) {
+    console.error('Get system config error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 更新系统配置
+ */
+async function updateSystemConfigAdmin(data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+
+    // 验证数据格式
+    const numericFields = [
+      'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission',
+      'repurchaseReward', 'teamAward', 'nurtureAllowance',
+      'bronzeThreshold', 'silverSalesThreshold', 'goldSalesThreshold',
+      'silverTeamThreshold', 'goldTeamThreshold',
+      'withdrawalMinAmount', 'withdrawalMaxAmount', 'withdrawalFeeRate'
+    ];
+
+    const configData = {};
+    for (const field of numericFields) {
+      if (data[field] !== undefined) {
+        const value = parseFloat(data[field]);
+        if (isNaN(value)) {
+          return { code: 400, msg: `${field} 必须是数字` };
+        }
+        configData[field] = value;
+      }
+    }
+
+    // 检查是否已存在配置
+    const existingResult = await db.collection('system_config')
+      .where({ type: 'commission_config' })
+      .limit(1)
+      .get();
+
+    const updateData = {
+      type: 'commission_config',
+      config: {
+        ...configData,
+        updateTime: new Date()
+      },
+      updateTime: new Date()
+    };
+
+    if (existingResult.data.length > 0) {
+      // 更新现有配置
+      await db.collection('system_config')
+        .doc(existingResult.data[0]._id)
+        .update({ data: updateData });
+    } else {
+      // 创建新配置
+      await db.collection('system_config').add({
+        data: {
+          ...updateData,
+          createTime: new Date()
+        }
+      });
+    }
+
+    await logOperation(adminInfo.id, 'updateSystemConfig', configData);
+
+    return {
+      code: 0,
+      msg: '系统配置更新成功'
+    };
+  } catch (error) {
+    console.error('Update system config error:', error);
+    return { code: 500, msg: error.message };
   }
 }
 

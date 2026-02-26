@@ -62,7 +62,25 @@ const PERMISSIONS = {
 
   // 退款管理
   REFUND_VIEW: 'refund.view',
-  REFUND_APPROVE: 'refund.approve'
+  REFUND_APPROVE: 'refund.approve',
+
+  // 地址管理
+  ADDRESS_VIEW: 'address.view',
+  ADDRESS_DELETE: 'address.delete',
+
+  // 门店管理
+  STORE_VIEW: 'store.view',
+  STORE_UPDATE: 'store.update',
+
+  // 钱包管理
+  WALLET_VIEW: 'wallet.view',
+
+  // 佣金钱包
+  COMMISSION_WALLET_VIEW: 'commission_wallet.view',
+
+  // 系统配置
+  SYSTEM_CONFIG_VIEW: 'system_config.view',
+  SYSTEM_CONFIG_UPDATE: 'system_config.update'
 }
 
 /**
@@ -87,6 +105,7 @@ const ACTION_PERMISSIONS = {
   'createProduct': PERMISSIONS.PRODUCT_CREATE,
   'updateProduct': PERMISSIONS.PRODUCT_UPDATE,
   'deleteProduct': PERMISSIONS.PRODUCT_DELETE,
+  'adjustProductStock': PERMISSIONS.PRODUCT_UPDATE,
 
   // 推广管理
   'getPromotionStats': PERMISSIONS.PROMOTION_VIEW,
@@ -143,7 +162,25 @@ const ACTION_PERMISSIONS = {
   'approveRefund': PERMISSIONS.REFUND_APPROVE,
   'confirmReceipt': PERMISSIONS.REFUND_APPROVE,
   'rejectRefund': PERMISSIONS.REFUND_APPROVE,
-  'retryRefund': PERMISSIONS.REFUND_APPROVE
+  'retryRefund': PERMISSIONS.REFUND_APPROVE,
+
+  // 地址管理
+  'getAddresses': PERMISSIONS.ADDRESS_VIEW,
+  'deleteAddress': PERMISSIONS.ADDRESS_DELETE,
+
+  // 门店管理
+  'getStoreInfo': PERMISSIONS.STORE_VIEW,
+  'updateStoreInfo': PERMISSIONS.STORE_UPDATE,
+
+  // 钱包管理
+  'getWalletTransactions': PERMISSIONS.WALLET_VIEW,
+
+  // 佣金钱包
+  'getCommissionWallets': PERMISSIONS.COMMISSION_WALLET_VIEW,
+
+  // 系统配置
+  'getSystemConfig': PERMISSIONS.SYSTEM_CONFIG_VIEW,
+  'updateSystemConfig': PERMISSIONS.SYSTEM_CONFIG_UPDATE
 }
 
 /**
