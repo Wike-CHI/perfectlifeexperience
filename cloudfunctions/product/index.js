@@ -106,7 +106,7 @@ async function initDataToDatabase(data) {
         // 获取图片
         let imageUrl = imageMap['飞云江小麦'];
         if (item.name.includes('飞云江小麦')) {
-          imageUrl = '/static/img/feiyun-wheat-ale-haibao.png';
+          imageUrl = 'https://cloud1-6gmp2q0y3171c353-1403736715.tcloudbaseapp.com/images/feiyun-wheat-ale-haibao.jpg';
         } else {
           for (const key in imageMap) {
             if (item.name.includes(key)) {

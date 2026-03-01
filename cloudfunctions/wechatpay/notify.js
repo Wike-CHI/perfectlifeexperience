@@ -6,6 +6,8 @@
 const { verifySignature, buildNotifySignatureString } = require('./sign');
 const { decrypt } = require('./decrypt');
 const { getPublicKeyBySerialNo } = require('./cert');
+const { createLogger } = require('./logger');
+const logger = createLogger('wechatpay-notify');
 
 /**
  * 解析并验证回调通知
@@ -63,9 +65,9 @@ async function parseNotify(headers, body, config) {
       eventType: notification.event_type,
       transaction: paymentResult
     };
-  } catch (error) {
-    console.error('解析回调通知失败:', error);
-    throw error;
+  } catch (err) {
+    logger.error('解析回调通知失败', err);
+    throw err;
   }
 }
 
@@ -142,32 +144,33 @@ async function handlePaymentSuccess(transaction, db) {
         orderNo: out_trade_no
       })
       .get();
-    
+
     if (orderRes.data.length === 0) {
-      console.error(`订单不存在: ${out_trade_no}`);
+      logger.warn('订单不存在', { out_trade_no });
       return { success: false, message: '订单不存在' };
     }
-    
+
     const order = orderRes.data[0];
-    
+
     // 检查订单状态，避免重复处理
     if (order.status !== 'pending') {
-      console.log(`订单已处理: ${out_trade_no}, 当前状态: ${order.status}`);
+      logger.info('订单已处理', { out_trade_no, status: order.status });
       return { success: true, message: '订单已处理' };
     }
-    
+
     // 验证金额
     if (order.totalAmount !== amount.total) {
-      console.error(`金额不匹配: 订单${order.totalAmount}分, 支付${amount.total}分`);
+      logger.error('金额不匹配', { orderAmount: order.totalAmount, payAmount: amount.total });
       return { success: false, message: '金额不匹配' };
     }
-    
-    // 更新订单状态
+
+    // 更新订单状态（同时更新 status 和 paymentStatus）
     await db.collection('orders')
       .doc(order._id)
       .update({
         data: {
           status: 'paid',
+          paymentStatus: 'paid',  // 修复：同时更新支付状态
           paymentMethod: 'wechat',
           payTime: new Date(),
           transactionId: transaction_id,
@@ -176,15 +179,15 @@ async function handlePaymentSuccess(transaction, db) {
         }
       });
 
-    console.log(`订单支付成功: ${out_trade_no}`);
+    logger.info('订单支付成功', { out_trade_no });
 
     // 扣减商品库存（安全修复：防止超卖）
     await deductProductStock(order.items, db);
 
     return { success: true, message: '订单状态更新成功' };
-  } catch (error) {
-    console.error('处理支付成功回调失败:', error);
-    return { success: false, message: error.message };
+  } catch (err) {
+    logger.error('处理支付成功回调失败', err);
+    return { success: false, message: err.message };
   }
 }
 
@@ -209,23 +212,23 @@ async function handleRechargeSuccess(transaction, db) {
         orderNo: out_trade_no
       })
       .get();
-    
+
     if (orderRes.data.length === 0) {
-      console.error(`充值订单不存在: ${out_trade_no}`);
+      logger.warn('充值订单不存在', { out_trade_no });
       return { success: false, message: '充值订单不存在' };
     }
-    
+
     const rechargeOrder = orderRes.data[0];
-    
+
     // 2. 检查订单状态，避免重复处理
     if (rechargeOrder.status === 'paid') {
-      console.log(`充值订单已处理: ${out_trade_no}`);
+      logger.info('充值订单已处理', { out_trade_no });
       return { success: true, message: '充值订单已处理' };
     }
-    
+
     // 3. 验证金额
     if (rechargeOrder.amount !== amount.total) {
-      console.error(`充值金额不匹配: 订单${rechargeOrder.amount}分, 支付${amount.total}分`);
+      logger.error('充值金额不匹配', { orderAmount: rechargeOrder.amount, payAmount: amount.total });
       return { success: false, message: '充值金额不匹配' };
     }
     
@@ -298,21 +301,21 @@ async function handleRechargeSuccess(transaction, db) {
           orderNo: out_trade_no
         }
       });
-      
+
       // 提交事务
       await transactionDb.commit();
-      
-      console.log(`充值支付成功: ${out_trade_no}, 到账金额: ${totalAmount}分`);
-      
+
+      logger.info('充值支付成功', { out_trade_no, totalAmount });
+
       return { success: true, message: '充值成功' };
     } catch (txError) {
       // 回滚事务
       await transactionDb.rollback();
       throw txError;
     }
-  } catch (error) {
-    console.error('处理充值支付成功回调失败:', error);
-    return { success: false, message: error.message };
+  } catch (err) {
+    logger.error('处理充值支付成功回调失败', err);
+    return { success: false, message: err.message };
   }
 }
 
@@ -344,11 +347,11 @@ async function deductProductStock(items, db) {
           });
 
         if (updateResult.stats.updated === 0) {
-          console.error(`SKU库存扣减失败: productId=${item.productId}, skuId=${item.skuId}, quantity=${item.quantity}`);
+          logger.warn('SKU库存扣减失败', { productId: item.productId, skuId: item.skuId, quantity: item.quantity });
           // 库存扣减失败，记录日志但不影响支付流程
           // 可以考虑后续人工处理或发送告警
         } else {
-          console.log(`SKU库存扣减成功: productId=${item.productId}, skuId=${item.skuId}, quantity=${item.quantity}`);
+          logger.debug('SKU库存扣减成功', { productId: item.productId, skuId: item.skuId, quantity: item.quantity });
         }
       } else {
         // 普通 SKU 商品：扣减商品总库存
@@ -364,14 +367,14 @@ async function deductProductStock(items, db) {
           });
 
         if (updateResult.stats.updated === 0) {
-          console.error(`商品库存扣减失败: productId=${item.productId}, quantity=${item.quantity}`);
+          logger.warn('商品库存扣减失败', { productId: item.productId, quantity: item.quantity });
           // 库存扣减失败，记录日志但不影响支付流程
         } else {
-          console.log(`商品库存扣减成功: productId=${item.productId}, quantity=${item.quantity}`);
+          logger.debug('商品库存扣减成功', { productId: item.productId, quantity: item.quantity });
         }
       }
-    } catch (error) {
-      console.error(`扣减库存异常: productId=${item.productId}, error=${error.message}`);
+    } catch (err) {
+      logger.error('扣减库存异常', err, { productId: item.productId });
       // 库存扣减异常，记录日志但不影响支付流程
     }
   }

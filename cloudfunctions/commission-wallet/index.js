@@ -92,6 +92,10 @@ exports.main = async (event, context) => {
 
 /**
  * 获取佣金钱包余额
+ *
+ * 并发保护：
+ * - 使用 try-catch 处理并发创建钱包的情况
+ * - 如果创建失败（可能是因为并发导致的重复键），重新查询已存在的钱包
  */
 async function getBalance(openid) {
   try {
@@ -99,42 +103,74 @@ async function getBalance(openid) {
       .where({ _openid: openid })
       .get();
 
-    let result;
-
-    if (res.data.length === 0) {
-      // 如果没有佣金钱包，初始化一个
-      const initData = {
-        _openid: openid,
-        balance: 0,
-        totalCommission: 0,     // 累计佣金
-        totalWithdrawn: 0,       // 累计提现
-        updateTime: db.serverDate()
-      };
-      await db.collection(COMMISSION_WALLETS_COLLECTION).add({
-        data: initData
-      });
-      result = {
+    if (res.data.length > 0) {
+      // 钱包已存在，直接返回
+      const wallet = res.data[0];
+      return {
         code: 0,
         msg: '获取成功',
         data: {
-          balance: 0,
-          totalCommission: 0,
-          totalWithdrawn: 0
-        }
-      };
-    } else {
-      result = {
-        code: 0,
-        msg: '获取成功',
-        data: {
-          balance: res.data[0].balance || 0,
-          totalCommission: res.data[0].totalCommission || 0,
-          totalWithdrawn: res.data[0].totalWithdrawn || 0
+          balance: wallet.balance || 0,
+          frozenAmount: wallet.frozenAmount || 0,
+          totalCommission: wallet.totalCommission || 0,
+          totalWithdrawn: wallet.totalWithdrawn || 0
         }
       };
     }
 
-    return result;
+    // 钱包不存在，尝试创建（使用 try-catch 处理并发创建）
+    const initData = {
+      _openid: openid,
+      balance: 0,
+      frozenAmount: 0,
+      totalCommission: 0,     // 累计佣金
+      totalWithdrawn: 0,       // 累计提现
+      createTime: db.serverDate(),
+      updateTime: db.serverDate()
+    };
+
+    try {
+      await db.collection(COMMISSION_WALLETS_COLLECTION).add({
+        data: initData
+      });
+
+      logger.info('Commission wallet created', { openid });
+
+      return {
+        code: 0,
+        msg: '获取成功',
+        data: {
+          balance: 0,
+          frozenAmount: 0,
+          totalCommission: 0,
+          totalWithdrawn: 0
+        }
+      };
+    } catch (createError) {
+      // 并发创建可能失败（如果有唯一索引），重新查询已存在的钱包
+      logger.warn('Concurrent wallet creation detected, re-fetching', { openid });
+
+      const retryRes = await db.collection(COMMISSION_WALLETS_COLLECTION)
+        .where({ _openid: openid })
+        .get();
+
+      if (retryRes.data.length > 0) {
+        const wallet = retryRes.data[0];
+        return {
+          code: 0,
+          msg: '获取成功',
+          data: {
+            balance: wallet.balance || 0,
+            frozenAmount: wallet.frozenAmount || 0,
+            totalCommission: wallet.totalCommission || 0,
+            totalWithdrawn: wallet.totalWithdrawn || 0
+          }
+        };
+      }
+
+      // 如果重试也失败，抛出原始错误
+      throw createError;
+    }
   } catch (error) {
     logger.error('Failed to get balance', error);
     throw error;
@@ -155,8 +191,12 @@ async function applyWithdraw(openid, data) {
     };
   }
 
-  // 最小提现金额（1元）
-  const MIN_WITHDRAW = 100;
+  // 提现限制配置
+  const MIN_WITHDRAW = 100;        // 最小提现金额（1元）
+  const MAX_WITHDRAW = 50000;      // 最大提现金额（500元）
+  const MAX_DAILY_WITHDRAWS = 3;   // 每天最多提现次数
+
+  // 最小提现金额验证
   if (amount < MIN_WITHDRAW) {
     return {
       code: 400,
@@ -164,10 +204,37 @@ async function applyWithdraw(openid, data) {
     };
   }
 
+  // 最大提现金额验证
+  if (amount > MAX_WITHDRAW) {
+    return {
+      code: 400,
+      msg: `单次最大提现金额为${MAX_WITHDRAW / 100}元`
+    };
+  }
+
+  // 2. 提现频率限制 - 检查今日提现次数
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString();
+
+  const todayWithdraws = await db.collection(WITHDRAWALS_COLLECTION)
+    .where({
+      _openid: openid,
+      applyTime: _.gte(new Date(todayStr))
+    })
+    .count();
+
+  if (todayWithdraws.total >= MAX_DAILY_WITHDRAWS) {
+    return {
+      code: 400,
+      msg: `每天最多提现${MAX_DAILY_WITHDRAWS}次，请明天再试`
+    };
+  }
+
   const transaction = await db.startTransaction();
 
   try {
-    // 2. 获取佣金钱包
+    // 3. 获取佣金钱包
     const walletRes = await transaction.collection(COMMISSION_WALLETS_COLLECTION)
       .where({ _openid: openid })
       .get();
@@ -182,7 +249,7 @@ async function applyWithdraw(openid, data) {
 
     const wallet = walletRes.data[0];
 
-    // 3. 检查余额
+    // 4. 检查余额
     if (wallet.balance < amount) {
       await transaction.rollback();
       return {
@@ -191,7 +258,7 @@ async function applyWithdraw(openid, data) {
       };
     }
 
-    // 4. 冻结提现金额（从余额中扣除）
+    // 5. 冻结提现金额（从余额中扣除）
     await transaction.collection(COMMISSION_WALLETS_COLLECTION)
       .doc(wallet._id)
       .update({
@@ -202,7 +269,7 @@ async function applyWithdraw(openid, data) {
         }
       });
 
-    // 5. 创建提现记录
+    // 6. 创建提现记录
     const withdrawNo = generateWithdrawNo();
 
     await transaction.collection(WITHDRAWALS_COLLECTION).add({
@@ -216,7 +283,7 @@ async function applyWithdraw(openid, data) {
       }
     });
 
-    // 6. 记录交易流水
+    // 7. 记录交易流水
     await transaction.collection(COMMISSION_TRANSACTIONS_COLLECTION).add({
       data: {
         _openid: openid,

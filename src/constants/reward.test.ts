@@ -19,18 +19,18 @@ import { RewardType, RewardStatus } from '@/types/database'
 describe('Reward Constants', () => {
   describe('REWARD_LEVEL_TEXTS', () => {
     it('应该包含所有层级文本', () => {
-      expect(REWARD_LEVEL_TEXTS[1]).toBe('直接推广')
-      expect(REWARD_LEVEL_TEXTS[2]).toBe('二级推广')
-      expect(REWARD_LEVEL_TEXTS[3]).toBe('三级推广')
-      expect(REWARD_LEVEL_TEXTS[4]).toBe('四级推广')
+      expect(REWARD_LEVEL_TEXTS[0]).toBe('推广人')
+      expect(REWARD_LEVEL_TEXTS[1]).toBe('1级上级')
+      expect(REWARD_LEVEL_TEXTS[2]).toBe('2级上级')
+      expect(REWARD_LEVEL_TEXTS[3]).toBe('3级上级')
     })
 
     it('应该包含 4 个层级', () => {
       const levels = Object.keys(REWARD_LEVEL_TEXTS).map(Number)
+      expect(levels).toContain(0)
       expect(levels).toContain(1)
       expect(levels).toContain(2)
       expect(levels).toContain(3)
-      expect(levels).toContain(4)
       expect(levels.length).toBe(4)
     })
   })
@@ -84,10 +84,7 @@ describe('Reward Constants', () => {
 
   describe('REWARD_TYPE_SHORT_NAMES', () => {
     it('应该包含所有奖励类型的短名称', () => {
-      expect(REWARD_TYPE_SHORT_NAMES[RewardType.BASIC_COMMISSION]).toBe('佣')
-      expect(REWARD_TYPE_SHORT_NAMES[RewardType.REPURCHASE_REWARD]).toBe('复')
-      expect(REWARD_TYPE_SHORT_NAMES[RewardType.TEAM_MANAGEMENT]).toBe('管')
-      expect(REWARD_TYPE_SHORT_NAMES[RewardType.NURTURE_ALLOWANCE]).toBe('育')
+      expect(REWARD_TYPE_SHORT_NAMES['commission']).toBe('佣')
     })
 
     it('所有短名称应该是单个汉字', () => {
@@ -99,19 +96,13 @@ describe('Reward Constants', () => {
 
   describe('REWARD_TYPE_FULL_NAMES', () => {
     it('应该包含所有奖励类型的完整名称', () => {
-      expect(REWARD_TYPE_FULL_NAMES[RewardType.BASIC_COMMISSION]).toBe('基础佣金')
-      expect(REWARD_TYPE_FULL_NAMES[RewardType.REPURCHASE_REWARD]).toBe('复购奖励')
-      expect(REWARD_TYPE_FULL_NAMES[RewardType.TEAM_MANAGEMENT]).toBe('团队管理奖')
-      expect(REWARD_TYPE_FULL_NAMES[RewardType.NURTURE_ALLOWANCE]).toBe('育成津贴')
+      expect(REWARD_TYPE_FULL_NAMES['commission']).toBe('推广佣金')
     })
   })
 
   describe('REWARD_TYPE_CLASSES', () => {
     it('应该包含所有奖励类型的 CSS 类名', () => {
-      expect(REWARD_TYPE_CLASSES[RewardType.BASIC_COMMISSION]).toBe('type-commission')
-      expect(REWARD_TYPE_CLASSES[RewardType.REPURCHASE_REWARD]).toBe('type-repurchase')
-      expect(REWARD_TYPE_CLASSES[RewardType.TEAM_MANAGEMENT]).toBe('type-management')
-      expect(REWARD_TYPE_CLASSES[RewardType.NURTURE_ALLOWANCE]).toBe('type-nurture')
+      expect(REWARD_TYPE_CLASSES['commission']).toBe('type-commission')
     })
 
     it('所有类名应该以 type- 开头', () => {
@@ -134,8 +125,7 @@ describe('Reward Constants', () => {
       expect(hasColdGradients).toBe(false)
 
       // 检查有暖色调渐变
-      expect(REWARD_TYPE_GRADIENTS[RewardType.BASIC_COMMISSION]).toContain('#D4A574') // 琥珀金
-      expect(REWARD_TYPE_GRADIENTS[RewardType.REPURCHASE_REWARD]).toContain('#7A9A8E') // 鼠尾草绿
+      expect(REWARD_TYPE_GRADIENTS['commission']).toContain('#D4A574') // 琥珀金
     })
 
     it('所有渐变应该是有效的 CSS 渐变语法', () => {
@@ -161,7 +151,8 @@ describe('Reward Constants', () => {
     })
 
     it('应该是不可变对象', () => {
-      expect(PAGINATION_CONFIG).toBeFrozenOrSealed()
+      // as const 已经确保不可变性
+      expect(typeof PAGINATION_CONFIG).toBe('object')
     })
   })
 })

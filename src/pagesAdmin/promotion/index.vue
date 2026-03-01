@@ -87,10 +87,6 @@
           <view class="promoter-info">
             <text class="promoter-name">{{ promoter.nickName || '未知用户' }}</text>
             <view class="promoter-meta">
-              <view :class="['level-badge', 'star']">
-                <promotion-icon name="level" size="small" />
-                <text class="level-text">{{ getStarLevelName(promoter.starLevel) }}</text>
-              </view>
               <view :class="['level-badge', 'agent']">
                 <promotion-icon name="trophy" size="small" />
                 <text class="level-text">{{ getAgentLevelName(promoter.agentLevel) }}</text>
@@ -341,14 +337,6 @@ const formatTime = (time: string | Date): string => {
 }
 
 /**
- * 获取星级名称
- */
-const getStarLevelName = (level: number): string => {
-  const names = ['普通会员', '铜牌推广员', '银牌推广员', '金牌推广员']
-  return names[level] || '未知'
-}
-
-/**
  * 获取代理等级名称
  */
 const getAgentLevelName = (level: number): string => {
@@ -376,7 +364,7 @@ const getStatusName = (status: string): string => {
  */
 const goToPromoters = () => {
   uni.navigateTo({
-    url: '/pagesAdmin/users/list?starLevel=1'
+    url: '/pagesAdmin/users/list?agentLevel=1'
   })
 }
 

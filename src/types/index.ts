@@ -78,7 +78,7 @@ export interface Order {
   totalAmount: number;
   shippingFee?: number;
   deliveryType?: 'delivery' | 'pickup';
-  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled';
+  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled' | 'refunded';
   address?: Address;
   remark?: string;
   paymentMethod?: 'wechat' | 'balance';
@@ -163,22 +163,38 @@ export interface UserCoupon {
 }
 
 // ==================== 推广相关类型 ====================
+// 更新记录：2026年2月重构为单一四级代理制
 
-// 奖励类型枚举
-export type RewardType = 'commission' | 'repurchase' | 'management' | 'nurture';
+// 奖励类型（只有佣金一种）
+export type RewardType = 'commission';
 
-// 星级身份枚举
-export type StarLevel = 0 | 1 | 2 | 3;
-
-// 代理层级枚举
+// 代理层级枚举（唯一等级体系）
+// 1=金牌推广员, 2=银牌推广员, 3=铜牌推广员, 4=普通会员
 export type AgentLevel = 0 | 1 | 2 | 3 | 4;
+
+// 代理层级常量
+export const AgentLevelValues = {
+  HEAD_OFFICE: 0,   // 总公司
+  GOLD: 1,          // 金牌推广员 = 一级代理
+  SILVER: 2,        // 银牌推广员 = 二级代理
+  BRONZE: 3,        // 铜牌推广员 = 三级代理
+  NORMAL: 4         // 普通会员 = 四级代理
+} as const;
+
+// 代理层级名称映射
+export const AgentLevelNames: Record<AgentLevel, string> = {
+  0: '总公司',
+  1: '金牌推广员',
+  2: '银牌推广员',
+  3: '铜牌推广员',
+  4: '普通会员'
+};
 
 // 业绩追踪对象
 export interface Performance {
   totalSales: number;      // 历史累计销售额 (单位: 分)
   monthSales: number;      // 本月销售额 (单位: 分)
   monthTag: string;        // 跨月标识, 如 "2026-02"
-  directCount: number;     // 直推有效人数
   teamCount: number;       // 团队总人数
 }
 
@@ -191,19 +207,12 @@ export interface PromotionUser {
   inviteCode: string;
   parentId?: string;
   promotionPath?: string;
-  // === 双轨制身份 ===
-  starLevel: StarLevel;           // 星级身份 (0-3)
-  agentLevel: AgentLevel;         // 代理层级 (0-4)
+  // === 等级（单一体系）===
+  agentLevel: AgentLevel;         // 代理层级 (1-4)
   performance: Performance;       // 业绩追踪
-  mentorId?: string;              // 育成导师ID
   // === 奖励统计 ===
   totalReward: number;
   pendingReward: number;
-  // === 奖励分类统计 ===
-  commissionReward?: number;      // 基础佣金累计
-  repurchaseReward?: number;      // 复购奖励累计
-  managementReward?: number;      // 团队管理奖累计
-  nurtureReward?: number;         // 育成津贴累计
   // === 其他 ===
   isSuspicious?: boolean;
   createTime?: Date;
@@ -265,16 +274,18 @@ export interface TeamStats {
 
 // 晋升进度信息
 export interface PromotionProgress {
-  currentLevel: StarLevel;
-  nextLevel: StarLevel | null;
-  // 金额进度
+  currentLevel: AgentLevel;
+  currentLevelName: string;
+  nextLevel: AgentLevel | null;
+  nextLevelName: string | null;
+  // 销售额进度
   salesProgress: {
     current: number;
     target: number;
     percent: number;
   };
-  // 人数进度
-  countProgress: {
+  // 团队人数进度
+  teamProgress: {
     current: number;
     target: number;
     percent: number;
@@ -284,25 +295,20 @@ export interface PromotionProgress {
 // 推广信息响应
 export interface PromotionInfo {
   inviteCode: string;
-  // === 双轨制身份 ===
-  starLevel: StarLevel;
+  // === 等级信息 ===
   agentLevel: AgentLevel;
-  starLevelName: string;       // 星级名称
-  agentLevelName: string;      // 代理层级名称
+  agentLevelName: string;      // 对外名称（金牌/银牌/铜牌/普通）
+  agentLevelInternalName: string; // 内部名称（一级/二级/三级/四级代理）
   // === 奖励统计 ===
   totalReward: number;
   pendingReward: number;
+  withdrawableReward: number;
   todayReward: number;
   monthReward: number;
-  // === 分类奖励统计 ===
-  commissionReward: number;    // 基础佣金
-  repurchaseReward: number;    // 复购奖励
-  managementReward: number;    // 团队管理奖
-  nurtureReward: number;       // 育成津贴
   // === 业绩数据 ===
   performance: Performance;
   // === 晋升进度 ===
-  promotionProgress: PromotionProgress;
+  promotionProgress: PromotionProgress | null;
   // === 团队统计 ===
   teamStats: TeamStats;
 }
@@ -320,37 +326,30 @@ export interface WalletTransaction {
   createTime?: Date;
 }
 
-// ==================== 推广体系V2类型定义 ====================
+// ==================== 佣金计算相关类型 ====================
 
-// V2佣金分配结果
-export interface CommissionV2Reward {
+// 佣金分配结果
+export interface CommissionReward {
   beneficiaryId: string;
   beneficiaryName: string;
   type: 'commission';
+  typeName: string;
   amount: number;
   ratio: number;
   role: string;  // '推广人' | '1级上级' | '2级上级' | '3级上级'
+  agentLevel: AgentLevel;
+  agentLevelName: string;
 }
 
-// V2佣金计算响应
-export interface CommissionV2Response {
-  rewards: CommissionV2Reward[];
-  promoterLevel: number;
+// 佣金计算响应
+export interface CommissionResponse {
+  rewards: CommissionReward[];
+  promoterLevel: AgentLevel;
+  promoterLevelName: string;
   commissionRule: {
     own: number;
     upstream: number[];
   };
-}
-
-// 升级历史记录
-export interface PromotionHistoryItem {
-  from: number;
-  to: number;
-  type: 'self' | 'follow' | 'star_promotion';
-  triggeredBy?: string;
-  timestamp: Date;
-  oldPath?: string;
-  newPath?: string;
 }
 
 // 升级响应
@@ -358,27 +357,14 @@ export interface PromotionResponse {
   success: boolean;
   promoted: {
     userId: string;
-    from: number;
-    to: number;
-    newPath: string;
+    from: AgentLevel;
+    to: AgentLevel;
   };
-  followUpdates: Array<{
-    childId: string;
-    childName: string;
-    from: number;
-    to: number;
+  followedUsers?: Array<{
+    userId: string;
+    fromLevel: AgentLevel;
+    toLevel: AgentLevel;
   }>;
-}
-
-// 推广用户信息（V2）
-export interface PromotionUserV2 {
-  _openid: string;
-  agentLevel: number;  // 1-4
-  starLevel: number;   // 0-3
-  promotionPath: string;
-  promotionHistory: PromotionHistoryItem[];
-  nickName: string;
-  avatarUrl: string;
 }
 
 // ==================== 退款相关类型 ====================

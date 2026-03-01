@@ -150,10 +150,7 @@ const statusTabs = [
 // 类型选项
 const typeOptions = [
   { label: '全部类型', value: 'all' },
-  { label: '基础佣金', value: 'basic' },
-  { label: '复购奖励', value: 'repurchase' },
-  { label: '团队管理奖', value: 'team' },
-  { label: '育成津贴', value: 'nurture' }
+  { label: '推广佣金', value: 'commission' }
 ]
 
 const currentTypeLabel = computed(() => {
@@ -328,26 +325,14 @@ const formatTime = (time: string | Date): string => {
  * 获取佣金类型名称
  */
 const getCommissionTypeName = (type: string): string => {
-  const names = {
-    basic: '基础佣金',
-    repurchase: '复购奖励',
-    team: '团队管理奖',
-    nurture: '育成津贴'
-  }
-  return names[type] || '未知类型'
+  return '推广佣金'
 }
 
 /**
  * 获取佣金图标
  */
 const getCommissionIcon = (type: string): string => {
-  const icons = {
-    basic: 'commission',
-    repurchase: 'reward',
-    team: 'team',
-    nurture: 'growth'
-  }
-  return icons[type] || 'commission'
+  return 'commission'
 }
 
 /**

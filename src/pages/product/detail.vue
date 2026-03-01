@@ -107,7 +107,7 @@
         </view>
       </view>
       <view class="store-preview">
-        <image class="store-map-preview" src="/static/img/brewery-factory.png" mode="aspectFill" />
+        <image class="store-map-preview" :src="CDN_IMAGES.breweryFactory" mode="aspectFill" />
         <view class="store-overlay">
           <view class="store-info-row">
             <image class="store-icon" src="/static/icons/menu-address.svg" mode="aspectFit" />
@@ -175,6 +175,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getProductDetail, addToCart as apiAddToCart, getCartItems, formatPrice } from '@/utils/api';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
+import { CDN_IMAGES } from '@/config/cdn';
 
 // 类型定义（内联，避免分包导入问题）
 interface Product {

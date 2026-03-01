@@ -129,30 +129,33 @@ const pathNodes = [
   { name: '金牌', icon: '金', bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }
 ];
 
-// 晋升条件
+// 晋升条件（与后端 PromotionThreshold 配置保持一致）
+// 四级→三级: 累计销售额 >= 1,000元
+// 三级→二级: 本月销售额 >= 5,000元 或 团队 >= 30人
+// 二级→一级: 本月销售额 >= 20,000元 或 团队 >= 100人
 const conditions = [
   {
     name: '铜牌会员',
     icon: '铜',
     bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    salesReq: '累计 ≥ ¥20,000',
-    countReq: '或直推 ≥ 30人',
-    tip: '满足任一条件即可晋升'
+    salesReq: '累计 ≥ ¥1,000',
+    countReq: '无人数要求',
+    tip: '完成累计销售额即可自动晋升'
   },
   {
     name: '银牌会员',
     icon: '银',
     bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    salesReq: '本月 ≥ ¥50,000',
-    countReq: '或团队 ≥ 50人',
-    tip: '销售额按月统计，需保持活跃'
+    salesReq: '本月 ≥ ¥5,000',
+    countReq: '或团队 ≥ 30人',
+    tip: '满足任一条件即可晋升'
   },
   {
     name: '金牌会员',
     icon: '金',
     bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    salesReq: '本月 ≥ ¥200,000',
-    countReq: '或团队 ≥ 200人',
+    salesReq: '本月 ≥ ¥20,000',
+    countReq: '或团队 ≥ 100人',
     tip: '最高等级，享受全部权益'
   }
 ];
@@ -197,7 +200,7 @@ const faqList = ref([
   },
   {
     question: '晋升后等级会降级吗？',
-    answer: '星级身份是永久性的，一旦晋升不会降级。但月度销售额会影响您当前的晋升进度显示。',
+    answer: '代理等级是永久性的，一旦晋升不会降级。但月度销售额会影响您当前的晋升进度显示。',
     expanded: false
   },
   {

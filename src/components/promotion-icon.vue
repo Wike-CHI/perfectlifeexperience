@@ -70,6 +70,13 @@
         <path d="M17 11V16C17 18.7614 14.7614 21 12 21C9.23858 21 7 18.7614 7 16V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         <path d="M12 4V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </template>
+
+      <!-- 警告图标 -->
+      <template v-else-if="name === 'alert'">
+        <path d="M12 9V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M12 16H12.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 3L2 21H22L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </template>
     </svg>
   </view>
 </template>
@@ -81,7 +88,7 @@
  */
 
 interface Props {
-  name: 'promoters' | 'team' | 'commission' | 'chart' | 'sales' | 'rank' | 'growth' | 'users' | 'level' | 'trophy'
+  name: 'promoters' | 'team' | 'commission' | 'chart' | 'sales' | 'rank' | 'growth' | 'users' | 'level' | 'trophy' | 'alert'
   size?: 'small' | 'medium' | 'large'
   color?: string
 }

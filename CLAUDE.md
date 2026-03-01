@@ -6,7 +6,7 @@ notice:always chinese output
 
 ## Project Overview
 
-**大友元气精酿啤酒在线点单小程序** - A WeChat Mini Program for craft beer ordering with a comprehensive promotion/referral system featuring a sophisticated dual-track (agent level + star level) reward structure.
+**大友元气精酿啤酒在线点单小程序** - A WeChat Mini Program for craft beer ordering with a comprehensive promotion/referral system featuring a simple four-tier agent commission structure.
 
 **Tech Stack:**
 
@@ -18,30 +18,96 @@ notice:always chinese output
 
 ## Key Architecture Concepts
 
-### Dual-Track Promotion System
+### Four-Tier Promotion System
 
-This project implements a sophisticated **four-tier commission system** combined with **star-level advancement**:
+This project implements a **simple four-tier agent commission system**:
 
-1. **Agent Levels** (4 tiers): 总公司 → 一级代理 → 二级代理 → 三级代理 → 四级代理
-2. **Star Levels** (4 tiers): 普通会员 → 铜牌推广员 → 银牌推广员 → 金牌推广员
+**Agent Levels (4 tiers)**:
+- 一级代理 / 金牌推广员 (被总公司推荐)
+- 二级代理 / 银牌推广员 (被一级代理推荐)
+- 三级代理 / 铜牌推广员 (被二级代理推荐)
+- 四级代理 / 普通会员 (被三级代理推荐)
 
-### Four-Tier Reward Structure
+**Key Rule**: Level is determined by the referrer. Higher level = more commission when promoting.
 
-Orders generate **four types of rewards** distributed up the promotion chain:
+### Commission Distribution (Percentage-based)
 
-- **Basic Commission** (基础佣金): 25%/20%/15%/10%/5% based on agent level
-- **Repurchase Reward** (复购奖励): 3% for repeat customers (star level ≥ 1)
-- **Team Management Award** (团队管理奖): 2% with level-difference distribution (star level ≥ 2)
-- **Nurture Allowance** (育成津贴): 2% to mentor (star level ≥ 2)
+Each order allocates **20% as commission pool**, distributed based on promoter's level:
+
+| Promoter Level | Self | Level 1 | Level 2 | Level 3 | Total |
+|----------------|------|---------|---------|---------|-------|
+| 一级推广 | 20% | - | - | - | 20% |
+| 二级推广 | 12% | 8% | - | - | 20% |
+| 三级推广 | 12% | 4% | 4% | - | 20% |
+| 四级推广 | 8% | 4% | 4% | 4% | 20% |
+
+**Pattern** (based on order amount):
+- 一级推广: Takes all 20%
+- 二级推广: Self 12%, parent 8%
+- 三级推广: Self 12%, parents 4% each
+- 四级推广: Self 8%, parents 4% each
+
+**Example** (100元订单):
+- 一级推广: 拿 20元
+- 二级推广: 自己 12元，上级 8元
+- 三级推广: 自己 12元，上级各 4元
+- 四级推广: 自己 8元，上级各 4元
+
+### Upgrade Conditions
+
+| From | To | Condition (meet one) |
+|------|-----|---------------------|
+| 普通 | 铜牌 | Cumulative sales 2万元 |
+| 铜牌 | 银牌 | Monthly sales 5万元 OR Team 50人 |
+| 银牌 | 金牌 | Monthly sales 10万元 OR Team 200人 |
+
+**Note**: Monthly sales reset on the 1st of each month.
+
+### Follow-upgrade Mechanism
+
+When an agent upgrades, their direct subordinates can **follow-upgrade**:
+
+| Upgrade | Subordinates Follow |
+|---------|---------------------|
+| 4→3 | None (can develop new level 4) |
+| 3→2 | Previous level 4 → level 3 |
+| 2→1 | Previous level 3→2, level 4→3 |
+
+**Important**: After follow-upgrade, subordinates leave the original referral chain and become the upline's upline or peer.
 
 ### Key Database Collections
 
+**User & Authentication:**
 - `users` - User profiles with promotion paths, performance stats, reward tracking
+- `admins` - Admin accounts with role-based permissions
+
+**Promotion System:**
 - `promotion_relations` - Explicit parent-child relationships
 - `promotion_orders` - Order records for reward calculation
 - `reward_records` - Individual reward records by type
+
+**Orders & Payments:**
 - `orders` - Customer orders
-- `coupons` - Coupon templates and user coupons
+- `refunds` - Refund records
+
+**Products & Inventory:**
+- `products` - Product catalog
+- `categories` - Product categories
+
+**Wallet & Finance:**
+- `user_wallets` - User balance wallet
+- `wallet_transactions` - Wallet transaction history
+- `commission_wallets` - Commission earnings wallet
+- `commission_transactions` - Commission transaction records
+- `withdrawals` - Withdrawal request records
+- `recharge_orders` - Recharge order records
+
+**Marketing:**
+- `coupons` - Coupon templates
+- `user_coupons` - User-claimed coupons
+- `banners` - Banner/promotional images
+- `promotions` - Promotional activities
+- `announcements` - System announcements
 
 ## Development Commands
 
@@ -62,6 +128,19 @@ npm run dev:h5
 
 # H5 Production Build
 npm run build:h5
+```
+
+### Testing
+
+```bash
+# Run tests in watch mode
+npm run test
+
+# Run tests once
+npm run test:run
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ### Build Output Locations
@@ -103,8 +182,6 @@ npm run build:h5
   - `uploadFile()` - File upload to cloud storage
   - Manages 7-day login session with local storage
 - **`utils/api.ts`** - Frontend API layer
-- **`utils/distance.ts`** - Distance calculation utilities
-- **`utils/admin-auth.ts`** - Admin authentication utilities
 
   - Product/Category APIs (currently local mock data)
   - Cart management (local storage)
@@ -112,7 +189,14 @@ npm run build:h5
   - User management → `user` cloud function
   - Promotion APIs → `promotion` cloud function
   - Wallet APIs → `wallet` cloud function
+  - Commission Wallet APIs → `commission-wallet` cloud function
   - Coupon system (local mock data)
+  - Home page aggregation API for performance optimization
+- **`utils/database.ts`** - Direct database query utilities (performance optimization)
+- **`utils/distance.ts`** - Distance calculation utilities
+- **`utils/admin-auth.ts`** - Admin authentication utilities
+- **`utils/admin-cache.ts`** - Admin-side caching utilities
+- **`utils/format.ts`** - Data formatting utilities (currency, date, etc.)
 
 ### Backend (`cloudfunctions/`)
 
@@ -144,11 +228,12 @@ All cloud functions share common utilities from the `common/` directory:
 - **`user/`** - User management
 
   - Actions: `loginOrUpdate`, `getUserInfo`, `updateUserInfo`
-- **`promotion/`** - Promotion/referral system (1200+ lines)
+- **`promotion/`** - Promotion/referral system
 
   - Actions: `bindRelation`, `calculateReward`, `getInfo`, `getTeamMembers`, `getRewardRecords`, `generateQRCode`, `checkPromotion`, `updatePerformance`
-  - Implements 4-tier reward calculation with level-difference algorithm
-  - Star level promotion checking with configurable thresholds
+  - Implements fixed-amount commission distribution based on agent level
+  - Upgrade checking with configurable thresholds
+  - Follow-upgrade mechanism for team advancement
   - Team statistics with recursive level counting
   - Anti-fraud measures (IP throttling, duplicate detection)
 - **`product/`** - Product catalog management
@@ -167,9 +252,18 @@ All cloud functions share common utilities from the `common/` directory:
 - **`wallet/`** - Wallet balance and transactions
 
   - Actions: `getBalance`, `getTransactions`, `recharge`, `withdraw`
+- **`commission-wallet/`** - Commission wallet management
+
+  - Actions: `getBalance`, `getTransactions`, `applyWithdraw`, `getWithdrawals`
+  - Separate from regular wallet for commission earnings
+  - Supports withdrawal to WeChat Pay
 - **`coupon/`** - Coupon management
 
   - Actions: `getCoupons`, `claimCoupon`, `useCoupon`, `getUserCoupons`
+- **`upload/`** - File upload service
+
+  - Handles user avatar uploads to cloud storage
+  - Returns CDN URL for stored files
 - **`rewardSettlement/`** - Reward settlement processing
 - **`migration/`** - Database schema migrations and index creation
 
@@ -177,6 +271,9 @@ All cloud functions share common utilities from the `common/` directory:
 - **`initData/`** - Database initialization with seed data
 - **`initAdminData/`** - Admin account initialization
 - **`admin-api/`** - Admin management backend
+
+  - Comprehensive admin API with role-based permissions
+  - Actions cover orders, products, users, finance, promotions, etc.
 - **`test-helper/`** - Database query helper for testing
 - **`pay/`** - Legacy payment module (deprecated, use `wechatpay`)
 
@@ -234,15 +331,50 @@ Users have a nested `performance` object:
 
 ```javascript
 {
-  totalSales: 0,      // Lifetime sales (for bronze promotion)
-  monthSales: 0,       // Current month sales (for silver/gold)
+  totalSales: 0,      // Cumulative sales (for 4→3 upgrade: 2万元)
+  monthSales: 0,       // Current month sales (for 3→2: 5万元, 2→1: 10万元)
   monthTag: "2026-02",  // For cross-month reset detection
-  directCount: 0,       // Direct referrals (for bronze)
-  teamCount: 0          // Total team size (for silver/gold)
+  teamCount: 0          // Total team size (for 3→2: 50人, 2→1: 200人)
 }
 ```
 
 **Monthly Reset**: When `monthTag` changes, `monthSales` resets to 0 but `totalSales` persists.
+
+### Admin Permission System
+
+Admin users have role-based access control:
+
+**Roles:**
+- `super_admin` - Full system access
+- `operator` - Order and product management
+- `finance` - Financial and refund management
+
+**Permission Structure:**
+```javascript
+const PERMISSIONS = {
+  // Order permissions
+  ORDER_VIEW: 'order:view',
+  ORDER_MANAGE: 'order:manage',
+  // Product permissions
+  PRODUCT_VIEW: 'product:view',
+  PRODUCT_MANAGE: 'product:manage',
+  // User permissions
+  USER_VIEW: 'user:view',
+  USER_MANAGE: 'user:manage',
+  // Finance permissions
+  FINANCE_VIEW: 'finance:view',
+  FINANCE_MANAGE: 'finance:manage',
+  // System permissions
+  SYSTEM_CONFIG: 'system:config',
+  ADMIN_MANAGE: 'admin:manage'
+};
+```
+
+**Admin Authentication Flow:**
+1. Admin logs in via `pagesAdmin/login/index.vue`
+2. Credentials verified against `admins` collection
+3. Role and permissions stored in local cache
+4. Each admin API call validates permission via `admin-api` cloud function
 
 ## CloudBase Environment
 
@@ -266,14 +398,21 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 
 ### Shared Components
 
-- **`PromotionBadge.vue`** - Agent/Star level badge with warm gradients
-- **`PromotionProgress.vue`** - Promotion progress bars with dual-track display
+**Business Components:**
+- **`PromotionBadge.vue`** - Agent level badge with warm gradients
+- **`PromotionProgress.vue`** - Promotion progress bars showing upgrade progress
+- **`PromotionUpgradeAlert.vue`** - Upgrade notification component for promotion level changes
 - **`ProductSkuPopup.vue`** - Product SKU selection popup
 - **`CategoryIcon.vue`** - Category icon with SVG rendering
-- **`admin-chart.vue`** - Chart component for admin dashboard
-- **`admin-search.vue`** - Search component for admin pages
 - **`distance-badge.vue`** - Distance/location badge component
 - **`promotion-icon.vue`** - Promotional icon component
+
+**Admin Components:**
+- **`admin-chart.vue`** - Chart component for admin dashboard
+- **`admin-search.vue`** - Search component for admin pages
+- **`admin-card.vue`** - Card container component for admin layouts
+- **`admin-data-card.vue`** - Data display card with statistics
+- **`admin-icon.vue`** - Icon component for admin interface
 
 ### Page Organization
 
@@ -284,23 +423,66 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - **`pages/order/*`** - Order management (list, confirm, detail, refund-apply, refund-detail, refund-list)
 - **`pages/address/*`** - Address management (list, edit)
 - **`pages/wallet/*`** - Wallet and recharge
+- **`pages/commission-wallet/`** - Commission wallet (balance, withdrawal, transactions)
 - **`pages/coupon/*`** - Coupon center and my coupons
 - **`pages/promo/`** - Promotional activities
 - **`pages/store/location.vue`** - Store location
 - **`pages/user/user.vue`** - User profile
 - **`pages/settings/*`** - Settings and account security
-- **`pages/promotion/*`** - Promotion center, team, rewards, QR code, rules
+- **`pages/promotion/*`** - Promotion center, team, rewards, QR code, rules, commission-calculator
 - **`pages/common/*`** - Common pages (user agreement, privacy policy, about us)
 
 ### Admin Pages (`src/pagesAdmin/`)
 
-- **`dashboard/index.vue`** - Admin dashboard with statistics
-- **`products/list.vue`** - Product management
-- **`promotion/index.vue`** - Promotion campaign management
-- **`statistics/index.vue`** - System statistics and analytics
-- **`banners/*`** - Banner/promotional image management
-- **`coupons/*`** - Coupon template management
-- **`refunds/*`** - Refund request management
+**Authentication:**
+- `login/index.vue` - Admin login with role-based access
+
+**Dashboard & Statistics:**
+- `dashboard/index.vue` - Admin dashboard with statistics overview
+- `statistics/index.vue` - System statistics and analytics
+
+**Order Management:**
+- `orders/list.vue` - Order list with search and filters
+- `orders/detail.vue` - Order detail view
+
+**Product Management:**
+- `products/list.vue` - Product list with inventory tracking
+- `products/edit.vue` - Add/edit product
+
+**User Management:**
+- `users/list.vue` - User list with promotion status
+- `users/detail.vue` - User detail with order history
+- `addresses/list.vue` - Address management
+
+**Promotion & Commission:**
+- `promotion/index.vue` - Promotion campaign management
+- `commissions/list.vue` - Commission records
+- `commission-wallets/list.vue` - Commission wallet management
+
+**Finance & Refunds:**
+- `finance/index.vue` - Financial overview and reports
+- `refunds/index.vue` - Refund request management
+- `refunds/detail.vue` - Refund detail and processing
+- `wallets/list.vue` - User wallet management
+
+**Marketing:**
+- `banners/list.vue` - Banner management
+- `banners/edit.vue` - Add/edit banner
+- `coupons/list.vue` - Coupon template management
+- `coupons/edit.vue` - Add/edit coupon
+- `promotions/list.vue` - Promotional activity list
+- `promotions/edit.vue` - Add/edit promotion
+- `promotions/products.vue` - Promotion product selection
+- `promotions/stats.vue` - Promotion statistics
+
+**Content Management:**
+- `announcements/list.vue` - Announcement management
+- `announcements/edit.vue` - Add/edit announcement
+
+**System Management:**
+- `inventory/list.vue` - Inventory alerts and warnings
+- `stores/edit.vue` - Store information management
+- `settings/config.vue` - System configuration
 
 ### Admin Dashboard (`admin_dash/`)
 
@@ -314,9 +496,19 @@ Separate admin application template for CloudBase/UniApp development. See `admin
 - Test promotion reward calculation with different user hierarchies
 - Validate monthly performance reset logic at month boundaries
 
+### Testing Framework
+
+The project uses **vitest** for unit testing:
+
+```bash
+npm run test           # Run tests in watch mode
+npm run test:run       # Run tests once
+npm run test:coverage  # Run with coverage report
+```
+
 ### Testing Cloud Functions
 
-Tests are located in cloud function directories (e.g., `cloudfunctions/promotion/test.test.js`). Since there's no npm script for running tests, invoke tests via:
+Tests are located in cloud function directories (e.g., `cloudfunctions/promotion/test.test.js`). Invoke tests via:
 
 1. **Cloud Function Invocation**: Call the cloud function directly with test actions
 2. **test-helper Cloud Function**: Use `test-helper` for database queries during testing
@@ -329,6 +521,7 @@ Test files:
 - `cloudfunctions/order/refund.test.js` - Refund processing tests
 - `cloudfunctions/admin-api/refund.test.js` - Admin refund tests
 - `cloudfunctions/wallet/test.test.js` - Wallet tests
+- `cloudfunctions/commission-wallet/test.test.js` - Commission wallet tests
 
 ## Deployment
 
@@ -369,8 +562,34 @@ Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent Cloud
 TypeScript types are defined in `src/types/`:
 
 - **`index.ts`** - Main business types (Product, Order, User, Cart, Coupon, etc.)
+- **`admin.ts`** - Admin types (AdminInfo, AdminRole, LoginRequest, PERMISSIONS, etc.)
+- **`database.ts`** - Database schema types (AdminDB, CommissionWalletDB, RechargeOrderDB, etc.)
 - **`wx-cloud.d.ts`** - WeChat Cloud SDK declarations
 - Types are imported in components via `@/types`
+
+### Frontend Modules
+
+**Composables (`src/composables/`):**
+- `usePromotion.ts` - Vue Composable for promotion-related logic
+
+**Configuration (`src/config/`):**
+- `recharge.ts` - Recharge tier configuration
+
+**Constants (`src/constants/`):**
+- `reward.ts` - Reward type constants
+- `order.ts` - Order status constants
+- `promotion.ts` - Promotion level constants
+- `wallet.ts` - Wallet transaction type constants
+
+**Utilities (`src/utils/`):**
+- `cloudbase.ts` - CloudBase SDK wrapper
+- `api.ts` - Frontend API layer
+- `database.ts` - Direct database query utilities
+- `distance.ts` - Distance calculation
+- `admin-auth.ts` - Admin authentication
+- `admin-cache.ts` - Admin-side caching utilities
+- `cache-config.ts` - Cache configuration
+- `format.ts` - Formatting utilities
 
 ## Important Code Patterns
 
@@ -608,21 +827,52 @@ CloudBase NoSQL (MongoDB-like) has limitations:
 ## Documentation References
 
 - `docs/README.md` - Complete documentation index
-- `docs/system/PROMOTION_SYSTEM.md` - Promotion system deep dive
+- `docs/system/推广体系商业说明.md` - **Promotion system business specification (权威文档)**
+- `docs/system/PROMOTION_SYSTEM.md` - Promotion system technical details
 - `docs/deployment/DEPLOYMENT_GUIDE.md` - Deployment procedures
 - `docs/migration/DATABASE_MIGRATION_GUIDE.md` - Schema changes
 
 ## Recent Changes (Feb 2026)
 
+### Payment & Finance
 - **WeChat Pay Integration**: Added `wechatpay` cloud function with V3 API support
-- **UI/UX Optimization**: Promotion center redesigned with Oriental Aesthetics theme
-- **SVG Icons**: Added SVG icon system replacing emoji
-- **Admin System**: Initialized admin dashboard with authentication
+- **Commission Wallet**: New commission wallet system with withdrawal support (`commission-wallet` cloud function)
+- **Recharge System**: Enhanced wallet recharge with gift amounts
+
+### Admin System Expansion
+- **Admin Dashboard**: Comprehensive admin panel with 25+ management pages
+- **Role-Based Permissions**: Admin roles (super_admin, operator, finance) with granular permissions
+- **Finance Module**: Financial overview, wallet management, commission tracking
+- **User Management**: User list, detail view, address management
+- **Content Management**: Announcement system, promotion management
+- **Inventory Alerts**: Low stock warning system
+
+### Frontend Architecture
+- **Vue Composables**: Introduced `composables/` directory with `usePromotion.ts`
+- **Constants Module**: Centralized constants in `constants/` directory
+- **Configuration Module**: Separated configuration to `config/` directory
+- **Database Utilities**: Added direct database query utilities for performance
+- **Testing Support**: Integrated vitest for unit testing
+
+### UI/UX Improvements
+- **Oriental Aesthetics Theme**: Promotion center redesigned with warm color palette
+- **SVG Icons**: Replaced emoji with SVG icon system
+- **Promotion Calculator**: New commission calculator page
+- **Upgrade Rules Page**: Dedicated page for promotion level upgrade rules
+
+### Order & Refund
 - **Order Management**: Enhanced order management cloud functions
-- **Refund System**: Added refund application, review, and processing pages (`pages/order/refund-*.vue`)
-- **Security Hardening**: Implemented comprehensive database security rules
-- **Admin Pages**: Created `src/pagesAdmin/` for backend management interface
-- **Documentation**: Comprehensive design and deployment documentation
+- **Refund System**: Complete refund workflow (apply, review, process)
+- **Refund Pages**: `pages/order/refund-apply.vue`, `refund-detail.vue`, `refund-list.vue`
+
+### Security & Infrastructure
+- **Security Hardening**: Comprehensive database security rules
+- **File Upload**: New `upload` cloud function for avatar uploads
+- **Admin Authentication**: Secure admin login with role validation
+
+### Documentation
+- **Design Documentation**: Comprehensive design and deployment documentation
+- **Database Schema**: Updated collection documentation
 
 See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit details.
 
@@ -632,3 +882,26 @@ See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit detail
 - **WeChat Mini Program Backend**: https://mp.weixin.qq.com/
 - **UniApp Documentation**: https://uniapp.dcloud.net.cn/
 - **CloudBase Documentation**: https://docs.cloudbase.net/
+
+## Dependencies
+
+### Frontend Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Vue | 3.4.21 | Core framework |
+| UniApp | 3.0.0-4060620250520001 | Cross-platform framework |
+| vue-i18n | 9.14.4 | Internationalization (prepared) |
+| @cloudbase/js-sdk | latest | CloudBase SDK |
+| @cloudbase/adapter-uni-app | ^1.0.0-beta.1 | CloudBase UniApp adapter |
+| sass | ^1.89.2 | CSS preprocessing |
+| typescript | ^4.9.4 | Type system |
+| vite | 5.2.8 | Build tool |
+| vitest | - | Unit testing |
+
+### Backend Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| wx-server-sdk | WeChat cloud function SDK |
+| axios | HTTP client |

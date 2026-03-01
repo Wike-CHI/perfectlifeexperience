@@ -3,18 +3,20 @@
  *
  * 集中管理奖励相关的配置和映射
  * 避免在组件中硬编码
+ *
+ * 更新记录：2026年2月重构为单一四级代理制，只保留佣金类型
  */
 
-import { RewardType, RewardStatus } from '@/types/database'
+import { RewardStatus } from '@/types/database'
 
 /**
  * 推广层级文本映射
  */
 export const REWARD_LEVEL_TEXTS = {
-  1: '直接推广',
-  2: '二级推广',
-  3: '三级推广',
-  4: '四级推广'
+  0: '推广人',
+  1: '1级上级',
+  2: '2级上级',
+  3: '3级上级'
 } as const
 
 /**
@@ -48,43 +50,36 @@ export const REWARD_STATUS_COLORS: Record<RewardStatus, string> = {
 }
 
 /**
+ * 奖励类型（只有佣金一种）
+ */
+export type RewardType = 'commission'
+
+/**
  * 奖励类型短名称映射
  */
 export const REWARD_TYPE_SHORT_NAMES: Record<RewardType, string> = {
-  basic_commission: '佣',
-  repurchase_reward: '复',
-  team_management: '管',
-  nurture_allowance: '育'
+  commission: '佣'
 }
 
 /**
  * 奖励类型完整名称映射
  */
 export const REWARD_TYPE_FULL_NAMES: Record<RewardType, string> = {
-  basic_commission: '基础佣金',
-  repurchase_reward: '复购奖励',
-  team_management: '团队管理奖',
-  nurture_allowance: '育成津贴'
+  commission: '推广佣金'
 }
 
 /**
  * 奖励类型 CSS 类名映射
  */
 export const REWARD_TYPE_CLASSES: Record<RewardType, string> = {
-  basic_commission: 'type-commission',
-  repurchase_reward: 'type-repurchase',
-  team_management: 'type-management',
-  nurture_allowance: 'type-nurture'
+  commission: 'type-commission'
 }
 
 /**
  * 奖励类型渐变背景色（东方美学暖色调）
  */
 export const REWARD_TYPE_GRADIENTS: Record<RewardType, string> = {
-  basic_commission: 'linear-gradient(135deg, #D4A574 0%, #C9A962 100%)',    // 琥珀金
-  repurchase_reward: 'linear-gradient(135deg, #7A9A8E 0%, #5F7A6E 100%)',  // 鼠尾草绿
-  team_management: 'linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%)',    // 棕色
-  nurture_allowance: 'linear-gradient(135deg, #C9A962 0%, #B8935F 100%'    // 金色
+  commission: 'linear-gradient(135deg, #D4A574 0%, #C9A962 100%)'  // 琥珀金
 }
 
 /**

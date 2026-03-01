@@ -14,24 +14,11 @@
       </view>
 
       <view class="form-item">
-        <text class="form-label">一级代理佣金比例</text>
+        <text class="form-label">一级代理佣金比例（金牌推广员）</text>
         <view class="input-wrapper">
           <input
             class="form-input"
             v-model="config.level1Commission"
-            type="digit"
-            placeholder="25"
-          />
-          <text class="input-unit">%</text>
-        </view>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">二级代理佣金比例</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.level2Commission"
             type="digit"
             placeholder="20"
           />
@@ -40,71 +27,42 @@
       </view>
 
       <view class="form-item">
-        <text class="form-label">三级代理佣金比例</text>
+        <text class="form-label">二级代理佣金比例（银牌推广员）</text>
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model="config.level2Commission"
+            type="digit"
+            placeholder="12"
+          />
+          <text class="input-unit">%</text>
+        </view>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">三级代理佣金比例（铜牌推广员）</text>
         <view class="input-wrapper">
           <input
             class="form-input"
             v-model="config.level3Commission"
             type="digit"
-            placeholder="15"
+            placeholder="8"
           />
           <text class="input-unit">%</text>
         </view>
       </view>
 
       <view class="form-item">
-        <text class="form-label">四级代理佣金比例</text>
+        <text class="form-label">四级代理佣金比例（普通会员）</text>
         <view class="input-wrapper">
           <input
             class="form-input"
             v-model="config.level4Commission"
             type="digit"
-            placeholder="10"
+            placeholder="4"
           />
           <text class="input-unit">%</text>
         </view>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">复购奖励比例</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.repurchaseReward"
-            type="digit"
-            placeholder="3"
-          />
-          <text class="input-unit">%</text>
-        </view>
-        <text class="form-tip">复购用户（星级≥1）额外奖励</text>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">团队管理奖比例</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.teamAward"
-            type="digit"
-            placeholder="2"
-          />
-          <text class="input-unit">%</text>
-        </view>
-        <text class="form-tip">银牌及以上推广员可获得</text>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">育成津贴比例</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.nurtureAllowance"
-            type="digit"
-            placeholder="2"
-          />
-          <text class="input-unit">%</text>
-        </view>
-        <text class="form-tip">直接下级晋升时给予导师的津贴</text>
       </view>
     </view>
 
@@ -112,20 +70,7 @@
     <view class="setting-section">
       <view class="section-header">
         <text class="section-title">晋升阈值配置</text>
-        <text class="section-desc">设置星级推广员的晋升条件</text>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">铜牌推广员 - 直接人数</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.bronzeDirectCount"
-            type="number"
-            placeholder="5"
-          />
-          <text class="input-unit">人</text>
-        </view>
+        <text class="section-desc">设置各级代理的晋升条件（团队人数 + 销售额）</text>
       </view>
 
       <view class="form-item">
@@ -139,19 +84,7 @@
           />
           <text class="input-unit">元</text>
         </view>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">银牌推广员 - 直接人数</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.silverDirectCount"
-            type="number"
-            placeholder="10"
-          />
-          <text class="input-unit">人</text>
-        </view>
+        <text class="form-tip">普通会员晋升为铜牌推广员</text>
       </view>
 
       <view class="form-item">
@@ -178,19 +111,7 @@
           />
           <text class="input-unit">元</text>
         </view>
-      </view>
-
-      <view class="form-item">
-        <text class="form-label">金牌推广员 - 直接人数</text>
-        <view class="input-wrapper">
-          <input
-            class="form-input"
-            v-model="config.goldDirectCount"
-            type="number"
-            placeholder="20"
-          />
-          <text class="input-unit">人</text>
-        </view>
+        <text class="form-tip">铜牌晋升为银牌需同时满足</text>
       </view>
 
       <view class="form-item">
@@ -217,6 +138,7 @@
           />
           <text class="input-unit">元</text>
         </view>
+        <text class="form-tip">银牌晋升为金牌需同时满足</text>
       </view>
     </view>
 
@@ -281,20 +203,14 @@ import AdminIcon from '@/components/admin-icon.vue'
 // 配置数据
 const config = ref({
   // 佣金比例
-  level1Commission: '25',
-  level2Commission: '20',
-  level3Commission: '15',
-  level4Commission: '10',
-  repurchaseReward: '3',
-  teamAward: '2',
-  nurtureAllowance: '2',
+  level1Commission: '20',
+  level2Commission: '12',
+  level3Commission: '8',
+  level4Commission: '4',
   // 晋升阈值
-  bronzeDirectCount: '5',
   bronzeTotalSales: '1000',
-  silverDirectCount: '10',
   silverTeamCount: '30',
   silverMonthSales: '5000',
-  goldDirectCount: '20',
   goldTeamCount: '100',
   goldMonthSales: '20000',
   // 其他
@@ -325,19 +241,13 @@ const loadConfig = async () => {
 
     if (res.code === 0 && res.data) {
       config.value = {
-        level1Commission: String(res.data.level1Commission ?? 25),
-        level2Commission: String(res.data.level2Commission ?? 20),
-        level3Commission: String(res.data.level3Commission ?? 15),
-        level4Commission: String(res.data.level4Commission ?? 10),
-        repurchaseReward: String(res.data.repurchaseReward ?? 3),
-        teamAward: String(res.data.teamAward ?? 2),
-        nurtureAllowance: String(res.data.nurtureAllowance ?? 2),
-        bronzeDirectCount: String(res.data.bronzeDirectCount ?? 5),
+        level1Commission: String(res.data.level1Commission ?? 20),
+        level2Commission: String(res.data.level2Commission ?? 12),
+        level3Commission: String(res.data.level3Commission ?? 8),
+        level4Commission: String(res.data.level4Commission ?? 4),
         bronzeTotalSales: String(res.data.bronzeTotalSales ?? 1000),
-        silverDirectCount: String(res.data.silverDirectCount ?? 10),
         silverTeamCount: String(res.data.silverTeamCount ?? 30),
         silverMonthSales: String(res.data.silverMonthSales ?? 5000),
-        goldDirectCount: String(res.data.goldDirectCount ?? 20),
         goldTeamCount: String(res.data.goldTeamCount ?? 100),
         goldMonthSales: String(res.data.goldMonthSales ?? 20000),
         minWithdrawAmount: String(res.data.minWithdrawAmount ?? 100),
@@ -376,7 +286,7 @@ const validateConfig = (): boolean => {
   // 验证佣金比例
   const commissionFields = [
     'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission',
-    'repurchaseReward', 'teamAward', 'nurtureAllowance', 'withdrawFeeRate'
+    'withdrawFeeRate'
   ]
 
   for (const field of commissionFields) {
@@ -392,9 +302,8 @@ const validateConfig = (): boolean => {
 
   // 验证数值字段
   const numberFields = [
-    'bronzeDirectCount', 'bronzeTotalSales', 'silverDirectCount', 'silverTeamCount',
-    'silverMonthSales', 'goldDirectCount', 'goldTeamCount', 'goldMonthSales',
-    'minWithdrawAmount'
+    'bronzeTotalSales', 'silverTeamCount', 'silverMonthSales',
+    'goldTeamCount', 'goldMonthSales', 'minWithdrawAmount'
   ]
 
   for (const field of numberFields) {
@@ -409,17 +318,17 @@ const validateConfig = (): boolean => {
   }
 
   // 验证晋升阈值的合理性
-  if (parseInt(config.value.silverDirectCount) <= parseInt(config.value.bronzeDirectCount)) {
+  if (parseInt(config.value.silverTeamCount) <= 0) {
     uni.showToast({
-      title: '银牌直接人数应大于铜牌',
+      title: '银牌团队人数应大于0',
       icon: 'none'
     })
     return false
   }
 
-  if (parseInt(config.value.goldDirectCount) <= parseInt(config.value.silverDirectCount)) {
+  if (parseInt(config.value.goldTeamCount) <= parseInt(config.value.silverTeamCount)) {
     uni.showToast({
-      title: '金牌直接人数应大于银牌',
+      title: '金牌团队人数应大于银牌',
       icon: 'none'
     })
     return false
@@ -447,15 +356,9 @@ const handleSave = async () => {
             level2Commission: parseFloat(config.value.level2Commission),
             level3Commission: parseFloat(config.value.level3Commission),
             level4Commission: parseFloat(config.value.level4Commission),
-            repurchaseReward: parseFloat(config.value.repurchaseReward),
-            teamAward: parseFloat(config.value.teamAward),
-            nurtureAllowance: parseFloat(config.value.nurtureAllowance),
-            bronzeDirectCount: parseInt(config.value.bronzeDirectCount),
             bronzeTotalSales: parseInt(config.value.bronzeTotalSales),
-            silverDirectCount: parseInt(config.value.silverDirectCount),
             silverTeamCount: parseInt(config.value.silverTeamCount),
             silverMonthSales: parseInt(config.value.silverMonthSales),
-            goldDirectCount: parseInt(config.value.goldDirectCount),
             goldTeamCount: parseInt(config.value.goldTeamCount),
             goldMonthSales: parseInt(config.value.goldMonthSales),
             minWithdrawAmount: parseInt(config.value.minWithdrawAmount),

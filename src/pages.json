@@ -256,6 +256,23 @@
 					}
 				},
 				{
+					"path": "dashboard",
+					"style": {
+						"navigationBarTitleText": "数据看板",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "bind",
+					"style": {
+						"navigationBarTitleText": "绑定推广人",
+						"navigationBarBackgroundColor": "#3D2914",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
 					"path": "commission-calculator",
 					"style": {
 						"navigationBarTitleText": "佣金计算器",

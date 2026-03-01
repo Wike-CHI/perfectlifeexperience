@@ -57,6 +57,7 @@
             "es6" : true
         },
         "usingComponents" : true,
+        "lazyCodeLoading" : "requiredComponents",
         "permission" : {
             "scope.userLocation" : {
                 "desc" : "你的位置信息将用于展示门店距离及导航服务"

@@ -287,6 +287,7 @@ import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import { getHomePageData, addToCart as addToCartApi, formatPrice } from '@/utils/api';
 import { rechargeOptions } from '@/config/recharge';
+import { CDN_IMAGES } from '@/config/cdn';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
 
@@ -319,7 +320,7 @@ interface Banner {
 // 轮播图数据
 const banners = ref<Banner[]>([
   {
-    image: '/static/img/gallery-02.png',
+    image: CDN_IMAGES.gallery02,
     title: '精酿啤酒节',
     subtitle: '限时特惠 全场8折起',
     link: '/pages/promo/promo',
@@ -327,7 +328,7 @@ const banners = ref<Banner[]>([
     isActive: true
   },
   {
-    image: '/static/img/gallery-09.png',
+    image: CDN_IMAGES.gallery09,
     title: '双倍IPA',
     subtitle: '新品上市 震撼味蕾',
     link: '/pages/product/detail',
@@ -335,7 +336,7 @@ const banners = ref<Banner[]>([
     isActive: true
   },
   {
-    image: '/static/img/gallery-03.png',
+    image: CDN_IMAGES.gallery03,
     title: '会员专享',
     subtitle: '注册即享9折优惠',
     link: '/pages/user/user',

@@ -10,7 +10,7 @@ export interface AdminInfo {
   username: string
   role: 'super_admin' | 'operator' | 'finance'
   permissions: string[]
-  status: 'active' | 'disabled'
+  status: 'active' | 'inactive'
   lastLoginTime?: Date
   createTime: Date
 }
@@ -23,7 +23,7 @@ export type AdminRole = 'super_admin' | 'operator' | 'finance'
 /**
  * 管理员状态
  */
-export type AdminStatus = 'active' | 'disabled'
+export type AdminStatus = 'active' | 'inactive'
 
 /**
  * 登录请求

@@ -8,7 +8,6 @@
         <view class="user-detail">
           <text class="user-name">{{ isLoggedIn ? (userInfo.nickName || '微信用户') : '点击登录' }}</text>
           <view class="user-level" v-if="isLoggedIn">
-            <text class="level-badge">VIP会员</text>
             <text v-if="userInfo.nickName === '微信用户'" class="auth-tip">点击更新头像昵称</text>
           </view>
           <view class="user-level" v-else>
@@ -79,7 +78,7 @@
       <view class="menu-item" @click="goToCommissionWallet">
         <view class="menu-left">
           <view class="menu-icon commission">
-            <text class="commission-icon">💰</text>
+            <image class="menu-icon-img" src="/static/icons/menu-commission.svg" mode="aspectFit" />
           </view>
           <text class="menu-text">佣金钱包</text>
         </view>
@@ -205,12 +204,10 @@ interface UserInfo {
   }>
   promotionPath?: string
   agentLevel: number
-  starLevel: number
   performance?: {
     totalSales: number
     monthSales: number
     monthTag: string
-    directCount: number
     teamCount: number
   }
   createTime: Date
@@ -708,10 +705,6 @@ const goToAdmin = () => {
 
 .menu-icon.commission {
   background: rgba(201, 169, 98, 0.15);
-}
-
-.commission-icon {
-  font-size: 32rpx;
 }
 
 .commission-balance {

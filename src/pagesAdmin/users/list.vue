@@ -18,8 +18,7 @@
           <text class="openid">{{ user._openid }}</text>
         </view>
         <view class="user-badges">
-          <text class="badge">Lv{{ user.agentLevel }}</text>
-          <text class="badge star">{{ user.starLevel }}星</text>
+          <text :class="['badge', 'level-' + user.agentLevel]">{{ getAgentLevelShortName(user.agentLevel) }}</text>
         </view>
       </view>
 
@@ -59,6 +58,19 @@ const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
 const pageSize = 20
+
+// 代理等级短名称映射
+const AGENT_LEVEL_SHORT_NAMES: Record<number, string> = {
+  0: '总公司',
+  1: '金牌',
+  2: '银牌',
+  3: '铜牌',
+  4: '普通'
+}
+
+const getAgentLevelShortName = (level: number): string => {
+  return AGENT_LEVEL_SHORT_NAMES[level] || '普通'
+}
 
 // 权限检查
 onMounted(() => {

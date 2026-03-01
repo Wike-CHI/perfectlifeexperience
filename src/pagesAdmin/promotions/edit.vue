@@ -48,7 +48,7 @@
             <text :class="['picker-text', { placeholder: !formData.startTime }]">
               {{ formData.startTime ? formatTime(formData.startTime) : '请选择开始时间' }}
             </text>
-            <text class="picker-icon">📅</text>
+            <AdminIcon name="calendar" size="small" />
           </view>
         </picker>
       </view>
@@ -60,7 +60,7 @@
             <text :class="['picker-text', { placeholder: !formData.endTime }]">
               {{ formData.endTime ? formatTime(formData.endTime) : '请选择结束时间' }}
             </text>
-            <text class="picker-icon">📅</text>
+            <AdminIcon name="calendar" size="small" />
           </view>
         </picker>
       </view>
@@ -104,6 +104,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminIcon from '@/components/admin-icon.vue'
 import { callFunction } from '@/utils/cloudbase'
 
 const promotionId = ref('')
@@ -363,10 +364,6 @@ const goBack = () => uni.navigateBack()
 
 .picker-text.placeholder {
   color: rgba(245, 245, 240, 0.3);
-}
-
-.picker-icon {
-  font-size: 28rpx;
 }
 
 .switch-row {

@@ -20,15 +20,20 @@
           <text class="value">¥{{ (totalWithdrawn / 100).toFixed(2) }}</text>
         </view>
       </view>
+      <!-- 冻结金额提示 -->
+      <view class="frozen-info" v-if="frozenAmount > 0">
+        <text class="frozen-label">审核中</text>
+        <text class="frozen-amount">¥{{ (frozenAmount / 100).toFixed(2) }}</text>
+      </view>
     </view>
 
     <!-- 操作按钮 -->
     <view class="action-buttons">
       <button class="btn btn-primary" @click="showWithdrawModal = true">
-        <text>💰 申请提现</text>
+        <text>申请提现</text>
       </button>
       <button class="btn btn-secondary" @click="refresh">
-        <text>🔄 刷新</text>
+        <text>刷新</text>
       </button>
     </view>
 
@@ -52,11 +57,12 @@
         :key="item._id"
         class="record-item"
       >
-        <view class="record-icon">
-          <text v-if="item.type === 'reward_settlement'">🎁</text>
-          <text v-else-if="item.type === 'withdraw_apply'">💸</text>
-          <text v-else-if="item.type === 'withdraw_success'">✅</text>
-          <text v-else>💰</text>
+        <view class="record-icon" :class="'icon-' + item.type">
+          <text v-if="item.type === 'reward_settlement'" class="icon-text">+</text>
+          <text v-else-if="item.type === 'withdraw_apply'" class="icon-text">-</text>
+          <text v-else-if="item.type === 'withdraw_success'" class="icon-text check">&#10003;</text>
+          <text v-else-if="item.type === 'reward_deduct'" class="icon-text return">&#8634;</text>
+          <text v-else class="icon-text">$</text>
         </view>
         <view class="record-content">
           <view class="record-title">{{ item.title }}</view>
@@ -79,11 +85,11 @@
         :key="item._id"
         class="record-item"
       >
-        <view class="record-icon">
-          <text v-if="item.status === 'pending'">⏳</text>
-          <text v-else-if="item.status === 'approved'">✅</text>
-          <text v-else-if="item.status === 'rejected'">❌</text>
-          <text v-else>💰</text>
+        <view class="record-icon" :class="'status-icon-' + item.status">
+          <text v-if="item.status === 'pending'" class="icon-text pending">&#8987;</text>
+          <text v-else-if="item.status === 'approved'" class="icon-text check">&#10003;</text>
+          <text v-else-if="item.status === 'rejected'" class="icon-text cross">&#10005;</text>
+          <text v-else class="icon-text">$</text>
         </view>
         <view class="record-content">
           <view class="record-title">提现申请</view>
@@ -142,6 +148,7 @@ import { ref, onMounted } from 'vue';
 import { getCommissionWalletBalance, applyCommissionWithdraw, getCommissionTransactions, getCommissionWithdrawals } from '@/utils/api';
 
 const balance = ref(0);
+const frozenAmount = ref(0);
 const totalCommission = ref(0);
 const totalWithdrawn = ref(0);
 const currentTab = ref('transactions');
@@ -168,6 +175,7 @@ const loadBalance = async () => {
   try {
     const data = await getCommissionWalletBalance();
     balance.value = data.balance;
+    frozenAmount.value = data.frozenAmount || 0;
     totalCommission.value = data.totalCommission;
     totalWithdrawn.value = data.totalWithdrawn;
   } catch (error) {
@@ -328,6 +336,28 @@ onMounted(() => {
       }
     }
   }
+
+  // 冻结金额提示
+  .frozen-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12rpx;
+    padding: 20rpx 30rpx;
+    margin-top: 20rpx;
+
+    .frozen-label {
+      font-size: 26rpx;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .frozen-amount {
+      font-size: 28rpx;
+      font-weight: bold;
+      color: #C9A962;
+    }
+  }
 }
 
 // 操作按钮
@@ -393,8 +423,55 @@ onMounted(() => {
     margin-bottom: 20rpx;
 
     .record-icon {
-      font-size: 48rpx;
+      width: 64rpx;
+      height: 64rpx;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
       margin-right: 20rpx;
+      background: rgba(201, 169, 98, 0.1);
+
+      .icon-text {
+        font-size: 32rpx;
+        font-weight: bold;
+        color: #C9A962;
+      }
+
+      &.icon-reward_settlement {
+        background: rgba(122, 154, 142, 0.15);
+        .icon-text { color: #7A9A8E; }
+      }
+
+      &.icon-withdraw_apply {
+        background: rgba(212, 165, 116, 0.15);
+        .icon-text { color: #D4A574; }
+      }
+
+      &.icon-withdraw_success {
+        background: rgba(122, 154, 142, 0.15);
+        .icon-text.check { color: #7A9A8E; }
+      }
+
+      &.icon-reward_deduct {
+        background: rgba(184, 92, 92, 0.15);
+        .icon-text.return { color: #B85C5C; }
+      }
+
+      &.status-icon-pending {
+        background: rgba(201, 169, 98, 0.15);
+        .icon-text.pending { color: #C9A962; font-size: 28rpx; }
+      }
+
+      &.status-icon-approved {
+        background: rgba(122, 154, 142, 0.15);
+        .icon-text.check { color: #7A9A8E; }
+      }
+
+      &.status-icon-rejected {
+        background: rgba(184, 92, 92, 0.15);
+        .icon-text.cross { color: #B85C5C; }
+      }
     }
 
     .record-content {

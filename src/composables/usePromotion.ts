@@ -1,39 +1,29 @@
 import { ref, computed } from 'vue';
 import {
   getPromotionInfo,
-  promoteAgentLevel,
-  promoteStarLevel
+  promoteAgentLevel
 } from '@/utils/api';
-import type { PromotionInfo, PromotionHistoryItem } from '@/types';
+import type { PromotionInfo, AgentLevel } from '@/types';
+import { AGENT_LEVEL_NAMES } from '@/constants/promotion';
 
 export function usePromotion() {
   const user = ref<PromotionInfo>({
     inviteCode: '',
-    starLevel: 0,
     agentLevel: 4,
-    starLevelName: '普通会员',
-    agentLevelName: '四级代理',
+    agentLevelName: '普通会员',
+    agentLevelInternalName: '四级代理',
     totalReward: 0,
     pendingReward: 0,
+    withdrawableReward: 0,
     todayReward: 0,
     monthReward: 0,
-    commissionReward: 0,
-    repurchaseReward: 0,
-    managementReward: 0,
-    nurtureReward: 0,
     performance: {
       totalSales: 0,
       monthSales: 0,
       monthTag: '',
-      directCount: 0,
       teamCount: 0
     },
-    promotionProgress: {
-      currentLevel: 0,
-      nextLevel: 1,
-      salesProgress: { current: 0, target: 2000000, percent: 0 },
-      countProgress: { current: 0, target: 30, percent: 0 }
-    },
+    promotionProgress: null,
     teamStats: {
       total: 0,
       level1: 0,
@@ -43,7 +33,6 @@ export function usePromotion() {
     }
   });
 
-  const promotionHistory = ref<PromotionHistoryItem[]>([]);
   const loading = ref(false);
 
   // 获取推广信息
@@ -52,7 +41,6 @@ export function usePromotion() {
     try {
       const info = await getPromotionInfo();
       user.value = info;
-      promotionHistory.value = (info as any).promotionHistory || [];
     } catch (error) {
       console.error('获取推广信息失败:', error);
       throw error;
@@ -64,10 +52,10 @@ export function usePromotion() {
   // 计算我的佣金比例
   const myCommissionRatio = computed(() => {
     const ratios: Record<number, number> = {
-      1: 20,  // 一级代理
-      2: 12,  // 二级代理
-      3: 12,  // 三级代理
-      4: 8    // 四级代理
+      1: 20,  // 一级代理（金牌）
+      2: 12,  // 二级代理（银牌）
+      3: 12,  // 三级代理（铜牌）
+      4: 8    // 四级代理（普通）
     };
     return ratios[user.value.agentLevel] || 8;
   });
@@ -76,27 +64,25 @@ export function usePromotion() {
   const upstreamRatios = computed(() => {
     const ratios: Record<number, number[]> = {
       1: [],                  // 一级无上级
-      2: [0.08],             // 二级：一级拿8%
-      3: [0.04, 0.04],       // 三级：二级4%，一级4%
-      4: [0.04, 0.04, 0.04]  // 四级：三级4%，二级4%，一级4%
+      2: [8],                // 二级：一级拿8%
+      3: [4, 4],             // 三级：二级4%，一级4%
+      4: [4, 4, 4]           // 四级：三级4%，二级4%，一级4%
     };
     return ratios[user.value.agentLevel] || [];
   });
 
   // 升级代理等级
-  const upgradeAgentLevel = async (newLevel: number) => {
+  const upgradeAgentLevel = async (newLevel: AgentLevel) => {
     const oldLevel = user.value.agentLevel;
     loading.value = true;
     try {
-      // 云函数会从 wxContext.OPENID 自动获取用户ID，无需前端传递
-      const result = await promoteAgentLevel(
-        oldLevel,
-        newLevel
-      );
+      const result = await promoteAgentLevel(oldLevel, newLevel);
 
-      if (result.success) {
+      // 返回格式: { oldLevel, newLevel, followedUsers }
+      if (result.newLevel === newLevel) {
         // 更新用户信息
-        user.value.agentLevel = newLevel as 1 | 2 | 3 | 4;
+        user.value.agentLevel = newLevel;
+        user.value.agentLevelName = AGENT_LEVEL_NAMES[newLevel] || '普通会员';
         return result;
       }
       throw new Error('升级失败');
@@ -108,38 +94,20 @@ export function usePromotion() {
     }
   };
 
-  // 升级星级
-  const upgradeStarLevel = async (newStarLevel: number) => {
-    const oldStarLevel = user.value.starLevel;
-    loading.value = true;
-    try {
-      // 云函数会从 wxContext.OPENID 自动获取用户ID，无需前端传递
-      const result = await promoteStarLevel(
-        oldStarLevel,
-        newStarLevel
-      );
+  // 代理等级名称
+  const agentLevelName = computed(() => user.value.agentLevelName);
 
-      if (result.success) {
-        user.value.starLevel = newStarLevel as 0 | 1 | 2 | 3;
-        return result;
-      }
-      throw new Error('升级失败');
-    } catch (error) {
-      console.error('升级失败:', error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  };
+  // 代理等级内部名称
+  const agentLevelInternalName = computed(() => user.value.agentLevelInternalName);
 
   return {
     user,
-    promotionHistory,
     loading,
     myCommissionRatio,
     upstreamRatios,
+    agentLevelName,
+    agentLevelInternalName,
     fetchPromotionInfo,
-    upgradeAgentLevel,
-    upgradeStarLevel
+    upgradeAgentLevel
   };
 }

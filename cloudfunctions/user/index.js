@@ -77,8 +77,6 @@ async function loginOrUpdate(openid, userInfo) {
         createTime: now,
         lastLoginTime: now,
         loginCount: 1,
-        isVip: false,
-        vipLevel: 0,
         status: 'active'
       };
       
@@ -138,8 +136,6 @@ async function getUserInfo(openid) {
         province: user.province,
         city: user.city,
         phone: user.phone,
-        isVip: user.isVip,
-        vipLevel: user.vipLevel,
         createTime: user.createTime,
         lastLoginTime: user.lastLoginTime,
         loginCount: user.loginCount

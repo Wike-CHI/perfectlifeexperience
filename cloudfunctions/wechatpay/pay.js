@@ -95,6 +95,54 @@ async function queryRefund(outRefundNo, config) {
 }
 
 /**
+ * 商家转账到零钱 - 发起批量转账
+ * @param {object} params - 转账参数
+ * @param {object} config - 商户配置
+ * @returns {Promise<object>} 转账结果
+ */
+async function transferToBalance(params, config) {
+  const { appid, out_batch_no, batch_name, batch_remark, total_amount, total_num, transfer_detail_list } = params;
+
+  const body = JSON.stringify({
+    appid,
+    out_batch_no,           // 商户批次单号
+    batch_name,             // 批次名称
+    batch_remark,           // 批次备注
+    total_amount,           // 转账总金额（分）
+    total_num,              // 转账总笔数
+    transfer_detail_list    // 转账明细列表
+  });
+
+  const result = await requestApi('POST', '/v3/transfer/batches', body, config);
+  return result;
+}
+
+/**
+ * 查询商家转账批次
+ * @param {string} outBatchNo - 商户批次单号
+ * @param {object} config - 商户配置
+ * @returns {Promise<object>} 查询结果
+ */
+async function queryTransferBatch(outBatchNo, config) {
+  const { mchid } = config;
+  const result = await requestApi('GET', `/v3/transfer/batches/out-batch-no/${outBatchNo}?need_query_detail=true&detail_status=ALL&mchid=${mchid}`, '', config);
+  return result;
+}
+
+/**
+ * 查询商家转账明细
+ * @param {string} outBatchNo - 商户批次单号
+ * @param {string} outDetailNo - 商户明细单号
+ * @param {object} config - 商户配置
+ * @returns {Promise<object>} 查询结果
+ */
+async function queryTransferDetail(outBatchNo, outDetailNo, config) {
+  const { mchid } = config;
+  const result = await requestApi('GET', `/v3/transfer-detail/batches/out-batch-no/${outBatchNo}/details/out-detail-no/${outDetailNo}?mchid=${mchid}`, '', config);
+  return result;
+}
+
+/**
  * 生成小程序支付参数
  * 用于 wx.requestPayment 调用
  * @param {string} prepayId - 预支付交易会话标识
@@ -235,5 +283,8 @@ module.exports = {
   refund,
   queryRefund,
   generateMiniProgramPayParams,
-  generateOutTradeNo
+  generateOutTradeNo,
+  transferToBalance,
+  queryTransferBatch,
+  queryTransferDetail
 };

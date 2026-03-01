@@ -9,13 +9,7 @@ const db = cloud.database()
 const _ = db.command
 const { verifyAdmin, hasPermission, logOperation, getDefaultPermissions } = require('./auth')
 const { getRequiredPermission } = require('./permissions')
-// 微信商家转账功能 (需先开通权限)
-let wechatTransfer = null
-try {
-  wechatTransfer = require('./wechat-transfer')
-} catch (error) {
-  console.warn('微信转账模块未加载,请确保已开通权限并配置正确:', error.message)
-}
+const { sendWithdrawalNotification } = require('./common/notification')
 const {
   isValidObjectId,
   validateOrderStatus,
@@ -385,7 +379,7 @@ async function getDashboardData(data) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [todayOrdersResult, monthOrdersResult, usersResult, pendingShipments, recentOrdersData] = await Promise.all([
+    const [todayOrdersResult, monthOrdersResult, usersResult, pendingShipments, recentOrdersData, lowStockResult] = await Promise.all([
       db.collection('orders').where({
         createTime: _.gte(today),
         status: _.in(['paid', 'shipping', 'completed'])
@@ -403,7 +397,12 @@ async function getDashboardData(data) {
       db.collection('orders')
         .orderBy('createTime', 'desc')
         .limit(10)
-        .get()
+        .get(),
+
+      // 库存预警：库存小于等于10的商品
+      db.collection('products').where({
+        stock: _.lte(10)
+      }).count()
     ]);
 
     const todaySales = todayOrdersResult.data.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -419,8 +418,10 @@ async function getDashboardData(data) {
         totalUsers: usersResult.total,
         pendingTasks: [
           { type: 'shipment', count: pendingShipments.total },
+          { type: 'lowStock', count: lowStockResult.total },
           { type: 'withdrawal', count: 0 }
         ],
+        lowStockCount: lowStockResult.total,
         recentOrders: recentOrdersData.data
       }
     };
@@ -433,8 +434,9 @@ async function getDashboardData(data) {
 // Promotion functions
 async function getPromotionStatsAdmin(data) {
   try {
+    // 推广员统计：代理等级1-3的都是推广员
     const [totalPromoters, totalTeams, totalRewards, recentOrders] = await Promise.all([
-      db.collection('users').where({ starLevel: _.gte(1) }).count(),
+      db.collection('users').where({ agentLevel: _.lte(3) }).count(),
       db.collection('promotion_relations').count(),
       db.collection('reward_records').count(),
       db.collection('promotion_orders')
@@ -1027,14 +1029,10 @@ async function deleteAnnouncementAdmin(data, wxContext) {
 // User Management functions
 async function getUsersAdmin(data) {
   try {
-    const { page = 1, pageSize = 20, starLevel, agentLevel, keyword } = data;
+    const { page = 1, pageSize = 20, agentLevel, keyword } = data;
     const skip = (page - 1) * pageSize;
 
     let query = {};
-
-    if (starLevel !== undefined && starLevel >= 0) {
-      query['performance.starLevel'] = starLevel;
-    }
 
     if (agentLevel !== undefined && agentLevel >= 0) {
       query.agentLevel = agentLevel;
@@ -1241,7 +1239,7 @@ async function getWithdrawalsAdmin(data) {
     const [withdrawalsResult, countResult] = await Promise.all([
       db.collection('withdrawals')
         .where(query)
-        .orderBy('createTime', 'desc')
+        .orderBy('applyTime', 'desc')
         .skip(skip)
         .limit(limit)
         .get(),
@@ -1269,7 +1267,8 @@ async function getWithdrawalsAdmin(data) {
         list: withdrawalsWithUsers,
         total: countResult.total,
         page,
-        limit
+        limit,
+        totalPages: Math.ceil(countResult.total / limit)
       }
     };
   } catch (error) {
@@ -1305,13 +1304,16 @@ async function approveWithdrawalAdmin(data, wxContext) {
       }
     });
 
-    // 更新佣金钱包余额 - 解冻并减少余额，增加已提现金额
+    // 更新佣金钱包余额 - 解冻冻结金额，增加累计提现
+    // 注意：申请提现时已经从balance扣减并转移到frozenAmount，所以审批时只需要：
+    // 1. 从frozenAmount解冻（减少）
+    // 2. 增加累计提现金额
+    // balance不需要再扣减，否则会导致双重扣减
     await db.collection('commission_wallets')
       .where({ _openid: withdrawal._openid })
       .update({
         data: {
-          frozenAmount: _.inc(-withdrawal.amount), // 解冻
-          balance: _.inc(-withdrawal.amount),       // 实际扣除
+          frozenAmount: _.inc(-withdrawal.amount), // 解冻冻结金额
           totalWithdrawn: _.inc(withdrawal.amount), // 增加累计提现
           updateTime: new Date()
         }
@@ -1331,62 +1333,73 @@ async function approveWithdrawalAdmin(data, wxContext) {
     });
 
     // 调用微信商家转账API将钱打入用户微信余额
-    if (wechatTransfer) {
-      try {
-        // 生成商家批次单号 (格式: WD + 年月日时分秒 + 6位随机数)
-        const outBatchNo = `WD${new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)}${Math.random().toString().slice(2, 8)}`;
-
-        const transferResult = await wechatTransfer.transferToWechatBalance({
-          outBatchNo,
-          openid: withdrawal._openid,
-          amount: withdrawal.amount,
-          transferRemark: '佣金钱包提现'
-          // userName: withdrawal.realName, // 可选: >0.5元需要填写用户真实姓名(需加密)
-        });
-
-        if (transferResult.success) {
-          // 更新提现记录为转账中状态
-          await db.collection('withdrawals').doc(withdrawalId).update({
-            data: {
-              transferStatus: 'processing',
-              transferBatchId: transferResult.batchId,
-              transferTime: new Date()
-            }
-          });
-        } else {
-          // 转账失败,记录错误但批准流程已完成
-          console.error('微信转账失败:', transferResult.message);
-          await db.collection('withdrawals').doc(withdrawalId).update({
-            data: {
-              transferStatus: 'failed',
-              transferError: transferResult.message,
-              transferTime: new Date()
-            }
-          });
+    // 使用 wechatpay 云函数进行转账（推荐方式）
+    try {
+      const transferResult = await cloud.callFunction({
+        name: 'wechatpay',
+        data: {
+          action: 'transferToBalance',
+          data: {
+            openid: withdrawal._openid,
+            amount: withdrawal.amount,
+            withdrawNo: withdrawal.withdrawNo,
+            remark: '佣金钱包提现'
+          }
         }
-      } catch (transferError) {
-        // 转账异常,记录错误但不影响批准流程
-        console.error('微信转账异常:', transferError);
+      });
+
+      const result = transferResult.result;
+
+      if (result.code === 0) {
+        // 转账成功或处理中
+        await db.collection('withdrawals').doc(withdrawalId).update({
+          data: {
+            transferStatus: result.data.status || 'PROCESSING',
+            transferBatchId: result.data.batchId,
+            transferDetailId: result.data.detailId,
+            transferTime: new Date()
+          }
+        });
+        console.log('微信转账已发起:', result.data);
+      } else {
+        // 转账失败,记录错误但批准流程已完成
+        console.error('微信转账失败:', result.msg);
         await db.collection('withdrawals').doc(withdrawalId).update({
           data: {
             transferStatus: 'failed',
-            transferError: transferError.message,
+            transferError: result.msg,
             transferTime: new Date()
           }
         });
       }
-    } else {
-      // 转账功能未启用,记录为需手动转账
+    } catch (transferError) {
+      // 转账异常,记录错误但不影响批准流程
+      console.error('微信转账异常:', transferError);
       await db.collection('withdrawals').doc(withdrawalId).update({
         data: {
-          transferStatus: 'manual',
-          transferError: '微信转账功能未配置,需手动转账',
+          transferStatus: 'failed',
+          transferError: transferError.message || '转账服务异常',
           transferTime: new Date()
         }
       });
     }
 
     await logOperation(adminInfo.id, 'approveWithdrawal', { withdrawalId, amount: withdrawal.amount });
+
+    // 发送提现通知（异步，不阻塞主流程）
+    sendWithdrawalNotification(withdrawal._openid, {
+      amount: withdrawal.amount,
+      status: '已批准，转账中',
+      time: formatTime(new Date())
+    }).then(notifyResult => {
+      if (notifyResult.success) {
+        console.log('[通知] 提现通知发送成功');
+      } else {
+        console.warn('[通知] 提现通知发送失败:', notifyResult.reason || notifyResult.error);
+      }
+    }).catch(notifyError => {
+      console.error('[通知] 提现通知发送异常:', notifyError);
+    });
 
     return {
       code: 0,
@@ -1396,6 +1409,18 @@ async function approveWithdrawalAdmin(data, wxContext) {
     console.error('Approve withdrawal error:', error);
     return { code: 500, msg: error.message };
   }
+}
+
+/**
+ * 格式化时间
+ */
+function formatTime(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
 async function rejectWithdrawalAdmin(data, wxContext) {
@@ -1465,18 +1490,15 @@ async function rejectWithdrawalAdmin(data, wxContext) {
 // Promoter Management functions
 async function getPromotersAdmin(data) {
   try {
-    const { page = 1, pageSize = 20, starLevel, agentLevel, keyword } = data;
+    const { page = 1, pageSize = 20, agentLevel, keyword } = data;
     const skip = (page - 1) * pageSize;
 
+    // 推广员：代理等级1-3（金牌、银牌、铜牌）
     let query = {
-      starLevel: _.gte(1) // Only get promoters
+      agentLevel: _.lte(3) // Only get promoters (1=金牌, 2=银牌, 3=铜牌)
     };
 
-    if (starLevel !== undefined && starLevel >= 0) {
-      query.starLevel = _.gte(starLevel);
-    }
-
-    if (agentLevel !== undefined && agentLevel >= 0) {
+    if (agentLevel !== undefined && agentLevel >= 1 && agentLevel <= 3) {
       query.agentLevel = agentLevel;
     }
 
@@ -1499,18 +1521,17 @@ async function getPromotersAdmin(data) {
           nickName: true,
           avatarUrl: true,
           agentLevel: true,
-          starLevel: true,
           performance: true
         })
         .get(),
       db.collection('users').where(query).count()
     ]);
 
-    // Calculate stats
+    // Calculate stats (按代理等级统计)
     const [goldResult, silverResult, bronzeResult] = await Promise.all([
-      db.collection('users').where({ starLevel: 3 }).count(),
-      db.collection('users').where({ starLevel: 2 }).count(),
-      db.collection('users').where({ starLevel: 1 }).count()
+      db.collection('users').where({ agentLevel: 1 }).count(),
+      db.collection('users').where({ agentLevel: 2 }).count(),
+      db.collection('users').where({ agentLevel: 3 }).count()
     ]);
 
     return {
@@ -1578,8 +1599,9 @@ async function getCommissionsAdmin(data) {
     // Get user info for each commission
     const commissionsWithUsers = await Promise.all(
       commissionsResult.data.map(async (commission) => {
+        // beneficiaryId 是佣金受益人的 openid
         const userResult = await db.collection('users')
-          .where({ _openid: commission._openid })
+          .where({ _openid: commission.beneficiaryId })
           .limit(1)
           .get();
 
@@ -1600,19 +1622,11 @@ async function getCommissionsAdmin(data) {
       .get();
 
     const summary = {
-      totalCommission: 0,
-      basicCommission: 0,
-      repurchaseReward: 0,
-      teamAward: 0
+      totalCommission: 0
     };
 
     allCommissions.data.forEach((record) => {
       summary.totalCommission += record.amount || 0;
-      if (record.rewardType === 'basic') summary.basicCommission += record.amount || 0;
-      if (record.rewardType === 'repurchase') summary.repurchaseReward += record.amount || 0;
-      if (record.rewardType === 'team' || record.rewardType === 'nurture') {
-        summary.teamAward += record.amount || 0;
-      }
     });
 
     return {
@@ -1622,6 +1636,7 @@ async function getCommissionsAdmin(data) {
         total: countResult.total,
         page,
         limit,
+        totalPages: Math.ceil(countResult.total / limit),
         summary
       }
     };
@@ -1939,7 +1954,6 @@ async function getTeamMembersAdmin(data) {
           nickName: true,
           avatarUrl: true,
           agentLevel: true,
-          starLevel: true,
           performance: true
         })
         .get();
@@ -1948,7 +1962,7 @@ async function getTeamMembersAdmin(data) {
 
       // Count stats
       for (const member of directMembers) {
-        if (member.starLevel >= 1) activePromoters++;
+        if (member.agentLevel <= 3) activePromoters++;
         totalSales += member.performance?.totalSales || 0;
         totalMembers++;
       }
@@ -2016,7 +2030,7 @@ async function getMembersAtLevel(parentUserId, level) {
             _id: true,
             nickName: true,
             avatarUrl: true,
-            starLevel: true,
+            agentLevel: true,
             performance: true
           })
           .get();
@@ -3194,11 +3208,12 @@ async function getCommissionWalletsAdmin(data) {
       db.collection('reward_records').where(query).count()
     ]);
 
-    // 获取关联的用户信息
+    // 获取关联的用户信息（受益人）
     const commissionsWithUsers = await Promise.all(
       commissionsResult.data.map(async (commission) => {
+        // beneficiaryId 是佣金受益人的 openid
         const userResult = await db.collection('users')
-          .where({ _openid: commission._openid })
+          .where({ _openid: commission.beneficiaryId })
           .field({
             _id: true,
             _openid: true,
@@ -3274,18 +3289,15 @@ async function getSystemConfigAdmin(data) {
       return {
         code: 0,
         data: {
-          level1Commission: 25,
-          level2Commission: 20,
-          level3Commission: 15,
-          level4Commission: 10,
-          repurchaseReward: 3,
-          teamAward: 2,
-          nurtureAllowance: 2,
+          level1Commission: 20,
+          level2Commission: 12,
+          level3Commission: 8,
+          level4Commission: 4,
           bronzeThreshold: 1000,
-          silverSalesThreshold: 10000,
-          goldSalesThreshold: 50000,
-          silverTeamThreshold: 20,
-          goldTeamThreshold: 50,
+          silverSalesThreshold: 5000,
+          goldSalesThreshold: 20000,
+          silverTeamThreshold: 30,
+          goldTeamThreshold: 100,
           withdrawalMinAmount: 100,
           withdrawalMaxAmount: 50000,
           withdrawalFeeRate: 0
@@ -3313,7 +3325,6 @@ async function updateSystemConfigAdmin(data, wxContext) {
     // 验证数据格式
     const numericFields = [
       'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission',
-      'repurchaseReward', 'teamAward', 'nurtureAllowance',
       'bronzeThreshold', 'silverSalesThreshold', 'goldSalesThreshold',
       'silverTeamThreshold', 'goldTeamThreshold',
       'withdrawalMinAmount', 'withdrawalMaxAmount', 'withdrawalFeeRate'

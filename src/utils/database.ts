@@ -100,7 +100,7 @@ export async function queryWithPagination<T>(
  */
 export async function queryRewardRecords(params: {
   status?: 'pending' | 'settled' | 'cancelled' | 'deducted'
-  rewardType?: 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'
+  rewardType?: 'commission'  // 仅推广佣金
   page?: number
   pageSize?: number
 }) {

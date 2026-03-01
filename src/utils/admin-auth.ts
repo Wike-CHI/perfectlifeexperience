@@ -26,26 +26,17 @@ class AdminAuthManager {
         data: { username, password }
       })
 
-      if (res.code === 0 && res.data) {
-        // 🔧 修复：callFunction 包装了一层返回值
-        // callFunction 返回: {code: 0, msg: "success", data: res.result}
-        // res.result (云函数返回): {code: 0, data: {...}, msg: "登录成功"}
-        // 真正的 adminInfo 在 res.data.data 中！
-        const cloudFunctionResult = res.data
+      // callFunction 返回格式: {code: 0, msg: 'success', data: 云函数返回值}
+      // 云函数返回格式: {code: 0/401/..., msg: '...', data: {...}}
+      const cloudFunctionResult = res.data
+
+      // 检查云函数返回的状态码
+      if (cloudFunctionResult && cloudFunctionResult.code === 0 && cloudFunctionResult.data) {
         const { token, ...adminInfoData } = cloudFunctionResult.data
         const adminInfo: AdminInfo = {
           ...adminInfoData,
           createTime: new Date(adminInfoData.createTime)
         }
-
-        // 🔍 调试：打印返回的数据
-        console.log('📦 callFunction 返回:', res)
-        console.log('📦 云函数返回 (res.data):', cloudFunctionResult)
-        console.log('📦 真正的 adminInfo (res.data.data):', cloudFunctionResult.data)
-        console.log('📦 提取后的 adminInfo:', adminInfo)
-        console.log('📦 adminInfo.status:', adminInfo.status)
-        console.log('📦 adminInfo.status 类型:', typeof adminInfo.status)
-        console.log('📦 adminInfo.status === "active":', adminInfo.status === 'active')
 
         // 存储管理员信息（不包含 token）
         this.setAdminInfo(adminInfo)
@@ -53,18 +44,12 @@ class AdminAuthManager {
         // 单独存储 token
         if (token) {
           this.setToken(token)
-          console.log('✅ Token 已存储:', token.substring(0, 20) + '...')
         }
-
-        // 🔍 调试：验证存储是否成功
-        const stored = this.getAdminInfo()
-        console.log('📦 从存储读取的数据:', stored)
-        console.log('📦 stored?.status:', stored?.status)
-        console.log('📦 isLoggedIn():', this.isLoggedIn())
 
         return adminInfo
       } else {
-        throw new Error(res.msg || '登录失败')
+        // 云函数返回错误
+        throw new Error(cloudFunctionResult?.msg || '登录失败')
       }
     } catch (error: any) {
       console.error('管理员登录失败:', error)

@@ -326,6 +326,7 @@ async function createOrder(openid, orderData) {
       _openid: openid,
       createTime: new Date(),
       status: 'pending',
+      paymentStatus: 'pending',  // 支付状态：pending/processing/paid/failed/cancelled
       updateTime: new Date(),
       clientSubmittedAmount: orderData.totalAmount,
       amountValidationPassed: true
@@ -567,6 +568,7 @@ async function payWithBalance(openid, { orderId }) {
       .update({
         data: {
           status: 'paid',
+          paymentStatus: 'paid',  // 修复：同时更新支付状态
           paymentMethod: 'balance',
           payTime: db.serverDate(),
           rewardSettled: false, // 标记奖励未结算，等订单完成时结算

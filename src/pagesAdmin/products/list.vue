@@ -73,6 +73,7 @@
 import { ref, onMounted } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
 import AdminSearch from '@/components/admin-search.vue'
 import AdminIcon from '@/components/admin-icon.vue'
 

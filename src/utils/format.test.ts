@@ -30,16 +30,18 @@ describe('formatPrice', () => {
 
 describe('formatTime', () => {
   it('应该格式化日期对象', () => {
-    const date = new Date('2026-02-26T15:30:00Z')
+    // 使用不带时区的日期字符串，避免时区转换问题
+    const date = new Date('2026-02-26T15:30:00')
     expect(formatTime(date)).toBe('2026-02-26 15:30')
   })
 
   it('应该格式化日期字符串', () => {
-    expect(formatTime('2026-02-26T15:30:00Z')).toBe('2026-02-26 15:30')
+    // 使用不带时区的ISO格式
+    expect(formatTime('2026-02-26T15:30:00')).toBe('2026-02-26 15:30')
   })
 
   it('应该支持自定义格式', () => {
-    const date = new Date('2026-02-26T15:30:45Z')
+    const date = new Date('2026-02-26T15:30:45')
     expect(formatTime(date, 'YYYY-MM-DD')).toBe('2026-02-26')
     expect(formatTime(date, 'HH:mm:ss')).toBe('15:30:45')
   })
@@ -50,8 +52,8 @@ describe('formatTime', () => {
   })
 
   it('应该处理闰年和不同月份', () => {
-    expect(formatTime('2026-01-01T00:00:00Z')).toBe('2026-01-01 00:00')
-    expect(formatTime('2026-12-31T23:59:59Z')).toBe('2026-12-31 23:59')
+    expect(formatTime('2026-01-01T00:00:00')).toBe('2026-01-01 00:00')
+    expect(formatTime('2026-12-31T23:59:59')).toBe('2026-12-31 23:59')
   })
 })
 

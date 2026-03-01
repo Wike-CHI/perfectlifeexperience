@@ -232,7 +232,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction } from '@/utils/api';
+import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction, getOrderDetail } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, calculateDeliveryFee, STORE_LOCATION } from '@/utils/distance';
 
@@ -694,17 +694,13 @@ const payWithWechatProcess = async (orderId: string) => {
 
     uni.hideLoading();
 
-    // callFunction 返回格式: { code: 0, msg: 'success', data: 云函数返回值 }
-    // 云函数返回值格式: { success: true, data: { payParams: {...} } }
-    const wechatpayResult = result.data as { success: boolean; data?: { payParams: any } };
-    
+    // 云函数返回格式: { code: 0, msg: '...', data: { prepayId, payParams, orderNo } }
     console.log('[支付调试] callFunction 返回:', result);
-    console.log('[支付调试] wechatpayResult:', wechatpayResult);
 
     // 检查支付创建是否成功
-    if (wechatpayResult.success === true && wechatpayResult.data?.payParams) {
+    if (result.code === 0 && result.data?.payParams) {
       // 调起微信支付
-      const payParams = wechatpayResult.data.payParams;
+      const payParams = result.data.payParams;
       console.log('[支付调试] 调起微信支付，参数:', payParams);
       uni.requestPayment({
         provider: 'wxpay',
@@ -714,17 +710,39 @@ const payWithWechatProcess = async (orderId: string) => {
         package: payParams.package,
         signType: payParams.signType as 'MD5' | 'RSA',
         paySign: payParams.paySign,
-        success: () => {
+        success: async () => {
           uni.showToast({
             title: '支付成功',
             icon: 'success'
           });
+
+          // 主动查询订单状态，确保订单状态已更新
+          // 轮询最多5次，每次间隔1秒
+          let isPaid = false;
+          for (let i = 0; i < 5; i++) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            try {
+              const orderRes = await getOrderDetail(orderId);
+              if (orderRes && (orderRes.paymentStatus === 'paid' || orderRes.status === 'paid')) {
+                isPaid = true;
+                console.log('[支付调试] 订单状态已更新为已支付');
+                break;
+              }
+            } catch (e) {
+              console.warn('[支付调试] 查询订单状态失败:', e);
+            }
+          }
+
+          if (!isPaid) {
+            console.log('[支付调试] 订单状态未更新，但支付已成功，跳转到订单详情');
+          }
+
           // 跳转到订单详情
           setTimeout(() => {
             uni.redirectTo({
               url: `/pages/order/detail?id=${orderId}`
             });
-          }, 1500);
+          }, 500);
         },
         fail: (err: any) => {
           if (err.errMsg?.includes('cancel')) {
@@ -748,7 +766,7 @@ const payWithWechatProcess = async (orderId: string) => {
       } as any);
     } else {
       // 微信支付创建失败
-      const errorMsg = (wechatpayResult as any).message || result.msg || '创建支付失败';
+      const errorMsg = result.msg || '创建支付失败';
       uni.showModal({
         title: '支付失败',
         content: errorMsg,

@@ -180,7 +180,27 @@ const ACTION_PERMISSIONS = {
 
   // 系统配置
   'getSystemConfig': PERMISSIONS.SYSTEM_CONFIG_VIEW,
-  'updateSystemConfig': PERMISSIONS.SYSTEM_CONFIG_UPDATE
+  'updateSystemConfig': PERMISSIONS.SYSTEM_CONFIG_UPDATE,
+
+  // 用户详情相关（需要 USER_VIEW 权限）
+  'getUserWallet': PERMISSIONS.USER_VIEW,
+  'getPromotionPath': PERMISSIONS.USER_VIEW,
+  'getUserOrders': PERMISSIONS.USER_VIEW,
+  'getUserRewards': PERMISSIONS.USER_VIEW,
+  'getTeamMembers': PERMISSIONS.USER_VIEW,
+
+  // 推广管理相关（需要 PROMOTION_VIEW 权限）
+  'getPromoters': PERMISSIONS.PROMOTION_VIEW,
+  'getCommissions': PERMISSIONS.PROMOTION_VIEW,
+
+  // 分类管理（需要 PRODUCT_VIEW 权限）
+  'getCategories': PERMISSIONS.PRODUCT_VIEW,
+
+  // 提现拒绝（需要 FINANCE_APPROVE 权限）
+  'rejectWithdrawal': PERMISSIONS.FINANCE_APPROVE,
+
+  // 财务提现列表（兼容不同的 action 命名）
+  'getWithdrawals': PERMISSIONS.FINANCE_VIEW
 }
 
 /**

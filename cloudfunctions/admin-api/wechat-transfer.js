@@ -10,6 +10,7 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
+const fs = require('fs');  // 修复：添加 fs 模块
 
 // 微信支付配置 (从环境变量或配置文件读取)
 const config = {

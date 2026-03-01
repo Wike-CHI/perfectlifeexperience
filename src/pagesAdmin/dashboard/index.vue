@@ -57,6 +57,23 @@
       </view>
     </admin-card>
 
+    <!-- 功能管理区域 -->
+    <admin-card title="功能管理" class="menu-section">
+      <view class="menu-grid">
+        <view
+          v-for="menu in menuItems"
+          :key="menu.id"
+          class="menu-item"
+          @click="goToPage(menu.link)"
+        >
+          <view class="menu-icon-wrapper" :class="menu.color">
+            <AdminIcon :name="menu.icon" size="medium" variant="gold" />
+          </view>
+          <text class="menu-label">{{ menu.label }}</text>
+        </view>
+      </view>
+    </admin-card>
+
     <!-- 最近订单区域 -->
     <admin-card
       title="最近订单"
@@ -67,9 +84,9 @@
       <view class="recent-orders">
         <view
           v-for="order in recentOrders"
-          :key="order.id"
+          :key="order._id"
           class="order-item"
-          @click="goToOrderDetail(order.id)"
+          @click="goToOrderDetail(order._id)"
         >
           <view class="order-info">
             <text class="order-no">{{ order.orderNo }}</text>
@@ -201,6 +218,28 @@ const quickActions = ref([
   { id: 'add-product', icon: 'plus', label: '添加商品', handler: goToProductAdd },
   { id: 'new-order', icon: 'list', label: '订单管理', handler: goToOrders },
   { id: 'promotion', icon: 'chart', label: '推广数据', handler: goToPromotion }
+])
+
+// 功能菜单（完整的管理入口）
+const menuItems = ref([
+  { id: 'products', icon: 'box', label: '商品管理', link: '/pagesAdmin/products/list', color: 'gold' },
+  { id: 'orders', icon: 'list', label: '订单管理', link: '/pagesAdmin/orders/list', color: 'gold' },
+  { id: 'users', icon: 'users', label: '用户管理', link: '/pagesAdmin/users/list', color: 'bronze' },
+  { id: 'finance', icon: 'money', label: '财务管理', link: '/pagesAdmin/finance/index', color: 'sage' },
+  { id: 'refunds', icon: 'refund', label: '退款管理', link: '/pagesAdmin/refunds/index', color: 'danger' },
+  { id: 'promotion', icon: 'chart', label: '推广管理', link: '/pagesAdmin/promotion/index', color: 'gold' },
+  { id: 'commissions', icon: 'coin', label: '佣金明细', link: '/pagesAdmin/commissions/list', color: 'gold' },
+  { id: 'commission-wallets', icon: 'wallet', label: '佣金钱包', link: '/pagesAdmin/commission-wallets/list', color: 'gold' },
+  { id: 'coupons', icon: 'ticket', label: '优惠券', link: '/pagesAdmin/coupons/list', color: 'bronze' },
+  { id: 'banners', icon: 'image', label: 'Banner', link: '/pagesAdmin/banners/list', color: 'bronze' },
+  { id: 'promotions', icon: 'gift', label: '活动管理', link: '/pagesAdmin/promotions/list', color: 'bronze' },
+  { id: 'announcements', icon: 'notice', label: '公告管理', link: '/pagesAdmin/announcements/list', color: 'sage' },
+  { id: 'inventory', icon: 'alert', label: '库存预警', link: '/pagesAdmin/inventory/list', color: 'danger' },
+  { id: 'addresses', icon: 'location', label: '地址管理', link: '/pagesAdmin/addresses/list', color: 'sage' },
+  { id: 'wallets', icon: 'wallet', label: '钱包管理', link: '/pagesAdmin/wallets/list', color: 'sage' },
+  { id: 'stores', icon: 'shop', label: '门店管理', link: '/pagesAdmin/stores/edit', color: 'bronze' },
+  { id: 'statistics', icon: 'chart', label: '数据统计', link: '/pagesAdmin/statistics/index', color: 'gold' },
+  { id: 'settings', icon: 'settings', label: '系统设置', link: '/pagesAdmin/settings/config', color: 'sage' }
 ])
 
 // 最近订单
@@ -363,6 +402,12 @@ const goToOrderDetail = (orderId: string) => {
     url: `/pagesAdmin/orders/detail?id=${orderId}`
   })
 }
+
+// 通用页面跳转
+const goToPage = (link: string) => {
+  if (!link) return
+  uni.navigateTo({ url: link })
+}
 </script>
 
 <style scoped>
@@ -512,6 +557,65 @@ const goToOrderDetail = (orderId: string) => {
 .action-label {
   font-size: 24rpx;
   color: rgba(245, 245, 240, 0.8);
+}
+
+/* 功能菜单 */
+.menu-section {
+  margin-bottom: 32rpx;
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20rpx;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  padding: 24rpx 12rpx;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12rpx;
+  transition: all 0.3s;
+}
+
+.menu-item:active {
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(0.95);
+}
+
+.menu-icon-wrapper {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+}
+
+.menu-icon-wrapper.gold {
+  background: rgba(201, 169, 98, 0.15);
+}
+
+.menu-icon-wrapper.bronze {
+  background: rgba(212, 165, 116, 0.15);
+}
+
+.menu-icon-wrapper.sage {
+  background: rgba(122, 154, 142, 0.15);
+}
+
+.menu-icon-wrapper.danger {
+  background: rgba(184, 92, 92, 0.15);
+}
+
+.menu-label {
+  font-size: 22rpx;
+  color: rgba(245, 245, 240, 0.8);
+  text-align: center;
+  line-height: 1.2;
 }
 
 /* 最近订单 */

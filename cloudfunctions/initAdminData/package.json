@@ -4,6 +4,7 @@
   "description": "Initialize admin data",
   "main": "index.js",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "wx-server-sdk": "latest"
   }
 }

@@ -63,7 +63,6 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, saveUserInfo, updateCloudUserInfo } from '@/utils/api';
-import { callFunction } from '@/utils/cloudbase';
 
 // 用户信息
 const userInfo = ref({
@@ -84,39 +83,49 @@ onShow(async () => {
   }
 });
 
-// 处理头像选择
+// 处理头像选择 - 最佳实践：直接上传云存储
 const onChooseAvatar = async (e: any) => {
-  const { avatarUrl } = e.detail;
-  if (!avatarUrl) return;
+  console.log('chooseAvatar event:', e);
+  const localAvatarPath = e.detail?.avatarUrl;
+  if (!localAvatarPath) {
+    console.error('未获取到头像路径', e);
+    uni.showToast({ title: '获取头像失败', icon: 'none' });
+    return;
+  }
 
   try {
     uni.showLoading({ title: '上传头像中...' });
 
-    // 1. 读取图片文件并转换为 base64
-    const base64Data = await readImageAsBase64(avatarUrl);
-
-    // 2. 通过云函数上传到云存储（绕过客户端安全规则）
-    const uploadRes = await callFunction('upload', {
-      action: 'uploadAvatar',
-      base64Data,
-      fileName: `${Date.now()}.jpg`
+    // 1. 直接上传到云存储（推荐方式，比 base64 中转更高效）
+    const cloudPath = `avatar/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
+    const uploadRes = await wx.cloud.uploadFile({
+      cloudPath,
+      filePath: localAvatarPath
     });
 
-    if (uploadRes.code !== 0 || !uploadRes.data) {
-      throw new Error(uploadRes.msg || '上传失败');
+    if (!uploadRes.fileID) {
+      throw new Error('上传失败');
     }
 
-    const fileID = uploadRes.data.fileID;
+    console.log('上传成功，fileID:', uploadRes.fileID);
+
+    // 2. 获取临时访问 URL（用于在 image 组件中显示）
+    const urlRes = await wx.cloud.getTempFileURL({
+      fileList: [uploadRes.fileID]
+    });
+
+    const newAvatarUrl = urlRes.fileList[0]?.tempFileURL || uploadRes.fileID;
+    console.log('临时URL:', newAvatarUrl);
 
     // 3. 更新本地显示
-    userInfo.value.avatarUrl = fileID;
+    userInfo.value.avatarUrl = newAvatarUrl;
 
     // 4. 更新云端用户信息
-    const success = await updateCloudUserInfo({ avatarUrl: fileID });
+    const success = await updateCloudUserInfo({ avatarUrl: newAvatarUrl });
     if (!success) throw new Error('同步到云端失败');
 
     // 5. 更新本地缓存
-    await saveUserInfo({ avatarUrl: fileID });
+    await saveUserInfo({ avatarUrl: newAvatarUrl });
 
     uni.hideLoading();
     uni.showToast({ title: '头像更新成功', icon: 'success' });
@@ -125,18 +134,6 @@ const onChooseAvatar = async (e: any) => {
     uni.hideLoading();
     uni.showToast({ title: '头像更新失败', icon: 'none' });
   }
-};
-
-// 读取图片为 base64
-const readImageAsBase64 = (filePath: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    uni.getFileSystemManager().readFile({
-      filePath,
-      encoding: 'base64',
-      success: (res: any) => resolve(res.data),
-      fail: reject
-    });
-  });
 };
 
 // 处理昵称输入

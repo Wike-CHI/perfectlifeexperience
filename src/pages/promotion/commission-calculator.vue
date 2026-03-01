@@ -37,10 +37,10 @@
     </view>
 
     <!-- 计算结果 -->
-    <view class="result-section" v-if="orderAmount > 0">
+    <view class="result-section" v-if="parseFloat(orderAmount) > 0">
       <view class="result-header">
         <text class="result-title">佣金分配结果</text>
-        <text class="result-subtitle">订单金额：¥{{ (orderAmount / 100).toFixed(2) }}</text>
+        <text class="result-subtitle">订单金额：¥{{ parseFloat(orderAmount || 0).toFixed(2) }}</text>
       </view>
 
       <!-- 佣金列表 -->
@@ -75,10 +75,6 @@
           <text class="summary-label">总佣金</text>
           <text class="summary-value highlight">¥{{ totalCommission }}</text>
         </view>
-        <view class="summary-item">
-          <text class="summary-label">公司利润</text>
-          <text class="summary-value">¥{{ companyProfit }}</text>
-        </view>
       </view>
     </view>
 
@@ -109,14 +105,15 @@ const commissionRules = {
 const roleNames = ['推广人', '一级上级', '二级上级', '三级上级'];
 
 // 数据
-const orderAmount = ref(0);  // 单位：分
+const orderAmount = ref<string>('');  // 单位：元
 const selectedLevelIndex = ref(3);  // 默认四级代理
 
 const agentLevels = ['一级代理', '二级代理', '三级代理', '四级代理'];
 
 // 计算佣金结果
 const commissionResult = computed(() => {
-  if (orderAmount.value <= 0) return [];
+  const amount = parseFloat(orderAmount.value) || 0;
+  if (amount <= 0) return [];
 
   const level = selectedLevelIndex.value + 1;
   const rule = commissionRules[level as keyof typeof commissionRules];
@@ -125,7 +122,7 @@ const commissionResult = computed(() => {
   // 推广人自己
   results.push({
     role: roleNames[0],
-    amount: ((orderAmount.value * rule.own) / 100).toFixed(2),
+    amount: (amount * rule.own).toFixed(2),
     ratio: rule.own
   });
 
@@ -133,7 +130,7 @@ const commissionResult = computed(() => {
   rule.upstream.forEach((ratio, index) => {
     results.push({
       role: roleNames[index + 1],
-      amount: ((orderAmount.value * ratio) / 100).toFixed(2),
+      amount: (amount * ratio).toFixed(2),
       ratio: ratio
     });
   });
@@ -143,12 +140,8 @@ const commissionResult = computed(() => {
 
 // 总佣金
 const totalCommission = computed(() => {
-  return (orderAmount.value * 0.2 / 100).toFixed(2);
-});
-
-// 公司利润
-const companyProfit = computed(() => {
-  return (orderAmount.value * 0.8 / 100).toFixed(2);
+  const amount = parseFloat(orderAmount.value) || 0;
+  return (amount * 0.2).toFixed(2);
 });
 
 // 选择等级

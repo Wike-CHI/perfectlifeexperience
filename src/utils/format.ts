@@ -111,6 +111,7 @@ export function formatNumber(num: number): string {
  * @param bytes 字节数
  * @returns 格式化后的文件大小字符串
  * @example
+ * formatFileSize(512) // "512 B"
  * formatFileSize(1024) // "1.00 KB"
  * formatFileSize(1048576) // "1.00 MB"
  */
@@ -120,6 +121,12 @@ export function formatFileSize(bytes: number): string {
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const value = bytes / Math.pow(k, i)
 
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
+  // 字节单位不显示小数点
+  if (i === 0) {
+    return `${Math.round(value)} ${sizes[i]}`
+  }
+
+  return `${value.toFixed(2)} ${sizes[i]}`
 }

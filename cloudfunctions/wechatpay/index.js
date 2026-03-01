@@ -8,6 +8,9 @@
  */
 
 const cloud = require('wx-server-sdk');
+const { success, error, ErrorCodes } = require('./response');
+const { createLogger } = require('./logger');
+const logger = createLogger('wechatpay');
 
 // 尝试加载本地配置
 let localConfig = {};
@@ -22,6 +25,7 @@ cloud.init({
 });
 
 const db = cloud.database();
+const _ = db.command;
 const {
   jsapiOrder,
   queryOrderByOutTradeNo,
@@ -29,7 +33,10 @@ const {
   refund,
   queryRefund,
   generateMiniProgramPayParams,
-  generateOutTradeNo
+  generateOutTradeNo,
+  transferToBalance,
+  queryTransferBatch,
+  queryTransferDetail
 } = require('./pay');
 
 const {
@@ -173,12 +180,8 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
     // 1. 查询订单当前状态
     const orderRes = await db.collection('orders').doc(orderId).get();
     if (!orderRes.data) {
-      console.error('[订单状态验证] 订单不存在', { orderId });
-      return {
-        success: false,
-        code: 'ORDER_NOT_FOUND',
-        message: '订单信息异常'
-      };
+      logger.warn('订单不存在', { orderId });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单信息异常');
     }
 
     const order = orderRes.data;
@@ -186,26 +189,18 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
 
     // 2. 检查是否已经是目标状态（幂等性）
     if (actualStatus === newStatus) {
-      return { success: true, message: '订单已是目标状态' };
+      return success(null, '订单已是目标状态');
     }
 
     // 3. 防止重复支付 - 已支付订单不允许任何状态变更
     if (actualStatus === PAYMENT_STATUS.PAID) {
-      return {
-        success: false,
-        code: 'ALREADY_PAID',
-        message: '订单已支付，请勿重复支付'
-      };
+      return error(ErrorCodes.ORDER_STATUS_INVALID, '订单已支付，请勿重复支付');
     }
 
     // 4. 验证状态转换合法性
     const allowed = VALID_TRANSITIONS[actualStatus] || [];
     if (!allowed.includes(newStatus)) {
-      return {
-        success: false,
-        code: 'INVALID_STATUS_TRANSITION',
-        message: `无效的状态转换: ${actualStatus} -> ${newStatus}`
-      };
+      return error(ErrorCodes.ORDER_STATUS_INVALID, `无效的状态转换: ${actualStatus} -> ${newStatus}`);
     }
 
     // 5. 特殊处理：如果目标是 processing，且当前已是 processing，允许幂等重试
@@ -217,9 +212,9 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
       const diffMinutes = (now - updateTime) / (1000 * 60);
 
       if (diffMinutes > 30) {
-        console.log(`[订单状态] processing 状态已超时 ${diffMinutes.toFixed(0)} 分钟，允许重新支付`);
+        logger.info('processing状态已超时，允许重新支付', { orderId, diffMinutes: diffMinutes.toFixed(0) });
       } else {
-        return { success: true, message: '订单已在处理中' };
+        return success(null, '订单已在处理中');
       }
     }
 
@@ -242,7 +237,7 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
     // 7. 验证更新是否成功（乐观锁检查）
     // updateResult.stats.updated 会告诉我们是否真的更新了数据
     if (updateResult.stats && updateResult.stats.updated === 0) {
-      console.warn('[订单状态] 并发更新失败，状态已被其他请求修改', {
+      logger.warn('并发更新失败，状态已被其他请求修改', {
         orderId,
         expectedStatus: actualStatus,
         targetStatus: newStatus
@@ -253,11 +248,7 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
       const recheckedStatus = recheckRes.data?.paymentStatus;
 
       if (recheckedStatus === PAYMENT_STATUS.PAID) {
-        return {
-          success: false,
-          code: 'ALREADY_PAID',
-          message: '订单已支付，请勿重复支付'
-        };
+        return error(ErrorCodes.ORDER_STATUS_INVALID, '订单已支付，请勿重复支付');
       } else if (recheckedStatus === PAYMENT_STATUS.PROCESSING) {
         return {
           success: false,
@@ -273,16 +264,12 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
       };
     }
 
-    console.log(`[订单状态] 状态更新成功: ${actualStatus} -> ${newStatus}`);
-    return { success: true };
+    logger.info('订单状态更新成功', { orderId, from: actualStatus, to: newStatus });
+    return success();
 
-  } catch (error) {
-    console.error('订单状态验证失败:', error);
-    return {
-      success: false,
-      code: 'STATUS_UPDATE_FAILED',
-      message: '订单状态更新失败'
-    };
+  } catch (err) {
+    logger.error('订单状态验证失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, '订单状态更新失败');
   }
 }
 
@@ -305,7 +292,7 @@ function getConfig() {
   const required = ['appid', 'mchid', 'serialNo', 'privateKey', 'apiV3Key', 'notifyUrl'];
   for (const key of required) {
     if (!config[key]) {
-      console.error(`[配置错误] 缺少必要配置: ${key}`);
+      logger.error('缺少必要支付配置', { key });
       throw new Error('支付配置异常，请联系管理员');
     }
   }
@@ -381,20 +368,25 @@ exports.main = async (event, context) => {
         // HTTP 触发器退款回调
         return await handleRefundCallback(event, config);
 
+      case 'transferToBalance':
+        // 商家转账到零钱
+        return await transferToBalanceHandler(data, config);
+
+      case 'queryTransferBatch':
+        // 查询转账批次
+        return await queryTransferBatchHandler(data, config);
+
+      case 'queryTransferDetail':
+        // 查询转账明细
+        return await queryTransferDetailHandler(data, config);
+
       default:
-        return {
-          success: false,
-          code: 'INVALID_ACTION',
-          message: `未知操作: ${action}`
-        };
+        logger.warn('未知操作', { action });
+        return error(ErrorCodes.INVALID_PARAMS, `未知操作: ${action}`);
     }
-  } catch (error) {
-    console.error('云函数执行失败:', error);
-    return {
-      success: false,
-      code: 'INTERNAL_ERROR',
-      message: error.message
-    };
+  } catch (err) {
+    logger.error('云函数执行失败', err);
+    return error(ErrorCodes.UNKNOWN_ERROR, err.message);
   }
 };
 
@@ -406,20 +398,14 @@ async function createRechargePayment(data, config) {
 
   // 1. ✅ 参数验证
   if (!openid || !amount) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少用户openid或充值金额'
-    };
+    logger.warn('创建充值订单参数缺失', { hasOpenid: !!openid, hasAmount: !!amount });
+    return error(ErrorCodes.INVALID_PARAMS, '缺少用户openid或充值金额');
   }
 
   // 2. ✅ 验证充值金额范围
   if (amount < AMOUNT_LIMITS.MIN || amount > AMOUNT_LIMITS.MAX) {
-    return {
-      success: false,
-      code: 'INVALID_AMOUNT',
-      message: `充值金额异常: ${amount} 分`
-    };
+    logger.warn('充值金额异常', { amount });
+    return error(ErrorCodes.INVALID_PARAMS, `充值金额异常: ${amount} 分`);
   }
 
   // 3. ✅ 幂等性检查 - 防止重复创建相同金额的待支付充值订单
@@ -464,16 +450,14 @@ async function createRechargePayment(data, config) {
 
         const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
 
-        return {
-          success: true,
-          data: {
-            prepayId: orderResult.prepay_id,
-            payParams: payParams,
-            orderNo: existingOrder.orderNo,
-            isExistingOrder: true,
-            message: '您有未完成的充值订单，请继续支付'
-          }
-        };
+        logger.info('复用未完成充值订单', { orderNo: existingOrder.orderNo });
+        return success({
+          prepayId: orderResult.prepay_id,
+          payParams: payParams,
+          orderNo: existingOrder.orderNo,
+          isExistingOrder: true,
+          message: '您有未完成的充值订单，请继续支付'
+        });
       } else {
         // 旧订单已过期，标记为已取消
         await db.collection('recharge_orders').doc(existingOrder._id).update({
@@ -483,11 +467,11 @@ async function createRechargePayment(data, config) {
             updateTime: new Date()
           }
         });
-        console.log(`[充值订单] 旧订单已过期并取消: ${existingOrder.orderNo}`);
+        logger.info('旧订单已过期并取消', { orderNo: existingOrder.orderNo });
       }
     }
-  } catch (error) {
-    console.error('[充值订单] 幂等性检查失败，继续创建新订单:', error);
+  } catch (err) {
+    logger.error('幂等性检查失败，继续创建新订单', err);
     // 检查失败不影响创建新订单流程
   }
 
@@ -533,22 +517,16 @@ async function createRechargePayment(data, config) {
     // 6. 生成小程序支付参数
     const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
 
-    return {
-      success: true,
-      data: {
-        orderId: rechargeOrderId,
-        orderNo: outTradeNo,
-        prepayId: orderResult.prepay_id,
-        payParams: payParams
-      }
-    };
-  } catch (error) {
-    console.error('创建充值支付订单失败:', error);
-    return {
-      success: false,
-      code: error.code || 'CREATE_RECHARGE_PAYMENT_FAILED',
-      message: error.message || '创建充值支付订单失败'
-    };
+    logger.info('充值订单创建成功', { orderNo: outTradeNo, amount, giftAmount });
+    return success({
+      orderId: rechargeOrderId,
+      orderNo: outTradeNo,
+      prepayId: orderResult.prepay_id,
+      payParams: payParams
+    });
+  } catch (err) {
+    logger.error('创建充值支付订单失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message || '创建充值支付订单失败');
   }
 }
 
@@ -560,11 +538,8 @@ async function createPayment(data, config) {
 
   // 1. ✅ 参数验证
   if (!orderId || !openid) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少订单ID或用户openid'
-    };
+    logger.warn('创建支付参数缺失', { hasOrderId: !!orderId, hasOpenid: !!openid });
+    return error(ErrorCodes.INVALID_PARAMS, '缺少订单ID或用户openid');
   }
 
   // 2. 查询订单信息
@@ -576,23 +551,16 @@ async function createPayment(data, config) {
     .get();
 
   if (orderRes.data.length === 0) {
-    console.error('[创建支付] 订单不存在', { orderId, openid });
-    return {
-      success: false,
-      code: 'ORDER_NOT_FOUND',
-      message: '订单信息异常'
-    };
+    logger.warn('订单不存在', { orderId });
+    return error(ErrorCodes.ORDER_NOT_FOUND, '订单信息异常');
   }
 
   const order = orderRes.data[0];
 
   // 3. ✅ 验证订单金额范围
   if (order.totalAmount < AMOUNT_LIMITS.MIN || order.totalAmount > AMOUNT_LIMITS.MAX) {
-    return {
-      success: false,
-      code: 'INVALID_AMOUNT',
-      message: `订单金额异常: ${order.totalAmount} 分`
-    };
+    logger.warn('订单金额异常', { orderId, amount: order.totalAmount });
+    return error(ErrorCodes.INVALID_PARAMS, `订单金额异常: ${order.totalAmount} 分`);
   }
 
   // 4. ✅ 验证并更新订单状态为 processing（防止重复支付）
@@ -641,22 +609,16 @@ async function createPayment(data, config) {
     // 8. 生成小程序支付参数
     const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
 
-    return {
-      success: true,
-      data: {
-        prepayId: orderResult.prepay_id,
-        payParams: payParams
-      }
-    };
-  } catch (error) {
+    logger.info('支付订单创建成功', { orderId, orderNo: outTradeNo });
+    return success({
+      prepayId: orderResult.prepay_id,
+      payParams: payParams
+    });
+  } catch (err) {
     // 9. ✅ 支付失败，回滚订单状态为 pending
     await validateAndUpdateOrderStatus(orderId, PAYMENT_STATUS.PENDING);
-    console.error('创建支付订单失败:', error);
-    return {
-      success: false,
-      code: error.code || 'CREATE_PAYMENT_FAILED',
-      message: error.message || '创建支付订单失败'
-    };
+    logger.error('创建支付订单失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message || '创建支付订单失败');
   }
 }
 
@@ -665,7 +627,7 @@ async function createPayment(data, config) {
  */
 async function queryOrder(data, config) {
   const { outTradeNo, transactionId } = data;
-  
+
   try {
     let result;
     if (transactionId) {
@@ -673,24 +635,13 @@ async function queryOrder(data, config) {
     } else if (outTradeNo) {
       result = await queryOrderByOutTradeNo(outTradeNo, config);
     } else {
-      return {
-        success: false,
-        code: 'INVALID_PARAMS',
-        message: '缺少订单号'
-      };
+      return error(ErrorCodes.INVALID_PARAMS, '缺少订单号');
     }
-    
-    return {
-      success: true,
-      data: result
-    };
-  } catch (error) {
-    console.error('查询订单失败:', error);
-    return {
-      success: false,
-      code: error.code || 'QUERY_ORDER_FAILED',
-      message: error.message
-    };
+
+    return success(result);
+  } catch (err) {
+    logger.error('查询订单失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
 
@@ -699,29 +650,19 @@ async function queryOrder(data, config) {
  */
 async function closeOrderHandler(data, config) {
   const { outTradeNo } = data;
-  
+
   if (!outTradeNo) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少订单号'
-    };
+    return error(ErrorCodes.INVALID_PARAMS, '缺少订单号');
   }
-  
+
   try {
     await closeOrder(outTradeNo, config);
-    
-    return {
-      success: true,
-      message: '订单已关闭'
-    };
-  } catch (error) {
-    console.error('关闭订单失败:', error);
-    return {
-      success: false,
-      code: error.code || 'CLOSE_ORDER_FAILED',
-      message: error.message
-    };
+
+    logger.info('订单已关闭', { outTradeNo });
+    return success(null, '订单已关闭');
+  } catch (err) {
+    logger.error('关闭订单失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
 
@@ -733,11 +674,7 @@ async function confirmRecharge(data, config) {
   const { orderNo } = data;
 
   if (!orderNo) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少订单号'
-    };
+    return error(ErrorCodes.INVALID_PARAMS, '缺少订单号');
   }
 
   try {
@@ -758,19 +695,15 @@ async function confirmRecharge(data, config) {
 
     // 2. 如果已经支付成功，直接返回
     if (rechargeOrder.status === 'paid') {
-      return {
-        success: true,
-        message: '充值已完成',
-        data: {
-          amount: rechargeOrder.amount,
-          giftAmount: rechargeOrder.giftAmount || 0
-        }
-      };
+      return success({
+        amount: rechargeOrder.amount,
+        giftAmount: rechargeOrder.giftAmount || 0
+      }, '充值已完成');
     }
 
     // 3. 查询微信支付订单状态
     const queryResult = await queryOrderByOutTradeNo(orderNo, config);
-    console.log('[确认充值] 微信支付查询结果:', queryResult);
+    logger.debug('微信支付查询结果', { orderNo, tradeState: queryResult.trade_state });
 
     // 4. 检查支付状态
     const tradeState = queryResult.trade_state;
@@ -778,30 +711,18 @@ async function confirmRecharge(data, config) {
       // 支付成功，更新订单和钱包
       await handleRechargePaymentSuccess(rechargeOrder, db);
 
-      return {
-        success: true,
-        message: '充值成功',
-        data: {
-          amount: rechargeOrder.amount,
-          giftAmount: rechargeOrder.giftAmount || 0
-        }
-      };
+      logger.info('充值成功', { orderNo, amount: rechargeOrder.amount, giftAmount: rechargeOrder.giftAmount || 0 });
+      return success({
+        amount: rechargeOrder.amount,
+        giftAmount: rechargeOrder.giftAmount || 0
+      }, '充值成功');
     } else {
       // 支付未成功
-      return {
-        success: false,
-        code: 'PAYMENT_NOT_SUCCESS',
-        message: `支付状态: ${tradeState}`,
-        tradeState: tradeState
-      };
+      return error(ErrorCodes.TRANSACTION_FAILED, `支付状态: ${tradeState}`);
     }
-  } catch (error) {
-    console.error('确认充值失败:', error);
-    return {
-      success: false,
-      code: 'CONFIRM_RECHARGE_FAILED',
-      message: error.message
-    };
+  } catch (err) {
+    logger.error('确认充值失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
 
@@ -868,9 +789,10 @@ async function handleNotify(event, config) {
           return buildSuccessResponse();
         }
 
-        // 验证金额
-        if (rechargeOrder.amount !== result.transaction.amount.total) {
-          console.error(`充值金额不匹配: 订单=${rechargeOrder.amount}, 回调=${result.transaction.amount.total}`);
+        // 验证金额（修复：总金额 = 本金 + 赠送金额）
+        const expectedTotal = rechargeOrder.amount + (rechargeOrder.giftAmount || 0);
+        if (expectedTotal !== result.transaction.amount.total) {
+          console.error(`充值金额不匹配: 订单本金=${rechargeOrder.amount}, 赠送=${rechargeOrder.giftAmount || 0}, 总额=${expectedTotal}, 回调=${result.transaction.amount.total}`);
           return buildFailResponse('金额验证失败');
         }
 
@@ -1027,20 +949,12 @@ async function createRefundHandler(data, config) {
 
   // 1. 参数验证
   if (!orderNo || !refundNo || !refundAmount) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少必要参数: orderNo, refundNo, refundAmount'
-    };
+    return error(ErrorCodes.INVALID_PARAMS, '缺少必要参数: orderNo, refundNo, refundAmount');
   }
 
   // 2. 验证退款金额
   if (refundAmount < AMOUNT_LIMITS.MIN || refundAmount > AMOUNT_LIMITS.MAX) {
-    return {
-      success: false,
-      code: 'INVALID_AMOUNT',
-      message: `退款金额异常: ${refundAmount} 分`
-    };
+    return error(ErrorCodes.INVALID_PARAMS, `退款金额异常: ${refundAmount} 分`);
   }
 
   try {
@@ -1050,22 +964,14 @@ async function createRefundHandler(data, config) {
       .get();
 
     if (orderRes.data.length === 0) {
-      return {
-        success: false,
-        code: 'ORDER_NOT_FOUND',
-        message: '订单不存在'
-      };
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
     }
 
     const order = orderRes.data[0];
     const transactionId = order.transactionId;
 
     if (!transactionId) {
-      return {
-        success: false,
-        code: 'NO_TRANSACTION_ID',
-        message: '订单无微信交易号，无法退款'
-      };
+      return error(ErrorCodes.ORDER_STATUS_INVALID, '订单无微信交易号，无法退款');
     }
 
     // 4. 调用微信支付退款API
@@ -1081,23 +987,16 @@ async function createRefundHandler(data, config) {
       reason: reason || '用户申请退款'
     }, config);
 
-    console.log('[微信退款] 退款申请成功:', refundResult);
+    logger.info('退款申请成功', { refundNo, orderNo, status: refundResult.status });
 
-    return {
-      success: true,
-      data: {
-        refundNo,
-        status: refundResult.status || 'processing',
-        refundId: refundResult.refund_id
-      }
-    };
-  } catch (error) {
-    console.error('创建退款失败:', error);
-    return {
-      success: false,
-      code: error.code || 'CREATE_REFUND_FAILED',
-      message: error.message || '创建退款失败'
-    };
+    return success({
+      refundNo,
+      status: refundResult.status || 'processing',
+      refundId: refundResult.refund_id
+    });
+  } catch (err) {
+    logger.error('创建退款失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message || '创建退款失败');
   }
 }
 
@@ -1108,27 +1007,16 @@ async function queryRefundHandler(data, config) {
   const { refundNo } = data;
 
   if (!refundNo) {
-    return {
-      success: false,
-      code: 'INVALID_PARAMS',
-      message: '缺少退款单号'
-    };
+    return error(ErrorCodes.INVALID_PARAMS, '缺少退款单号');
   }
 
   try {
     const result = await queryRefund(refundNo, config);
 
-    return {
-      success: true,
-      data: result
-    };
-  } catch (error) {
-    console.error('查询退款失败:', error);
-    return {
-      success: false,
-      code: error.code || 'QUERY_REFUND_FAILED',
-      message: error.message
-    };
+    return success(result);
+  } catch (err) {
+    logger.error('查询退款失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
 
@@ -1137,6 +1025,7 @@ async function queryRefundHandler(data, config) {
  * HTTP 触发器入口
  */
 async function handleRefundCallback(event, config) {
+  const _ = db.command;  // 修复：定义 db.command
   try {
     // HTTP 触发器的事件结构
     const headers = event.headers || {};
@@ -1283,6 +1172,173 @@ async function handleRefundCallback(event, config) {
   } catch (error) {
     console.error('处理退款回调失败:', error);
     return buildFailResponse(error.message);
+  }
+}
+
+// ==================== 商家转账到零钱 ====================
+
+/**
+ * 转账金额限制（单位：分）
+ */
+const TRANSFER_LIMITS = {
+  MIN: 30,              // 0.3元（微信最低转账金额）
+  MAX: 200000           // 2000元（单笔最高）
+};
+
+/**
+ * 商家转账到零钱
+ * 用于佣金提现自动打款
+ */
+async function transferToBalanceHandler(data, config) {
+  const { openid, amount, withdrawNo, remark } = data;
+
+  // 1. 参数验证
+  if (!openid || !amount || !withdrawNo) {
+    logger.warn('转账参数缺失', { hasOpenid: !!openid, hasAmount: !!amount, hasWithdrawNo: !!withdrawNo });
+    return error(ErrorCodes.INVALID_PARAMS, '缺少必要参数: openid, amount, withdrawNo');
+  }
+
+  // 2. 验证转账金额
+  if (amount < TRANSFER_LIMITS.MIN || amount > TRANSFER_LIMITS.MAX) {
+    logger.warn('转账金额异常', { amount });
+    return error(ErrorCodes.INVALID_PARAMS, `转账金额必须在 ${(TRANSFER_LIMITS.MIN / 100).toFixed(2)} - ${(TRANSFER_LIMITS.MAX / 100).toFixed(2)} 元之间`);
+  }
+
+  try {
+    // 3. 幂等性检查 - 防止重复转账
+    const existingTransfer = await db.collection('withdrawals')
+      .where({
+        withdrawNo: withdrawNo,
+        transferStatus: _.in(['SUCCESS', 'PROCESSING'])
+      })
+      .get();
+
+    if (existingTransfer.data.length > 0) {
+      const transfer = existingTransfer.data[0];
+      if (transfer.transferStatus === 'SUCCESS') {
+        logger.info('转账已完成，忽略重复请求', { withdrawNo });
+        return success({
+          withdrawNo,
+          batchId: transfer.batchId,
+          detailId: transfer.detailId,
+          status: 'SUCCESS'
+        }, '转账已完成');
+      } else {
+        logger.info('转账处理中，请勿重复操作', { withdrawNo });
+        return success({
+          withdrawNo,
+          status: 'PROCESSING'
+        }, '转账处理中');
+      }
+    }
+
+    // 4. 生成转账明细单号
+    const outDetailNo = `${withdrawNo}-D1`;
+
+    // 5. 构建转账请求参数
+    const transferParams = {
+      appid: config.appid,
+      out_batch_no: withdrawNo,       // 使用提现单号作为批次号
+      batch_name: '佣金提现',          // 批次名称
+      batch_remark: remark || '佣金提现到零钱',  // 批次备注
+      total_amount: amount,            // 转账总金额（分）
+      total_num: 1,                    // 转账总笔数
+      transfer_detail_list: [
+        {
+          out_detail_no: outDetailNo,  // 明细单号
+          transfer_amount: amount,      // 转账金额（分）
+          transfer_remark: remark || '佣金提现',  // 转账备注
+          openid: openid                // 收款用户openid
+        }
+      ]
+    };
+
+    logger.info('发起商家转账', { withdrawNo, amount, openid });
+
+    // 6. 调用微信支付转账API
+    const transferResult = await transferToBalance(transferParams, config);
+
+    // 7. 更新提现记录
+    await db.collection('withdrawals')
+      .where({ withdrawNo: withdrawNo })
+      .update({
+        data: {
+          transferStatus: transferResult.batch_status || 'PROCESSING',
+          batchId: transferResult.batch_id,
+          updateTime: db.serverDate()
+        }
+      });
+
+    logger.info('商家转账成功', {
+      withdrawNo,
+      batchId: transferResult.batch_id,
+      batchStatus: transferResult.batch_status
+    });
+
+    return success({
+      withdrawNo,
+      batchId: transferResult.batch_id,
+      detailId: transferResult.transfer_detail_list?.[0]?.detail_id,
+      status: transferResult.batch_status || 'PROCESSING'
+    });
+
+  } catch (err) {
+    logger.error('商家转账失败', err);
+
+    // 更新提现记录为失败
+    await db.collection('withdrawals')
+      .where({ withdrawNo: withdrawNo })
+      .update({
+        data: {
+          transferStatus: 'FAIL',
+          transferFailReason: err.message || '转账失败',
+          updateTime: db.serverDate()
+        }
+      });
+
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message || '商家转账失败');
+  }
+}
+
+/**
+ * 查询转账批次状态
+ */
+async function queryTransferBatchHandler(data, config) {
+  const { outBatchNo } = data;
+
+  if (!outBatchNo) {
+    return error(ErrorCodes.INVALID_PARAMS, '缺少批次单号');
+  }
+
+  try {
+    const result = await queryTransferBatch(outBatchNo, config);
+
+    logger.info('查询转账批次成功', { outBatchNo, status: result.batch_status });
+    return success(result);
+  } catch (err) {
+    logger.error('查询转账批次失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
+  }
+}
+
+/**
+ * 查询转账明细状态
+ */
+async function queryTransferDetailHandler(data, config) {
+  const { outBatchNo, outDetailNo } = data;
+
+  if (!outBatchNo || !outDetailNo) {
+    return error(ErrorCodes.INVALID_PARAMS, '缺少批次单号或明细单号');
+  }
+
+  try {
+    const result = await queryTransferDetail(outBatchNo, outDetailNo, config);
+
+    logger.info('查询转账明细成功', { outBatchNo, outDetailNo, status: result.detail_status });
+    return success(result);
+  } catch (err) {
+    logger.error('查询转账明细失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
 

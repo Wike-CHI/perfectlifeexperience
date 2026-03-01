@@ -276,60 +276,7 @@ const agentLevels = [
 .level-badge.level-3 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
 .level-badge.level-4 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
-/* 星级卡片 */
-.star-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.star-card {
-  background: #FAFAFA;
-  border-radius: 16rpx;
-  overflow: hidden;
-}
-
-.star-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20rpx 24rpx;
-}
-
-.star-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #FFFFFF;
-}
-
-.star-icon {
-  font-size: 32rpx;
-  color: #FFFFFF;
-}
-
-.star-benefits {
-  padding: 20rpx 24rpx;
-}
-
-.benefit-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12rpx;
-}
-
-.benefit-item:last-child {
-  margin-bottom: 0;
-}
-
-.benefit-dot {
-  color: #D4A574;
-  margin-right: 12rpx;
-}
-
-.benefit-text {
-  font-size: 26rpx;
-  color: #6B5B4F;
-}
+/* 星级卡片样式已删除（当前系统无星级概念） */
 
 /* 分润示例 */
 .example-box {

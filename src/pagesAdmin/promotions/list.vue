@@ -87,7 +87,7 @@
 
       <!-- 空状态 -->
       <view v-if="promotions.length === 0 && !loading" class="empty-state">
-        <view class="empty-icon">🎉</view>
+        <AdminIcon name="celebration" size="large" variant="gold" />
         <text class="empty-text">暂无活动</text>
         <view class="empty-action" @click="goToCreate">
           <text class="empty-action-text">创建第一个活动</text>
@@ -107,6 +107,7 @@
 import { ref, onMounted } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminIcon from '@/components/admin-icon.vue'
 import { callFunction } from '@/utils/cloudbase'
 
 /**
@@ -618,11 +619,6 @@ const formatBudget = (budget: number): string => {
   flex-direction: column;
   align-items: center;
   padding: 120rpx 40rpx;
-}
-
-.empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 24rpx;
 }
 
 .empty-text {

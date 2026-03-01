@@ -35,16 +35,12 @@
         <text class="summary-value">¥{{ formatMoney(summary.totalCommission) }}</text>
       </view>
       <view class="summary-item">
-        <text class="summary-label">基础佣金</text>
-        <text class="summary-value">¥{{ formatMoney(summary.basicCommission) }}</text>
+        <text class="summary-label">待结算</text>
+        <text class="summary-value">¥{{ formatMoney(summary.pendingCommission) }}</text>
       </view>
       <view class="summary-item">
-        <text class="summary-label">复购奖励</text>
-        <text class="summary-value">¥{{ formatMoney(summary.repurchaseReward) }}</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-label">团队奖</text>
-        <text class="summary-value">¥{{ formatMoney(summary.teamAward) }}</text>
+        <text class="summary-label">已结算</text>
+        <text class="summary-value">¥{{ formatMoney(summary.settledCommission) }}</text>
       </view>
     </view>
 
@@ -99,9 +95,8 @@ import PromotionIcon from '@/components/promotion-icon.vue'
 const commissions = ref<any[]>([])
 const summary = ref({
   totalCommission: 0,
-  basicCommission: 0,
-  repurchaseReward: 0,
-  teamAward: 0
+  pendingCommission: 0,
+  settledCommission: 0
 })
 
 const currentDateRange = ref('month')
@@ -122,10 +117,7 @@ const dateTabs = [
 // 类型选项
 const typeOptions = [
   { label: '全部类型', value: 'all' },
-  { label: '基础佣金', value: 'basic' },
-  { label: '复购奖励', value: 'repurchase' },
-  { label: '团队管理奖', value: 'team' },
-  { label: '育成津贴', value: 'nurture' }
+  { label: '推广佣金', value: 'commission' }
 ]
 
 const currentTypeLabel = computed(() => {
@@ -252,23 +244,11 @@ const formatTime = (time: string | Date): string => {
 }
 
 const getCommissionIcon = (type: string): string => {
-  const icons = {
-    basic: 'commission',
-    repurchase: 'reward',
-    team: 'team',
-    nurture: 'growth'
-  }
-  return icons[type] || 'commission'
+  return 'commission'
 }
 
 const getCommissionTypeName = (type: string): string => {
-  const names = {
-    basic: '基础佣金',
-    repurchase: '复购奖励',
-    team: '团队管理奖',
-    nurture: '育成津贴'
-  }
-  return names[type] || '未知类型'
+  return '推广佣金'
 }
 
 const getStatusName = (status: string): string => {

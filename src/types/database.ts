@@ -40,6 +40,10 @@ export type DBDate = Date | string | number
  * users 集合
  * 数据库集合名: users
  * 描述: 用户信息表
+ *
+ * 简化版推广分销系统：
+ * - 单轨四级代理制（1=金牌, 2=银牌, 3=铜牌, 4=普通）
+ * - 无星级概念
  */
 export interface UserDB {
   _id: string
@@ -51,14 +55,30 @@ export interface UserDB {
   avatarUrl: string
   /** 手机号 */
   phone?: string
-  /** 推广路径: "parentId1/parentId2/..." (反序，最近的父节点在前) */
+  /** 推广路径: "grandparentId/parentId" (正序，最老的祖先在前，最近的父节点在后) */
   promotionPath?: string
-  /** 代理级别 (0=普通用户, 1=一级代理, 2=二级代理, 3=三级代理, 4=四级代理) */
+  /** 直接父节点ID */
+  parentId?: string
+  /** 邀请码 */
+  inviteCode?: string
+  /** 代理级别 (1=金牌推广员, 2=银牌推广员, 3=铜牌推广员, 4=普通会员) */
   agentLevel: number
-  /** 星级 (0=普通会员, 1=铜牌, 2=银牌, 3=金牌) */
-  starLevel: number
   /** 性能统计 */
   performance: UserPerformance
+  /** 团队人数（冗余字段，与performance.teamCount同步） */
+  teamCount?: number
+  /** 待结算奖励（分） */
+  pendingReward?: number
+  /** 累计奖励（分） */
+  totalReward?: number
+  /** 可提现奖励（分） */
+  withdrawableReward?: number
+  /** 订单数量 */
+  orderCount?: number
+  /** 注册IP */
+  registerIP?: string
+  /** 是否可疑用户 */
+  isSuspicious?: boolean
   /** 是否管理员 */
   isAdmin?: boolean
   /** 状态 */
@@ -70,7 +90,7 @@ export interface UserDB {
 }
 
 /**
- * 用户性能统计
+ * 用户性能统计（简化版，无直推人数）
  */
 export interface UserPerformance {
   /** 累计销售额（分） */
@@ -79,8 +99,6 @@ export interface UserPerformance {
   monthSales: number
   /** 月度标签 (格式: "YYYY-MM") */
   monthTag: string
-  /** 直推人数 */
-  directCount: number
   /** 团队总人数 */
   teamCount: number
 }
@@ -437,20 +455,26 @@ export interface PromotionLogDB {
  */
 export interface RewardRecordDB {
   _id: string
-  /** CloudBase 自动添加的用户标识 */
-  _openid: string
+  /** 受益用户ID */
+  beneficiaryId: string
   /** 订单ID */
   orderId: string
+  /** 订单金额（分） */
+  orderAmount?: number
+  /** 佣金比例 */
+  ratio?: number
   /** 奖励金额（分） */
   amount: number
   /** 奖励类型 */
   rewardType: RewardType
+  /** 奖励类型名称 */
+  rewardTypeName?: string
   /** 奖励状态 */
   status: RewardStatus
   /** 推广层级 (1-4) */
   level: number
-  /** 来源用户ID */
-  fromUserId?: string
+  /** 来源用户ID（下单用户） */
+  sourceUserId?: string
   /** 来源用户信息（冗余字段） */
   sourceUser?: {
     _id: string
@@ -461,24 +485,28 @@ export interface RewardRecordDB {
   createTime: DBDate
   /** 结算时间 */
   settleTime?: DBDate
-  /** 奖励类型名称（冗余字段，用于展示） */
-  rewardTypeName?: string
   /** 推广关系ID */
   relationId?: string
+  /** 退款扣回金额（分） */
+  revokeAmount?: number
+  /** 退款扣回比例 */
+  revokeRatio?: number
+  /** 退款扣回时间 */
+  revokeTime?: DBDate
+  /** 退款扣回原因 */
+  revokeReason?: string
+  /** 部分扣回累计金额（分） */
+  deductedAmount?: number
+  /** 取消原因 */
+  cancelReason?: string
 }
 
 /**
- * 奖励类型枚举
+ * 奖励类型枚举（简化版，仅推广佣金）
  */
 export enum RewardType {
-  /** 基础佣金 */
-  BASIC_COMMISSION = 'basic_commission',
-  /** 复购奖励 */
-  REPURCHASE_REWARD = 'repurchase_reward',
-  /** 团队管理奖 */
-  TEAM_MANAGEMENT = 'team_management',
-  /** 育成津贴 */
-  NURTURE_ALLOWANCE = 'nurture_allowance'
+  /** 推广佣金 */
+  COMMISSION = 'commission'
 }
 
 /**
@@ -504,17 +532,83 @@ export interface CommissionWalletDB {
   _id: string
   _openid: string
   /** 可用余额（分） */
-  availableBalance: number
-  /** 冻结余额（分） */
-  frozenBalance: number
-  /** 累计收入（分） */
-  totalIncome: number
+  balance: number
+  /** 冻结金额（分）- 提现申请中冻结 */
+  frozenAmount?: number
+  /** 累计佣金（分） */
+  totalCommission: number
   /** 累计提现（分） */
-  totalWithdraw: number
+  totalWithdrawn: number
   /** 创建时间 */
   createTime: DBDate
   /** 更新时间 */
   updateTime: DBDate
+}
+
+/**
+ * commission_transactions 集合
+ * 数据库集合名: commission_transactions
+ * 描述: 佣金交易记录表
+ */
+export interface CommissionTransactionDB {
+  _id: string
+  _openid: string
+  /** 交易类型 */
+  type: 'reward_settlement' | 'withdraw_apply' | 'withdraw_success' | 'withdraw_rejected' | 'reward_deduct'
+  /** 交易金额（分）正数为收入，负数为支出 */
+  amount: number
+  /** 交易标题 */
+  title?: string
+  /** 交易描述 */
+  description?: string
+  /** 关联订单ID */
+  orderId?: string
+  /** 关联奖励记录ID */
+  rewardId?: string
+  /** 关联提现单号 */
+  withdrawNo?: string
+  /** 关联提现记录ID */
+  withdrawalId?: string
+  /** 交易状态 */
+  status: 'pending' | 'success' | 'failed'
+  /** 创建时间 */
+  createTime: DBDate
+}
+
+/**
+ * withdrawals 集合
+ * 数据库集合名: withdrawals
+ * 描述: 提现记录表
+ */
+export interface WithdrawalDB {
+  _id: string
+  _openid: string
+  /** 提现单号 */
+  withdrawNo: string
+  /** 提现金额（分） */
+  amount: number
+  /** 提现状态 */
+  status: 'pending' | 'approved' | 'rejected' | 'success'
+  /** 申请时间 */
+  applyTime: DBDate
+  /** 审批人ID */
+  approvedBy?: string
+  /** 审批时间 */
+  approvedTime?: DBDate
+  /** 拒绝人ID */
+  rejectedBy?: string
+  /** 拒绝时间 */
+  rejectedTime?: DBDate
+  /** 拒绝原因 */
+  rejectReason?: string
+  /** 转账状态 */
+  transferStatus?: 'pending' | 'success' | 'failed' | 'manual'
+  /** 转账失败原因 */
+  transferError?: string
+  /** 转账时间 */
+  transferTime?: DBDate
+  /** 更新时间 */
+  updateTime?: DBDate
 }
 
 // ============================================================================

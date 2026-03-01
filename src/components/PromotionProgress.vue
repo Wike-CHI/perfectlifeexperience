@@ -4,19 +4,19 @@
       <text class="progress-title">晋升进度</text>
       <text class="progress-level">{{ currentLevelName }} → {{ nextLevelName }}</text>
     </view>
-    
+
     <!-- 已是最高等级提示 -->
     <view v-if="!hasNextLevel" class="max-level-tip">
       <image class="tip-icon" src="/static/icons/icon-crown.svg" mode="aspectFit"/>
       <text class="tip-text">恭喜您已达到最高等级！</text>
     </view>
-    
+
     <!-- 晋升进度条 -->
     <view v-else class="progress-content">
-      <!-- 金额进度 -->
+      <!-- 销售额进度 -->
       <view class="progress-item">
         <view class="progress-label">
-          <text class="label-text">累计销售额</text>
+          <text class="label-text">{{ salesLabel }}</text>
           <text class="label-value">¥{{ formatAmount(progress.salesProgress.current) }} / ¥{{ formatAmount(progress.salesProgress.target) }}</text>
         </view>
         <view class="progress-bar-wrapper">
@@ -26,24 +26,24 @@
           <text class="progress-percent">{{ progress.salesProgress.percent }}%</text>
         </view>
       </view>
-      
-      <!-- 人数进度 -->
-      <view class="progress-item">
+
+      <!-- 团队人数进度（仅三级和二级显示） -->
+      <view v-if="showTeamProgress" class="progress-item">
         <view class="progress-label">
-          <text class="label-text">直推人数</text>
-          <text class="label-value">{{ progress.countProgress.current }} / {{ progress.countProgress.target }} 人</text>
+          <text class="label-text">团队人数</text>
+          <text class="label-value">{{ progress.teamProgress.current }} / {{ progress.teamProgress.target }} 人</text>
         </view>
         <view class="progress-bar-wrapper">
           <view class="progress-bar">
-            <view class="progress-fill count-fill" :style="{ width: progress.countProgress.percent + '%' }"></view>
+            <view class="progress-fill team-fill" :style="{ width: progress.teamProgress.percent + '%' }"></view>
           </view>
-          <text class="progress-percent">{{ progress.countProgress.percent }}%</text>
+          <text class="progress-percent">{{ progress.teamProgress.percent }}%</text>
         </view>
       </view>
-      
+
       <!-- 晋升提示 -->
       <view class="promotion-tip">
-        <text class="tip-text">满足任意一项即可晋升</text>
+        <text class="tip-text">{{ promotionTip }}</text>
       </view>
     </view>
   </view>
@@ -51,7 +51,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { PromotionProgress, StarLevel } from '@/types/index';
+import type { PromotionProgress, AgentLevel } from '@/types/index';
+import { AGENT_LEVEL_NAMES } from '@/constants/promotion';
 
 // Props 定义
 interface Props {
@@ -60,34 +61,49 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   progress: () => ({
-    currentLevel: 0,
-    nextLevel: 1,
+    currentLevel: 4,
+    currentLevelName: '普通会员',
+    nextLevel: 3,
+    nextLevelName: '铜牌推广员',
     salesProgress: { current: 0, target: 2000000, percent: 0 },
-    countProgress: { current: 0, target: 30, percent: 0 }
+    teamProgress: { current: 0, target: 0, percent: 0 }
   })
 });
 
-// 星级名称映射
-const starLevelNames: Record<StarLevel, string> = {
-  0: '普通会员',
-  1: '铜牌推广员',
-  2: '银牌推广员',
-  3: '金牌推广员'
-};
-
 // 当前等级名称
-const currentLevelName = computed(() => starLevelNames[props.progress.currentLevel]);
+const currentLevelName = computed(() => props.progress.currentLevelName);
 
 // 下一等级名称
 const nextLevelName = computed(() => {
-  if (props.progress.nextLevel !== null) {
-    return starLevelNames[props.progress.nextLevel];
+  if (props.progress.nextLevelName) {
+    return props.progress.nextLevelName;
   }
   return '最高等级';
 });
 
 // 是否有下一级
 const hasNextLevel = computed(() => props.progress.nextLevel !== null);
+
+// 是否显示团队进度（三级→二级、二级→一级才需要）
+const showTeamProgress = computed(() => {
+  return props.progress.currentLevel === 3 || props.progress.currentLevel === 2;
+});
+
+// 销售额标签
+const salesLabel = computed(() => {
+  if (props.progress.currentLevel === 4) {
+    return '累计销售额';
+  }
+  return '本月销售额';
+});
+
+// 晋升提示
+const promotionTip = computed(() => {
+  if (props.progress.currentLevel === 4) {
+    return '累计销售额达标即可晋升';
+  }
+  return '满足任意一项即可晋升';
+});
 
 // 格式化金额（分转元）
 const formatAmount = (amount: number): string => {
@@ -200,8 +216,8 @@ const formatAmount = (amount: number): string => {
   background: linear-gradient(90deg, #C9A962 0%, #D4A574 100%);
 }
 
-.count-fill {
-  background: linear-gradient(90deg, #B8860B 0%, #C9A962 100%);
+.team-fill {
+  background: linear-gradient(90deg, #7A9A8E 0%, #5D8A6B 100%);
 }
 
 .progress-percent {

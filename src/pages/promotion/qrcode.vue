@@ -6,13 +6,13 @@
         <image class="logo" src="/static/logo.png" mode="aspectFit" />
         <text class="brand-name">大友元气</text>
       </view>
-      
+
       <view class="qrcode-wrapper">
         <view class="qrcode-border">
-          <image 
-            v-if="qrCodeUrl" 
-            class="qrcode-image" 
-            :src="qrCodeUrl" 
+          <image
+            v-if="qrCodeUrl"
+            class="qrcode-image"
+            :src="qrCodeUrl"
             mode="aspectFit"
             @longpress="saveQRCode"
           />
@@ -32,6 +32,22 @@
       </view>
     </view>
 
+    <!-- 推广链接卡片 -->
+    <view class="link-card">
+      <view class="link-header">
+        <text class="link-title">推广链接</text>
+        <text class="link-desc">分享链接，好友点击即可绑定</text>
+      </view>
+      <view class="link-content">
+        <text class="link-text" selectable>{{ promotionLink }}</text>
+      </view>
+      <view class="link-actions">
+        <button class="link-btn" @click="copyLink">
+          <text>复制链接</text>
+        </button>
+      </view>
+    </view>
+
     <!-- 分享提示 -->
     <view class="share-tips">
       <view class="tips-title">
@@ -48,11 +64,20 @@
       </view>
       <view class="tip-item">
         <view class="tip-icon">
+          <image class="tip-icon-img" src="/static/icons/icon-link.svg" mode="aspectFit"/>
+        </view>
+        <view class="tip-content">
+          <text class="tip-title">复制推广链接</text>
+          <text class="tip-desc">粘贴到任意平台分享</text>
+        </view>
+      </view>
+      <view class="tip-item">
+        <view class="tip-icon">
           <image class="tip-icon-img" src="/static/icons/icon-download.svg" mode="aspectFit"/>
         </view>
         <view class="tip-content">
-          <text class="tip-title">保存图片</text>
-          <text class="tip-desc">保存二维码图片后分享</text>
+          <text class="tip-title">保存二维码图片</text>
+          <text class="tip-desc">保存后分享给好友</text>
         </view>
       </view>
     </view>
@@ -63,7 +88,14 @@
         <image class="btn-icon" src="/static/icons/icon-wechat.svg" mode="aspectFit"/>
         <text>分享给好友</text>
       </button>
-      <button class="share-btn secondary" @click="saveQRCode">
+      <button class="share-btn secondary" @click="copyLink">
+        <image class="btn-icon-secondary" src="/static/icons/icon-link.svg" mode="aspectFit"/>
+        <text>复制链接</text>
+      </button>
+    </view>
+
+    <view class="action-section">
+      <button class="share-btn tertiary" @click="saveQRCode">
         <image class="btn-icon-secondary" src="/static/icons/icon-download.svg" mode="aspectFit"/>
         <text>保存图片</text>
       </button>
@@ -84,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { generatePromotionQRCode } from '@/utils/api';
 
 const qrCodeUrl = ref('');
@@ -92,6 +124,24 @@ const inviteCode = ref('');
 const showPoster = ref(false);
 const posterUrl = ref('');
 const loading = ref(false);
+
+// 小程序 AppID
+const APP_ID = 'wx4a0b93c3660d1404';
+
+// 生成推广链接
+const promotionLink = computed(() => {
+  if (!inviteCode.value) return '';
+  // 使用小程序路径格式，带邀请码参数
+  return `pages/index/index?inviteCode=${inviteCode.value}`;
+});
+
+// 生成完整的分享链接（用于复制）
+const fullShareLink = computed(() => {
+  if (!inviteCode.value) return '';
+  // 微信小程序 URL Scheme 格式
+  // 实际使用时需要从微信后台生成 URL Scheme
+  return `weixin://dl/business/?appid=${APP_ID}&path=pages/index/index&query=inviteCode%3D${inviteCode.value}`;
+});
 
 const loadQRCode = async () => {
   loading.value = true;
@@ -112,7 +162,7 @@ const loadQRCode = async () => {
 
 const copyInviteCode = () => {
   if (!inviteCode.value) return;
-  
+
   uni.setClipboardData({
     data: inviteCode.value,
     success: () => {
@@ -124,9 +174,23 @@ const copyInviteCode = () => {
   });
 };
 
+const copyLink = () => {
+  if (!promotionLink.value) return;
+
+  uni.setClipboardData({
+    data: promotionLink.value,
+    success: () => {
+      uni.showToast({
+        title: '推广链接已复制',
+        icon: 'success'
+      });
+    }
+  });
+};
+
 const saveQRCode = () => {
   if (!qrCodeUrl.value) return;
-  
+
   uni.downloadFile({
     url: qrCodeUrl.value,
     success: (res) => {
@@ -165,8 +229,13 @@ const shareToWeChat = () => {
     withShareTicket: true,
     menus: ['shareAppMessage', 'shareTimeline']
   });
+
+  uni.showToast({
+    title: '请点击右上角分享',
+    icon: 'none'
+  });
   // #endif
-  
+
   // #ifndef MP-WEIXIN
   uni.showToast({
     title: '请使用微信小程序分享',
@@ -176,7 +245,6 @@ const shareToWeChat = () => {
 };
 
 const generatePoster = () => {
-  // 这里可以调用云函数生成带用户信息的分享海报
   showPoster.value = true;
 };
 
@@ -186,7 +254,7 @@ const closePoster = () => {
 
 const savePoster = () => {
   if (!posterUrl.value) return;
-  
+
   uni.saveImageToPhotosAlbum({
     filePath: posterUrl.value,
     success: () => {
@@ -204,7 +272,7 @@ const savePoster = () => {
   });
 };
 
-// 微信小程序分享
+// 微信小程序分享配置
 // #ifdef MP-WEIXIN
 uni.showShareMenu({
   withShareTicket: true,
@@ -222,6 +290,63 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(180deg, #3D2914 0%, #5D3924 50%, #FDF8F3 50%);
   padding: 40rpx 30rpx;
+  padding-bottom: 120rpx;
+}
+
+/* 推广链接卡片 */
+.link-card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+}
+
+.link-header {
+  margin-bottom: 24rpx;
+}
+
+.link-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #3D2914;
+  margin-bottom: 8rpx;
+  display: block;
+}
+
+.link-desc {
+  font-size: 24rpx;
+  color: #9B8B7F;
+  display: block;
+}
+
+.link-content {
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.link-text {
+  font-size: 26rpx;
+  color: #4A4A4A;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.link-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.link-btn {
+  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
+  color: #FFFFFF;
+  font-size: 28rpx;
+  font-weight: 500;
+  padding: 16rpx 48rpx;
+  border-radius: 24rpx;
+  border: none;
 }
 
 /* 二维码卡片 */
@@ -335,6 +460,66 @@ onMounted(() => {
   border-radius: 8rpx;
 }
 
+/* 推广链接卡片 */
+.link-card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 40rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+}
+
+.link-header {
+  margin-bottom: 20rpx;
+}
+
+.link-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #3D2914;
+  margin-bottom: 8rpx;
+}
+
+.link-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.link-content {
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.link-text {
+  font-size: 26rpx;
+  color: #4A4A4A;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.link-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.link-btn {
+  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
+  color: #FFFFFF;
+  font-size: 28rpx;
+  font-weight: 500;
+  padding: 16rpx 48rpx;
+  border-radius: 24rpx;
+  border: none;
+}
+
+.link-btn::after {
+  border: none;
+}
+
 /* 分享提示 */
 .share-tips {
   background: #FFFFFF;
@@ -399,10 +584,71 @@ onMounted(() => {
   color: #9B8B7F;
 }
 
+/* 推广链接卡片 */
+.link-card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.08);
+}
+
+.link-header {
+  margin-bottom: 20rpx;
+}
+
+.link-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #3D2914;
+  margin-bottom: 8rpx;
+}
+
+.link-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.link-content {
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.link-text {
+  font-size: 26rpx;
+  color: #4A4A4A;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.link-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.link-btn {
+  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
+  color: #FFFFFF;
+  font-size: 28rpx;
+  font-weight: 500;
+  padding: 16rpx 48rpx;
+  border-radius: 24rpx;
+  border: none;
+}
+
+.link-btn::after {
+  border: none;
+}
+
 /* 分享按钮 */
 .action-section {
   display: flex;
   gap: 24rpx;
+  margin-bottom: 24rpx;
 }
 
 .share-btn {
@@ -413,6 +659,7 @@ onMounted(() => {
   height: 100rpx;
   border-radius: 50rpx;
   border: none;
+  padding: 0 32rpx;
 }
 
 .share-btn::after {
@@ -425,22 +672,35 @@ onMounted(() => {
 }
 
 .share-btn.primary text {
-  font-size: 30rpx;
+  font-size: 28rpx;
   color: #FFFFFF;
   font-weight: 500;
-  margin-left: 16rpx;
+  margin-left: 12rpx;
 }
 
 .share-btn.secondary {
-  background: #FFFFFF;
-  border: 2rpx solid #D4A574;
+  background: linear-gradient(135deg, #D4A574 0%, #B8935F 100%);
+  box-shadow: 0 8rpx 24rpx rgba(212, 165, 116, 0.3);
 }
 
 .share-btn.secondary text {
-  font-size: 30rpx;
+  font-size: 28rpx;
+  color: #FFFFFF;
+  font-weight: 500;
+  margin-left: 12rpx;
+}
+
+.share-btn.tertiary {
+  background: #FFFFFF;
+  border: 2rpx solid #D4A574;
+  width: 100%;
+}
+
+.share-btn.tertiary text {
+  font-size: 28rpx;
   color: #3D2914;
   font-weight: 500;
-  margin-left: 16rpx;
+  margin-left: 12rpx;
 }
 
 .btn-icon {

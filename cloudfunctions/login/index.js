@@ -10,9 +10,21 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
-// 小程序配置
-const APPID = 'wx4a0b93c3660d1404'; // 小程序 AppID
-const SECRET = process.env.WX_APP_SECRET || 'f5e326daa6f723eb89e7ed0a09e04cda'; // 小程序密钥
+// 获取小程序配置 (从环境变量读取)
+function getAppConfig() {
+  const appid = process.env.WX_APPID;
+  const secret = process.env.WX_APP_SECRET;
+
+  if (!appid) {
+    console.error('WX_APPID 环境变量未配置，请在 CloudBase 控制台设置');
+    throw new Error('WX_APPID 环境变量未配置');
+  }
+  if (!secret) {
+    console.error('WX_APP_SECRET 环境变量未配置，请在 CloudBase 控制台设置');
+    throw new Error('WX_APP_SECRET 环境变量未配置');
+  }
+  return { appid, secret };
+}
 
 /**
  * 获取或创建用户
@@ -99,7 +111,8 @@ exports.main = async (event, context) => {
   
   if (code) {
     try {
-      const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${APPID}&secret=${SECRET}&js_code=${code}&grant_type=authorization_code`;
+      const { appid, secret } = getAppConfig();
+      const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${code}&grant_type=authorization_code`;
       const response = await axios.get(url);
       
       if (response.data.openid) {

@@ -107,6 +107,7 @@ import {
   REWARD_STATUS_COLORS,
   REWARD_TYPE_SHORT_NAMES,
   REWARD_TYPE_CLASSES,
+  type RewardType,
   PAGINATION_CONFIG
 } from '@/constants/reward';
 import type { RewardRecordDB, RewardStatus } from '@/types/database';
@@ -215,27 +216,11 @@ const getStatusText = (status: RewardStatus) => {
 };
 
 const getRewardTypeClass = (rewardType: string) => {
-  // 从 rewardType 映射到常量中的 key
-  const typeMap: Record<string, 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'> = {
-    'commission': 'basic_commission',
-    'repurchase': 'repurchase_reward',
-    'management': 'team_management',
-    'nurture': 'nurture_allowance'
-  };
-  const mappedType = typeMap[rewardType] || rewardType as any;
-  return REWARD_TYPE_CLASSES[mappedType] || 'type-commission';
+  return REWARD_TYPE_CLASSES[rewardType as RewardType] || 'type-commission';
 };
 
 const getRewardTypeShortName = (rewardType: string) => {
-  // 从 rewardType 映射到常量中的 key
-  const typeMap: Record<string, 'basic_commission' | 'repurchase_reward' | 'team_management' | 'nurture_allowance'> = {
-    'commission': 'basic_commission',
-    'repurchase': 'repurchase_reward',
-    'management': 'team_management',
-    'nurture': 'nurture_allowance'
-  };
-  const mappedType = typeMap[rewardType] || rewardType as any;
-  return REWARD_TYPE_SHORT_NAMES[mappedType] || '奖';
+  return REWARD_TYPE_SHORT_NAMES[rewardType as RewardType] || '佣';
 };
 
 onMounted(() => {
@@ -492,17 +477,7 @@ onMounted(() => {
   background: linear-gradient(135deg, #D4A574 0%, #C9A962 100%);
 }
 
-.reward-type-tag.type-repurchase {
-  background: linear-gradient(135deg, #7A9A8E 0%, #5F7A6E 100%);
-}
-
-.reward-type-tag.type-management {
-  background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%);
-}
-
-.reward-type-tag.type-nurture {
-  background: linear-gradient(135deg, #C9A962 0%, #B8935F 100%);
-}
+/* 旧奖励类型样式已删除（复购奖励、团队管理奖、育成津贴） */
 
 .record-desc {
   font-size: 24rpx;

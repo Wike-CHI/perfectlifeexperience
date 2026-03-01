@@ -159,11 +159,6 @@ exports.main = async (event, context) => {
     }
   }
 
-  return {
-    code: -1,
-    msg: '未知操作'
-  };
-
   // 创建商品表索引（输出索引配置，需要在控制台手动创建或使用 CLI）
   if (action === 'createProductIndexes') {
     try {
@@ -451,6 +446,73 @@ ${indexConfigs.map(idx => `
               comment: '退款单号唯一索引'
             }
           ]
+        },
+
+        // commission_wallets 集合索引（佣金钱包）
+        {
+          collection: 'commission_wallets',
+          indexes: [
+            {
+              name: 'idx_openid_unique',
+              fields: [
+                { name: '_openid', order: 'asc' }
+              ],
+              unique: true,
+              comment: '佣金钱包用户ID唯一索引（防止并发创建重复钱包）'
+            }
+          ]
+        },
+
+        // commission_transactions 集合索引（佣金交易流水）
+        {
+          collection: 'commission_transactions',
+          indexes: [
+            {
+              name: 'idx_openid_createtime',
+              fields: [
+                { name: '_openid', order: 'asc' },
+                { name: 'createTime', order: 'desc' }
+              ],
+              comment: '佣金交易记录查询索引'
+            },
+            {
+              name: 'idx_withdrawNo',
+              fields: [
+                { name: 'withdrawNo', order: 'asc' }
+              ],
+              comment: '提现单号索引'
+            }
+          ]
+        },
+
+        // withdrawals 集合索引（提现记录）
+        {
+          collection: 'withdrawals',
+          indexes: [
+            {
+              name: 'idx_openid_applytime',
+              fields: [
+                { name: '_openid', order: 'asc' },
+                { name: 'applyTime', order: 'desc' }
+              ],
+              comment: '提现记录查询索引（按用户和时间倒序）'
+            },
+            {
+              name: 'idx_withdrawNo_unique',
+              fields: [
+                { name: 'withdrawNo', order: 'asc' }
+              ],
+              unique: true,
+              comment: '提现单号唯一索引'
+            },
+            {
+              name: 'idx_status',
+              fields: [
+                { name: 'status', order: 'asc' }
+              ],
+              comment: '提现状态索引（用于后台审核列表）'
+            }
+          ]
         }
       ];
 
@@ -489,4 +551,10 @@ ${indexConfigs.map(idx => `
       };
     }
   }
+
+  // 未知操作
+  return {
+    code: -1,
+    msg: `未知操作: ${action}`
+  };
 };

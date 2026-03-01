@@ -66,18 +66,14 @@
             <view class="member-name-row">
               <text class="member-name">{{ member.nickName || '微信用户' }}</text>
               <view class="member-badges">
-                <view :class="['star-badge', 'star-' + member.starLevel]">
-                  <text>{{ getStarLevelShort(member.starLevel) }}</text>
-                </view>
                 <view :class="['agent-badge', 'agent-' + member.agentLevel]">
-                  <text>{{ getAgentLevelRoman(member.agentLevel) }}</text>
+                  <text>{{ getAgentLevelShort(member.agentLevel) }}</text>
                 </view>
               </view>
             </view>
             <text class="member-time">{{ formatTime(member.createTime || '') }}</text>
             <view class="member-stats" v-if="member.performance">
               <text class="stats-text">销售额 ¥{{ formatPrice(member.performance.totalSales) }}</text>
-              <text class="stats-text" v-if="member.performance.directCount">直推 {{ member.performance.directCount }}人</text>
             </view>
           </view>
           <view class="member-level">
@@ -99,9 +95,8 @@ import { ref, computed, onMounted } from 'vue';
 import { getTeamMembers, getPromotionInfo } from '@/utils/api';
 import { formatPrice, formatTime } from '@/utils/format';
 import {
-  AGENT_LEVEL_TEXTS,
   AGENT_LEVEL_ROMAN,
-  STAR_LEVEL_SHORT,
+  AGENT_LEVEL_SHORT,
   PROMOTION_LEVEL_TEXTS,
   PAGINATION_CONFIG
 } from '@/constants/promotion';
@@ -203,8 +198,8 @@ const getLevelText = (level: number | undefined) => {
   return PROMOTION_LEVEL_TEXTS[level] || '成员';
 };
 
-const getStarLevelShort = (level: number) => {
-  return STAR_LEVEL_SHORT[level] || '普';
+const getAgentLevelShort = (level: number) => {
+  return AGENT_LEVEL_SHORT[level] || '普';
 };
 
 const getAgentLevelRoman = (level: number) => {
@@ -420,23 +415,17 @@ onMounted(() => {
   gap: 8rpx;
 }
 
-.star-badge, .agent-badge {
+.agent-badge {
   padding: 2rpx 10rpx;
   border-radius: 6rpx;
   font-size: 18rpx;
 }
 
-.star-badge text, .agent-badge text {
+.agent-badge text {
   font-size: 18rpx;
   color: #FFFFFF;
   font-weight: 600;
 }
-
-/* 星级徽章颜色（东方美学暖色调） */
-.star-badge.star-0 { background: #9B8B7F; }
-.star-badge.star-1 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
-.star-badge.star-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
-.star-badge.star-3 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
 
 /* 代理等级徽章颜色（东方美学暖色调） */
 .agent-badge.agent-0 { background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%); }
@@ -444,6 +433,8 @@ onMounted(() => {
 .agent-badge.agent-2 { background: linear-gradient(135deg, #C9A962 0%, #B8935F 100%); }
 .agent-badge.agent-3 { background: linear-gradient(135deg, #8B6F47 0%, #6B5B4F 100%); }
 .agent-badge.agent-4 { background: linear-gradient(135deg, #5D3924 0%, #3D2914 100%); }
+
+/* 星级徽章样式已删除（当前系统无星级概念） */
 
 .member-time {
   font-size: 24rpx;

@@ -24,10 +24,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
 
 const withdrawals = ref<any[]>([])
 
 onMounted(() => {
+  if (!AdminAuthManager.checkAuth()) return
   loadWithdrawals()
 })
 
@@ -37,12 +39,13 @@ const loadWithdrawals = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getWithdrawals',
+      adminToken: AdminAuthManager.getToken(),
       data: { status: 'pending', page: 1, limit: 20 }
     })
 
     uni.hideLoading()
 
-    if (res.code === 0) {
+    if (res.code === 0 && res.data) {
       withdrawals.value = res.data.list || []
     } else {
       uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
@@ -64,6 +67,7 @@ const handleApprove = async (id: string) => {
 
     const res = await callFunction('admin-api', {
       action: 'approveWithdrawal',
+      adminToken: AdminAuthManager.getToken(),
       data: { withdrawalId: id }
     })
 
@@ -93,6 +97,7 @@ const handleReject = async (id: string) => {
 
           const result = await callFunction('admin-api', {
             action: 'rejectWithdrawal',
+            adminToken: AdminAuthManager.getToken(),
             data: { withdrawalId: id, reason: '审核未通过' }
           })
 

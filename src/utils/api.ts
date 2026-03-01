@@ -793,22 +793,22 @@ export const createRechargePayment = async (amount: number, giftAmount: number =
   }
 
   try {
-    const res = await callFunction('wechatpay', { 
+    const res = await callFunction('wechatpay', {
       action: 'createRechargePayment',
       data: { amount, giftAmount, openid }
     });
-    
+
+    // 云函数返回格式: { code: 0, msg: '...', data: { prepayId, payParams, orderNo, ... } }
     if (res.code === 0 && res.data) {
-      // res.data 是云函数返回值 {success: true, data: {payParams: {...}}}
-      const wechatpayResult = res.data as { success: boolean; data?: { payParams: any; orderNo?: string } };
-      if (wechatpayResult.success && wechatpayResult.data?.payParams) {
+      const result = res.data as { prepayId?: string; payParams?: any; orderNo?: string };
+      if (result.payParams) {
         return {
-          payParams: wechatpayResult.data.payParams,
-          orderNo: wechatpayResult.data.orderNo
+          payParams: result.payParams,
+          orderNo: result.orderNo
         };
       }
     }
-    throw new Error((res.data as any)?.message || res.msg || '创建充值支付失败');
+    throw new Error(res.msg || '创建充值支付失败');
   } catch (error) {
     console.error('创建充值支付失败:', error);
     throw error;
@@ -895,6 +895,7 @@ export const getCommissionWalletBalance = async () => {
       const walletData = (res.data as any).data || res.data;
       return {
         balance: walletData.balance || 0,
+        frozenAmount: walletData.frozenAmount || 0,
         totalCommission: walletData.totalCommission || 0,
         totalWithdrawn: walletData.totalWithdrawn || 0
       };
@@ -903,7 +904,7 @@ export const getCommissionWalletBalance = async () => {
   } catch (error) {
     console.error('获取佣金钱包失败:', error);
     // 降级处理
-    return { balance: 0, totalCommission: 0, totalWithdrawn: 0 };
+    return { balance: 0, frozenAmount: 0, totalCommission: 0, totalWithdrawn: 0 };
   }
 };
 
@@ -1244,6 +1245,28 @@ export const generatePromotionQRCode = async (page?: string) => {
   }
 };
 
+// 获取推广数据看板
+export const getPromotionDashboard = async (timeRange: string = 'month') => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('promotion', {
+      action: 'getDashboard',
+      timeRange
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取失败');
+  } catch (error) {
+    console.error('获取数据看板失败:', error);
+    throw error;
+  }
+};
+
 // 计算订单推广奖励（订单完成后调用）
 export const calculatePromotionReward = async (orderId: string, buyerId: string, orderAmount: number) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
@@ -1294,34 +1317,6 @@ export const promoteAgentLevel = async (
     throw new Error(res.msg || '升级失败');
   } catch (error) {
     console.error('代理层级升级失败:', error);
-    throw error;
-  }
-};
-
-// 星级升级
-// 注意：不传递 userId，云函数会从 wxContext.OPENID 自动获取
-export const promoteStarLevel = async (
-  oldStarLevel: number,
-  newStarLevel: number
-): Promise<{ success: boolean; promoted: { userId: string; from: number; to: number } }> => {
-  if (typeof wx === 'undefined' || !wx.cloud) {
-    throw new Error('当前环境不支持云开发');
-  }
-
-  try {
-    const res = await callFunction('promotion', {
-      action: 'promoteStarLevel',
-      // 不传递 userId，云函数会从 wxContext.OPENID 获取
-      oldStarLevel,
-      newStarLevel
-    });
-
-    if (res.code === 0) {
-      return res.data;
-    }
-    throw new Error(res.msg || '升级失败');
-  } catch (error) {
-    console.error('星级升级失败:', error);
     throw error;
   }
 };

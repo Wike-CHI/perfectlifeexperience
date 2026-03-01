@@ -5,10 +5,7 @@
       <view class="header-bg"></view>
 
       <!-- 身份徽章 -->
-      <PromotionBadge
-        :starLevel="promotionInfo.starLevel"
-        :agentLevel="promotionInfo.agentLevel"
-      />
+      <PromotionBadge :agentLevel="promotionInfo.agentLevel" />
 
       <view class="stats-grid">
         <view class="stat-card">
@@ -31,7 +28,32 @@
     </view>
 
     <!-- 晋升进度 -->
-    <PromotionProgress :progress="promotionInfo.promotionProgress" />
+    <PromotionProgress v-if="promotionInfo.promotionProgress" :progress="promotionInfo.promotionProgress" />
+
+    <!-- 绑定状态卡片 -->
+    <view class="bind-status-card" v-if="!promotionInfo.hasParent">
+      <view class="bind-header">
+        <view class="bind-icon">
+          <text>🎁</text>
+        </view>
+        <view class="bind-info">
+          <text class="bind-title">绑定推广人</text>
+          <text class="bind-desc">绑定后您的推广人可获得佣金收益</text>
+        </view>
+      </view>
+      <button class="bind-btn-small" @click="goToBind">立即绑定</button>
+    </view>
+
+    <view class="parent-card" v-else-if="promotionInfo.parentInfo">
+      <view class="parent-header">
+        <text class="parent-label">我的推广人</text>
+        <text class="parent-badge">{{ promotionInfo.parentInfo.agentLevelName }}</text>
+      </view>
+      <view class="parent-content">
+        <image class="parent-avatar-small" :src="promotionInfo.parentInfo.avatarUrl || '/static/images/default-avatar.png'" mode="aspectFill" />
+        <text class="parent-name">{{ promotionInfo.parentInfo.nickName || '推广人' }}</text>
+      </view>
+    </view>
 
     <!-- 佣金比例卡片 -->
     <view class="commission-section">
@@ -100,6 +122,19 @@
         </view>
       </view>
 
+      <view class="menu-item" @click="goToDashboard">
+        <view class="menu-left">
+          <view class="menu-icon dashboard">
+            <image class="icon-svg" src="/static/icons/icon-chart.svg" mode="aspectFit"/>
+          </view>
+          <view class="menu-info">
+            <text class="menu-title">数据看板</text>
+            <text class="menu-subtitle">查看推广数据分析</text>
+          </view>
+        </view>
+        <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
+      </view>
+
       <view class="menu-item" @click="goToRewards">
         <view class="menu-left">
           <view class="menu-icon reward">
@@ -139,7 +174,7 @@
         <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
 
-      <view class="menu-item" @click="goToStarRules">
+      <view class="menu-item" @click="goToPromotionRules">
         <view class="menu-left">
           <view class="menu-icon star">
             <image class="icon-svg" src="/static/icons/icon-level-star.svg" mode="aspectFit"/>
@@ -164,21 +199,6 @@
         </view>
         <uni-icons type="right" size="16" color="#D4A574"></uni-icons>
       </view>
-
-      <view class="menu-item upgrade-item" @click="handleUpgrade" v-if="promotionInfo.agentLevel > 1">
-        <view class="menu-left">
-          <view class="menu-icon upgrade">
-            <text class="upgrade-icon">⬆️</text>
-          </view>
-          <view class="menu-info">
-            <text class="menu-title">申请升级</text>
-            <text class="menu-subtitle">升级到更高代理等级</text>
-          </view>
-        </view>
-        <view class="upgrade-badge">
-          <text class="badge-text">升级</text>
-        </view>
-      </view>
     </view>
 
     <!-- 规则说明 -->
@@ -192,11 +212,11 @@
       </view>
       <view class="rule-item">
         <text class="rule-num">2</text>
-        <text class="rule-text">好友下单后，你可获得相应比例的推广奖励</text>
+        <text class="rule-text">好友下单后，你可获得相应比例的推广佣金</text>
       </view>
       <view class="rule-item">
         <text class="rule-num">3</text>
-        <text class="rule-text">佣金按推广人等级：一级20%，二级12%，三级12%，四级8%</text>
+        <text class="rule-text">佣金按推广人等级：金牌20%，银牌12%，铜牌12%，普通8%</text>
       </view>
       <view class="rule-item">
         <text class="rule-num">4</text>
@@ -210,62 +230,17 @@
 
     <!-- 安全区域 -->
     <view class="safe-area"></view>
-
-    <!-- 升级提示组件 -->
-    <PromotionUpgradeAlert
-      :show="showUpgradeAlert"
-      :oldLevel="upgradeInfo.oldLevel"
-      :newLevel="upgradeInfo.newLevel"
-      :followUpdates="upgradeInfo.followUpdates"
-      @close="closeUpgradeAlert"
-    />
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getPromotionInfo, promoteAgentLevel } from '@/utils/api';
+import { getPromotionInfo } from '@/utils/api';
 import { usePromotion } from '@/composables/usePromotion';
 import PromotionBadge from '@/components/PromotionBadge.vue';
 import PromotionProgress from '@/components/PromotionProgress.vue';
-import PromotionUpgradeAlert from '@/components/PromotionUpgradeAlert.vue';
-
-// 类型定义（内联，避免分包导入问题）
-interface PromotionInfo {
-  starLevel: number
-  agentLevel: number
-  agentLevelName: string
-  todayReward: number
-  monthReward: number
-  totalReward: number
-  pendingReward: number
-  inviteCode: string
-  promotionProgress: PromotionProgress
-}
-
-interface TeamStats {
-  level1: number
-  level2: number
-  level3: number
-  level4: number
-  total: number
-}
-
-interface PromotionProgress {
-  currentLevel: number
-  nextLevel: number
-  salesProgress: {
-    current: number
-    target: number
-    percent: number
-  }
-  teamProgress: {
-    current: number
-    target: number
-    percent: number
-  }
-}
+import type { PromotionProgress as PromotionProgressType, TeamStats, AgentLevel } from '@/types';
 
 const SETTLEMENT_DAYS = 7;
 
@@ -274,33 +249,43 @@ const { myCommissionRatio, upstreamRatios } = usePromotion();
 
 // 默认晋升进度
 const defaultPromotionProgress: PromotionProgressType = {
-  currentLevel: 0,
-  nextLevel: 1,
+  currentLevel: 4,
+  currentLevelName: '普通会员',
+  nextLevel: 3,
+  nextLevelName: '铜牌推广员',
   salesProgress: { current: 0, target: 2000000, percent: 0 },
-  countProgress: { current: 0, target: 30, percent: 0 }
+  teamProgress: { current: 0, target: 0, percent: 0 }
 };
 
-const promotionInfo = ref<PromotionInfo>({
+interface PromotionInfoLocal {
+  inviteCode: string;
+  agentLevel: AgentLevel;
+  agentLevelName: string;
+  totalReward: number;
+  pendingReward: number;
+  withdrawableReward: number;
+  todayReward: number;
+  monthReward: number;
+  promotionProgress: PromotionProgressType | null;
+  teamStats: TeamStats;
+  hasParent: boolean;
+  parentInfo: {
+    nickName: string;
+    avatarUrl: string;
+    agentLevel: number;
+    agentLevelName: string;
+  } | null;
+}
+
+const promotionInfo = ref<PromotionInfoLocal>({
   inviteCode: '',
-  starLevel: 0,
   agentLevel: 4,
-  starLevelName: '普通会员',
-  agentLevelName: '四级代理',
+  agentLevelName: '普通会员',
   totalReward: 0,
   pendingReward: 0,
+  withdrawableReward: 0,
   todayReward: 0,
   monthReward: 0,
-  commissionReward: 0,
-  repurchaseReward: 0,
-  managementReward: 0,
-  nurtureReward: 0,
-  performance: {
-    totalSales: 0,
-    monthSales: 0,
-    monthTag: '',
-    directCount: 0,
-    teamCount: 0
-  },
   promotionProgress: defaultPromotionProgress,
   teamStats: {
     total: 0,
@@ -308,23 +293,12 @@ const promotionInfo = ref<PromotionInfo>({
     level2: 0,
     level3: 0,
     level4: 0
-  }
+  },
+  hasParent: false,
+  parentInfo: null
 });
 
 const loading = ref(false);
-
-// 升级提示状态
-const showUpgradeAlert = ref(false);
-const upgradeInfo = ref({
-  oldLevel: 4,
-  newLevel: 3,
-  followUpdates: [] as Array<{
-    childId: string;
-    childName: string;
-    from: number;
-    to: number;
-  }>
-});
 
 const teamStats = computed(() => promotionInfo.value.teamStats);
 const teamTotal = computed(() => teamStats.value.total);
@@ -334,9 +308,18 @@ const loadData = async () => {
   try {
     const data = await getPromotionInfo();
     promotionInfo.value = {
-      ...promotionInfo.value,
-      ...data,
-      promotionProgress: data.promotionProgress || defaultPromotionProgress
+      inviteCode: data.inviteCode || '',
+      agentLevel: data.agentLevel,
+      agentLevelName: data.agentLevelName || '普通会员',
+      totalReward: data.totalReward || 0,
+      pendingReward: data.pendingReward || 0,
+      withdrawableReward: data.withdrawableReward || 0,
+      todayReward: data.todayReward || 0,
+      monthReward: data.monthReward || 0,
+      promotionProgress: data.promotionProgress || defaultPromotionProgress,
+      teamStats: data.teamStats || { total: 0, level1: 0, level2: 0, level3: 0, level4: 0 },
+      hasParent: data.hasParent || false,
+      parentInfo: data.parentInfo || null
     };
   } catch (error) {
     console.error('加载推广信息失败:', error);
@@ -355,7 +338,7 @@ const formatPrice = (price: number) => {
 
 const copyInviteCode = () => {
   if (!promotionInfo.value.inviteCode) return;
-  
+
   uni.setClipboardData({
     data: promotionInfo.value.inviteCode,
     success: () => {
@@ -370,6 +353,12 @@ const copyInviteCode = () => {
 const goToTeam = () => {
   uni.navigateTo({
     url: '/pages/promotion/team'
+  });
+};
+
+const goToDashboard = () => {
+  uni.navigateTo({
+    url: '/pages/promotion/dashboard'
   });
 };
 
@@ -391,9 +380,9 @@ const goToRewardRules = () => {
   });
 };
 
-const goToStarRules = () => {
+const goToPromotionRules = () => {
   uni.navigateTo({
-    url: '/pages/promotion/star-rules'
+    url: '/pages/promotion/promotion-rules'
   });
 };
 
@@ -403,61 +392,10 @@ const goToCommissionCalculator = () => {
   });
 };
 
-// 模拟升级功能（演示用）
-const handleUpgrade = async () => {
-  const currentLevel = promotionInfo.value.agentLevel;
-  const targetLevel = currentLevel > 1 ? (currentLevel - 1) as 1 | 2 | 3 | 4 : 1;
-
-  if (currentLevel === 1) {
-    uni.showToast({
-      title: '已是一级代理',
-      icon: 'none'
-    });
-    return;
-  }
-
-  try {
-    uni.showLoading({ title: '升级中...' });
-
-    // 云函数会从 wxContext.OPENID 自动获取用户ID，无需前端传递
-    const result = await promoteAgentLevel(
-      currentLevel,
-      targetLevel
-    );
-
-    uni.hideLoading();
-
-    if (result.success) {
-      // 显示升级提示
-      upgradeInfo.value = {
-        oldLevel: currentLevel,
-        newLevel: targetLevel,
-        followUpdates: result.followUpdates
-      };
-      showUpgradeAlert.value = true;
-
-      // 更新本地数据
-      promotionInfo.value.agentLevel = targetLevel;
-      const levelNames: Record<number, string> = {
-        1: '一级代理',
-        2: '二级代理',
-        3: '三级代理',
-        4: '四级代理'
-      };
-      promotionInfo.value.agentLevelName = levelNames[targetLevel];
-    }
-  } catch (error) {
-    uni.hideLoading();
-    uni.showToast({
-      title: '升级失败',
-      icon: 'none'
-    });
-  }
-};
-
-// 关闭升级提示
-const closeUpgradeAlert = () => {
-  showUpgradeAlert.value = false;
+const goToBind = () => {
+  uni.navigateTo({
+    url: '/pages/promotion/bind'
+  });
 };
 
 onShow(() => {
@@ -662,6 +600,115 @@ onShow(() => {
   font-weight: 500;
 }
 
+/* 绑定状态卡片 */
+.bind-status-card {
+  background: linear-gradient(135deg, #C9A962 0%, #B8944D 100%);
+  margin: 0 30rpx 30rpx;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 8rpx 24rpx rgba(201, 169, 98, 0.25);
+}
+
+.bind-header {
+  display: flex;
+  align-items: center;
+}
+
+.bind-icon {
+  width: 72rpx;
+  height: 72rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+}
+
+.bind-icon text {
+  font-size: 36rpx;
+}
+
+.bind-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.bind-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #3D2914;
+  margin-bottom: 8rpx;
+}
+
+.bind-desc {
+  font-size: 24rpx;
+  color: rgba(61, 41, 20, 0.7);
+}
+
+.bind-btn-small {
+  background: #3D2914;
+  color: #C9A962;
+  font-size: 26rpx;
+  font-weight: 600;
+  padding: 16rpx 32rpx;
+  border-radius: 30rpx;
+  border: none;
+}
+
+/* 上级信息卡片 */
+.parent-card {
+  background: #FFFFFF;
+  margin: 0 30rpx 30rpx;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 8rpx 32rpx rgba(61, 41, 20, 0.1);
+}
+
+.parent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.parent-label {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.parent-badge {
+  background: linear-gradient(135deg, rgba(201, 169, 98, 0.15) 0%, rgba(184, 148, 77, 0.1) 100%);
+  color: #C9A962;
+  font-size: 22rpx;
+  font-weight: 500;
+  padding: 8rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.parent-content {
+  display: flex;
+  align-items: center;
+}
+
+.parent-avatar-small {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  margin-right: 20rpx;
+  border: 3rpx solid #C9A962;
+}
+
+.parent-name {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #1A1A1A;
+}
+
 /* 邀请码卡片 */
 .invite-card {
   background: #FFFFFF;
@@ -757,28 +804,6 @@ onShow(() => {
   border-bottom: none;
 }
 
-.menu-item.upgrade-item {
-  background: linear-gradient(135deg, rgba(201, 169, 98, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%);
-}
-
-.menu-item.upgrade-item:active {
-  background: linear-gradient(135deg, rgba(201, 169, 98, 0.15) 0%, rgba(184, 134, 11, 0.1) 100%);
-}
-
-.upgrade-badge {
-  padding: 8rpx 20rpx;
-  background: linear-gradient(135deg, #C9A962 0%, #B8860B 100%);
-  border-radius: 20rpx;
-  box-shadow: 0 2rpx 8rpx rgba(201, 169, 98, 0.3);
-}
-
-.badge-text {
-  font-size: 22rpx;
-  color: #FFFFFF;
-  font-weight: 600;
-  letter-spacing: 0.5rpx;
-}
-
 .menu-left {
   display: flex;
   align-items: center;
@@ -816,14 +841,6 @@ onShow(() => {
 
 .menu-icon.calculator {
   background: linear-gradient(135deg, rgba(122, 154, 142, 0.2) 0%, rgba(91, 122, 110, 0.15) 100%);
-}
-
-.menu-icon.upgrade {
-  background: linear-gradient(135deg, #C9A962 0%, #B8860B 100%);
-}
-
-.upgrade-icon {
-  font-size: 32rpx;
 }
 
 .icon-svg {

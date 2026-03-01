@@ -25,11 +25,7 @@
       </view>
       <view class="info-item">
         <text class="label">代理等级</text>
-        <text class="value">Lv{{ userInfo.agentLevel }}</text>
-      </view>
-      <view class="info-item">
-        <text class="label">星级</text>
-        <text class="value">{{ userInfo.starLevel }}星</text>
+        <text class="value">{{ getAgentLevelName(userInfo.agentLevel) }}</text>
       </view>
     </view>
   </view>
@@ -40,6 +36,19 @@ import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 
 const userInfo = ref<any>({})
+
+// 代理等级名称映射
+const AGENT_LEVEL_NAMES: Record<number, string> = {
+  0: '总公司',
+  1: '金牌推广员',
+  2: '银牌推广员',
+  3: '铜牌推广员',
+  4: '普通会员'
+}
+
+const getAgentLevelName = (level: number): string => {
+  return AGENT_LEVEL_NAMES[level] || '普通会员'
+}
 
 onMounted(() => {
   const pages = getCurrentPages()

@@ -44,7 +44,7 @@
     <!-- 卡片底部 -->
     <view class="card-footer" @click.stop>
       <button class="action-btn scan-btn" @click="handleScan">
-        <text class="btn-icon">📷</text>
+        <AdminIcon name="camera" size="small" />
         <text>扫快递单</text>
       </button>
       <button class="action-btn update-btn" @click="handleUpdateStatus">
@@ -56,6 +56,7 @@
 
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue'
+import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * OrderCard - 订单卡片组件
@@ -290,9 +291,5 @@ const handleUpdateStatus = () => {
 
 .update-btn:active {
   background: rgba(122, 154, 142, 0.2);
-}
-
-.btn-icon {
-  font-size: 28rpx;
 }
 </style>

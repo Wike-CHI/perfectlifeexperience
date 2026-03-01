@@ -75,3 +75,11 @@ export const PAYMENT_METHOD_TEXTS = {
   wallet: '余额支付',
   mixed: '混合支付'
 } as const
+
+/**
+ * 分页配置
+ */
+export const PAGINATION_CONFIG = {
+  DEFAULT_PAGE_SIZE: 20,
+  MAX_PAGE_SIZE: 100
+} as const

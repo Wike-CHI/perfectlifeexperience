@@ -36,8 +36,8 @@ declare const wx: {
 
 // ==================== 环境配置 ====================
 
-// 云开发环境ID - 生产环境
-const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
+// 云开发环境ID - 从配置文件读取（支持环境变量回退）
+import { ENV_ID, checkEnvConfig } from '@/config/env';
 
 // 存储用户登录凭证
 let userOpenid: string | null = null;

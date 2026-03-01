@@ -143,14 +143,34 @@ async function simulateOrderComplete({ orderId }) {
 
   console.log(`[测试] 模拟订单完成 orderId: ${orderId}`);
 
-  // 调用 order 云函数的 updateOrderStatus
-  const order = require('../order/index.js');
-  const result = await order.exports.updateOrderStatus(
-    { OPENID: await getOpenIdFromOrder(orderId) },
-    { orderId, status: 'completed' }
-  );
+  // 获取订单的 openid
+  const openid = await getOpenIdFromOrder(orderId);
+  if (!openid) {
+    return { code: -1, msg: '无法获取订单所属用户' };
+  }
 
-  return result;
+  // 使用 cloud.callFunction 调用 order 云函数
+  try {
+    const result = await cloud.callFunction({
+      name: 'order',
+      data: {
+        action: 'updateOrderStatus',
+        data: {
+          orderId,
+          status: 'completed'
+        }
+      }
+    });
+
+    return result.result;
+  } catch (error) {
+    console.error('[测试] 调用 order 云函数失败:', error);
+    return {
+      code: -1,
+      msg: '调用 order 云函数失败',
+      error: error.message
+    };
+  }
 }
 
 /**

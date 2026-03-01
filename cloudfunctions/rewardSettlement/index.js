@@ -11,27 +11,24 @@ const _ = db.command;
 // 结算周期（天）
 const SETTLEMENT_DAYS = 7;
 
-// 奖励类型名称映射
+// 奖励类型名称映射（仅推广佣金）
 const REWARD_TYPE_NAMES = {
-  commission: '基础佣金',
-  repurchase: '复购奖励',
-  management: '团队管理奖',
-  nurture: '育成津贴'
+  commission: '推广佣金'
 };
 
-// 星级名称映射
-const STAR_LEVEL_NAMES = {
-  0: '普通会员',
-  1: '铜牌推广员',
+// 代理等级名称映射
+const AGENT_LEVEL_NAMES = {
+  1: '金牌推广员',
   2: '银牌推广员',
-  3: '金牌推广员'
+  3: '铜牌推广员',
+  4: '普通会员'
 };
 
-// 晋升门槛配置
+// 晋升门槛配置（无直推人数要求）
 const PROMOTION_THRESHOLDS = {
-  BRONZE: { totalSales: 2000000, directCount: 30 },
-  SILVER: { monthSales: 5000000, teamCount: 50 },
-  GOLD: { monthSales: 10000000, teamCount: 200 }
+  BRONZE: { totalSales: 100000 },              // 累计销售额 >= 1,000元
+  SILVER: { monthSales: 500000, teamCount: 30 }, // 月销售额 >= 5,000元 或 团队 >= 30人
+  GOLD: { monthSales: 2000000, teamCount: 100 }  // 月销售额 >= 20,000元 或 团队 >= 100人
 };
 
 /**
@@ -43,14 +40,13 @@ function getCurrentMonthTag() {
 }
 
 /**
- * 获取默认业绩对象
+ * 获取默认业绩对象（无directCount）
  */
 function getDefaultPerformance() {
   return {
     totalSales: 0,
     monthSales: 0,
     monthTag: getCurrentMonthTag(),
-    directCount: 0,
     teamCount: 0
   };
 }
@@ -82,7 +78,7 @@ async function settlementRewards(event, context) {
     for (const order of pendingOrdersRes.data) {
       try {
         const orderValid = await checkOrderValid(order.orderId);
-        
+
         if (!orderValid) {
           await db.collection('promotion_orders')
             .doc(order._id)
@@ -127,7 +123,7 @@ async function checkOrderValid(orderId) {
     const orderRes = await db.collection('orders')
       .where({ orderNo: orderId })
       .get();
-    
+
     if (orderRes.data.length === 0) return false;
 
     const order = orderRes.data[0];
@@ -155,7 +151,7 @@ async function settleOrderRewards(promotionOrder) {
     // 收集所有受益人ID，用于后续晋升检查
     const beneficiaryIds = new Set();
 
-    // 批量获取佣金钱包信息（不是充值钱包！）
+    // 批量获取佣金钱包信息
     const commissionWalletRes = await transaction.collection('commission_wallets')
       .where({ _openid: _.in([...new Set(rewardsRes.data.map(r => r.beneficiaryId))]) })
       .get();
@@ -169,7 +165,7 @@ async function settleOrderRewards(promotionOrder) {
       beneficiaryIds.add(reward.beneficiaryId);
 
       // 获取奖励类型名称
-      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
+      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广佣金';
 
       // 1. 更新奖励记录状态
       await transaction.collection('reward_records')
@@ -192,10 +188,9 @@ async function settleOrderRewards(promotionOrder) {
           }
         });
 
-      // 3. 更新或创建佣金钱包余额（与充值钱包分离！）
+      // 3. 更新或创建佣金钱包余额
       const existingWallet = walletMap[reward.beneficiaryId];
       if (existingWallet) {
-        // 佣金钱包存在，增加余额
         await transaction.collection('commission_wallets')
           .doc(existingWallet._id)
           .update({
@@ -206,12 +201,12 @@ async function settleOrderRewards(promotionOrder) {
             }
           });
       } else {
-        // 佣金钱包不存在，创建新钱包
         await transaction.collection('commission_wallets')
           .add({
             data: {
               _openid: reward.beneficiaryId,
               balance: reward.amount,
+              frozenAmount: 0,
               totalCommission: reward.amount,
               totalWithdrawn: 0,
               createTime: db.serverDate(),
@@ -267,7 +262,7 @@ async function updatePerformanceAndCheckPromotion(userId, orderAmount) {
     const userRes = await db.collection('users')
       .where({ _openid: userId })
       .get();
-    
+
     if (userRes.data.length === 0) return;
 
     const user = userRes.data[0];
@@ -295,27 +290,28 @@ async function updatePerformanceAndCheckPromotion(userId, orderAmount) {
       .update({ data: updateData });
 
     // 检查晋升
-    await checkStarLevelPromotion(userId);
+    await checkAgentLevelPromotion(userId);
   } catch (error) {
     console.error('更新业绩并检查晋升失败:', error);
   }
 }
 
 /**
- * 检查星级晋升条件
+ * 检查代理等级晋升条件（简化版，无直推人数要求）
  */
-async function checkStarLevelPromotion(openid) {
+async function checkAgentLevelPromotion(openid) {
   try {
     const userRes = await db.collection('users')
       .where({ _openid: openid })
       .get();
-    
+
     if (userRes.data.length === 0) return { promoted: false };
 
     const user = userRes.data[0];
-    const currentStarLevel = user.starLevel || 0;
-    
-    if (currentStarLevel >= 3) return { promoted: false };
+    const currentLevel = user.agentLevel || 4;
+
+    // 已是最高等级（金牌），无需晋升
+    if (currentLevel <= 1) return { promoted: false };
 
     const currentMonthTag = getCurrentMonthTag();
     const performance = user.performance || getDefaultPerformance();
@@ -335,52 +331,52 @@ async function checkStarLevelPromotion(openid) {
       performance.monthTag = currentMonthTag;
     }
 
-    let newStarLevel = currentStarLevel;
+    let newLevel = currentLevel;
     let promotionReason = '';
 
-    // 检查晋升条件
-    if (currentStarLevel === 0) {
+    // 检查晋升条件（只看销售额和团队人数，不看直推人数）
+    if (currentLevel === 4) {
+      // 四级 → 三级（普通 → 铜牌）
       if (performance.totalSales >= PROMOTION_THRESHOLDS.BRONZE.totalSales) {
-        newStarLevel = 1;
+        newLevel = 3;
         promotionReason = `累计销售额达到${PROMOTION_THRESHOLDS.BRONZE.totalSales / 100}元`;
-      } else if (performance.directCount >= PROMOTION_THRESHOLDS.BRONZE.directCount) {
-        newStarLevel = 1;
-        promotionReason = `直推人数达到${PROMOTION_THRESHOLDS.BRONZE.directCount}人`;
       }
-    } else if (currentStarLevel === 1) {
+    } else if (currentLevel === 3) {
+      // 三级 → 二级（铜牌 → 银牌）
       if (performance.monthSales >= PROMOTION_THRESHOLDS.SILVER.monthSales) {
-        newStarLevel = 2;
+        newLevel = 2;
         promotionReason = `本月销售额达到${PROMOTION_THRESHOLDS.SILVER.monthSales / 100}元`;
       } else if (performance.teamCount >= PROMOTION_THRESHOLDS.SILVER.teamCount) {
-        newStarLevel = 2;
+        newLevel = 2;
         promotionReason = `团队人数达到${PROMOTION_THRESHOLDS.SILVER.teamCount}人`;
       }
-    } else if (currentStarLevel === 2) {
+    } else if (currentLevel === 2) {
+      // 二级 → 一级（银牌 → 金牌）
       if (performance.monthSales >= PROMOTION_THRESHOLDS.GOLD.monthSales) {
-        newStarLevel = 3;
+        newLevel = 1;
         promotionReason = `本月销售额达到${PROMOTION_THRESHOLDS.GOLD.monthSales / 100}元`;
       } else if (performance.teamCount >= PROMOTION_THRESHOLDS.GOLD.teamCount) {
-        newStarLevel = 3;
+        newLevel = 1;
         promotionReason = `团队人数达到${PROMOTION_THRESHOLDS.GOLD.teamCount}人`;
       }
     }
 
-    if (newStarLevel > currentStarLevel) {
+    if (newLevel < currentLevel) {
       await db.collection('users')
         .where({ _openid: openid })
         .update({
           data: {
-            starLevel: newStarLevel,
+            agentLevel: newLevel,
             updateTime: db.serverDate()
           }
         });
 
-      console.log(`🎉 用户 ${openid} 晋升成功: ${STAR_LEVEL_NAMES[currentStarLevel]} -> ${STAR_LEVEL_NAMES[newStarLevel]}，原因: ${promotionReason}`);
+      console.log(`🎉 用户 ${openid} 晋升成功: ${AGENT_LEVEL_NAMES[currentLevel]} -> ${AGENT_LEVEL_NAMES[newLevel]}，原因: ${promotionReason}`);
 
-      // 可选：发送晋升通知
-      await sendPromotionNotification(openid, currentStarLevel, newStarLevel, promotionReason);
+      // 发送晋升通知
+      await sendPromotionNotification(openid, currentLevel, newLevel, promotionReason);
 
-      return { promoted: true, oldLevel: currentStarLevel, newLevel: newStarLevel, reason: promotionReason };
+      return { promoted: true, oldLevel: currentLevel, newLevel: newLevel, reason: promotionReason };
     }
 
     return { promoted: false };
@@ -391,12 +387,11 @@ async function checkStarLevelPromotion(openid) {
 }
 
 /**
- * 发送晋升通知（可选实现）
+ * 发送晋升通知
  */
 async function sendPromotionNotification(openid, oldLevel, newLevel, reason) {
   try {
-    // 这里可以调用微信订阅消息或站内通知
-    console.log(`发送晋升通知给用户 ${openid}: ${STAR_LEVEL_NAMES[oldLevel]} -> ${STAR_LEVEL_NAMES[newLevel]}`);
+    console.log(`发送晋升通知给用户 ${openid}: ${AGENT_LEVEL_NAMES[oldLevel]} -> ${AGENT_LEVEL_NAMES[newLevel]}`);
   } catch (error) {
     console.error('发送晋升通知失败:', error);
   }
@@ -404,8 +399,6 @@ async function sendPromotionNotification(openid, oldLevel, newLevel, reason) {
 
 /**
  * 取消订单奖励（退款时）- 支持部分退款按比例扣回
- * @param {string} orderId - 订单ID
- * @param {number} refundRatio - 退款比例 (0-1)，全额退款为1
  */
 async function cancelRewards(orderId, refundRatio = 1) {
   try {
@@ -420,7 +413,7 @@ async function cancelRewards(orderId, refundRatio = 1) {
     let deductedAmount = 0;
 
     for (const reward of rewardsRes.data) {
-      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广奖励';
+      const rewardTypeName = reward.rewardTypeName || REWARD_TYPE_NAMES[reward.rewardType] || '推广佣金';
 
       if (reward.status === 'pending') {
         // pending状态的奖励直接取消
@@ -451,7 +444,7 @@ async function cancelRewards(orderId, refundRatio = 1) {
         const deductAmount = Math.floor(reward.amount * refundRatio);
 
         if (deductAmount > 0) {
-          // 从用户总奖励扣回
+          // 1. 从用户总奖励扣回
           await db.collection('users')
             .where({ _openid: reward.beneficiaryId })
             .update({
@@ -461,8 +454,19 @@ async function cancelRewards(orderId, refundRatio = 1) {
               }
             });
 
-          // 创建交易记录
-          await db.collection('wallet_transactions').add({
+          // 2. 从佣金钱包扣减余额
+          await db.collection('commission_wallets')
+            .where({ _openid: reward.beneficiaryId })
+            .update({
+              data: {
+                balance: _.inc(-deductAmount),
+                totalCommission: _.inc(-deductAmount),
+                updateTime: db.serverDate()
+              }
+            });
+
+          // 3. 记录佣金钱包交易流水
+          await db.collection('commission_transactions').add({
             data: {
               _openid: reward.beneficiaryId,
               type: 'reward_deduct',
@@ -470,6 +474,7 @@ async function cancelRewards(orderId, refundRatio = 1) {
               title: '奖励扣回',
               description: `订单 ${orderId} 退款，扣回${rewardTypeName}`,
               orderId: orderId,
+              rewardId: reward._id,
               status: 'success',
               createTime: db.serverDate()
             }
@@ -550,7 +555,7 @@ async function cleanAbnormalData() {
 
   try {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     const recentUsersRes = await db.collection('users')
       .where({ createTime: _.gte(oneDayAgo) })
       .get();
@@ -647,7 +652,7 @@ async function manualSettlement(event, context) {
       const orderRes = await db.collection('promotion_orders')
         .where({ orderId })
         .get();
-      
+
       if (orderRes.data.length === 0) {
         return { code: -1, msg: '订单不存在' };
       }
@@ -674,19 +679,19 @@ async function getSettlementStats(event, context) {
     const todayRes = await db.collection('reward_records')
       .where({ status: 'settled', settleTime: _.gte(today) })
       .get();
-    
+
     const todayAmount = todayRes.data.reduce((sum, r) => sum + r.amount, 0);
 
     const pendingRes = await db.collection('reward_records')
       .where({ status: 'pending' })
       .get();
-    
+
     const pendingAmount = pendingRes.data.reduce((sum, r) => sum + r.amount, 0);
 
     const totalRes = await db.collection('reward_records')
       .where({ status: 'settled' })
       .get();
-    
+
     const totalAmount = totalRes.data.reduce((sum, r) => sum + r.amount, 0);
 
     return {
