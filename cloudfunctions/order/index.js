@@ -32,6 +32,12 @@ const {
   productCache
 } = require('./common/cache');
 
+// ✅ 引入频率限制模块
+const { checkRateLimit } = require('./common/rateLimiter');
+
+// ✅ 引入奖励结算模块
+const { settleWithRetry } = require('./common/reward-settlement');
+
 // ==================== 库存管理 ====================
 
 /**
@@ -746,6 +752,41 @@ async function getOrders(openid, status) {
   }
 }
 
+/**
+ * 获取单个订单详情
+ * @param {string} openid - 用户openid
+ * @param {string} orderId - 订单ID
+ * @returns {Promise<{code: number, msg: string, data: object}>}
+ */
+async function getOrderDetail(openid, orderId) {
+  try {
+    if (!orderId) {
+      return error(ErrorCodes.INVALID_PARAMS, '缺少订单ID');
+    }
+
+    const orderRes = await db.collection('orders')
+      .where({
+        _id: orderId,
+        _openid: openid  // 确保只能查询自己的订单
+      })
+      .get();
+
+    if (orderRes.data.length === 0) {
+      logger.warn('Order not found', { orderId, openid });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+    }
+
+    const order = orderRes.data[0];
+
+    logger.debug('Order detail fetched', { orderId, status: order.status });
+
+    return success({ order }, '获取订单详情成功');
+  } catch (err) {
+    logger.error('Failed to get order detail', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取订单详情失败', err.message);
+  }
+}
+
 // Update order status
 async function updateOrderStatus(openid, orderId, status) {
   try {
@@ -867,7 +908,7 @@ async function updateOrderStatus(openid, orderId, status) {
   }
 }
 
-// 余额支付订单
+// 余额支付订单 - 使用乐观锁防止并发问题
 async function payWithBalance(openid, { orderId }) {
   const transaction = await db.startTransaction();
 
@@ -941,9 +982,13 @@ async function payWithBalance(openid, { orderId }) {
       };
     }
 
-    // 3. 扣除钱包余额
-    await transaction.collection('user_wallets')
-      .doc(wallet._id)
+    // 🔧 修复：使用乐观锁防止并发扣款
+    // 通过条件更新，只有当余额不少于所需金额时才扣款
+    const balanceDeductionResult = await transaction.collection('user_wallets')
+      .where({
+        _id: wallet._id,
+        balance: _.gte(orderAmount)  // 乐观锁：确保余额未被其他事务修改
+      })
       .update({
         data: {
           balance: _.inc(-orderAmount),
@@ -951,7 +996,21 @@ async function payWithBalance(openid, { orderId }) {
         }
       });
 
-    logger.debug('Balance deducted', { amount: orderAmount });
+    // 检查是否更新成功（乐观锁检查）
+    if (balanceDeductionResult.stats.updated === 0) {
+      await transaction.rollback();
+      logger.warn('Concurrent balance modification detected', {
+        orderId,
+        currentBalance: wallet.balance,
+        requiredAmount: orderAmount
+      });
+      return {
+        success: false,
+        message: '余额已被其他操作修改，请重试'
+      };
+    }
+
+    logger.debug('Balance deducted with optimistic lock', { amount: orderAmount });
 
     // 4. 记录交易日志
     await transaction.collection('wallet_transactions')
@@ -974,7 +1033,7 @@ async function payWithBalance(openid, { orderId }) {
       .update({
         data: {
           status: 'paid',
-          paymentStatus: 'paid',  // 修复：同时更新支付状态
+          paymentStatus: 'paid',
           paymentMethod: 'balance',
           payTime: db.serverDate(),
           rewardSettled: false, // 标记奖励未结算，等订单完成时结算
@@ -1004,51 +1063,59 @@ async function payWithBalance(openid, { orderId }) {
   }
 }
 
-// 结算订单推广奖励
+// 结算订单推广奖励（带重试和告警机制）
 async function settleOrderReward(buyerId, orderId, orderAmount) {
-  try {
-    logger.info('Reward settlement started', { buyerId, orderId, amount: orderAmount });
+  // 定义实际的结算逻辑
+  const doSettle = async (buyerId, orderId, orderAmount) => {
+    try {
+      logger.info('Reward settlement started', { buyerId, orderId, amount: orderAmount });
 
-    // 通过云函数调用推广系统计算奖励
-    const result = await cloud.callFunction({
-      name: 'promotion',
-      data: {
-        action: 'calculateReward',
-        orderId,
-        buyerId,
-        orderAmount,
-        isRepurchase: await checkIsRepurchase(buyerId)
-      }
-    });
+      // 通过云函数调用推广系统计算奖励
+      const result = await cloud.callFunction({
+        name: 'promotion',
+        data: {
+          action: 'calculateReward',
+          orderId,
+          buyerId,
+          orderAmount,
+          isRepurchase: await checkIsRepurchase(buyerId)
+        }
+      });
 
-    // cloud.callFunction 返回 { result: {...} }
-    const promotionResult = result.result;
+      // cloud.callFunction 返回 { result: {...} }
+      const promotionResult = result.result;
 
-    if (promotionResult && promotionResult.code === 0) {
-      // 标记订单奖励已结算
-      await db.collection('orders')
-        .doc(orderId)
-        .update({
-          data: {
-            rewardSettled: true,
-            rewardSettleTime: db.serverDate()
-          }
+      if (promotionResult && promotionResult.code === 0) {
+        // 标记订单奖励已结算
+        await db.collection('orders')
+          .doc(orderId)
+          .update({
+            data: {
+              rewardSettled: true,
+              rewardSettleTime: db.serverDate()
+            }
+          });
+
+        logger.info('Reward settlement completed', {
+          orderId,
+          rewardsCount: promotionResult.data?.rewards?.length || 0
         });
 
-      logger.info('Reward settlement completed', {
-        orderId,
-        rewardsCount: promotionResult.data?.rewards?.length || 0
-      });
-    } else {
-      logger.error('Reward settlement failed', {
-        orderId,
-        reason: promotionResult?.msg || 'Unknown error'
-      });
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: promotionResult?.msg || 'Promotion calculation failed'
+        };
+      }
+    } catch (err) {
+      logger.error('Reward settlement error', err);
+      return { success: false, error: err.message };
     }
+  };
 
-  } catch (err) {
-    logger.error('Reward settlement error', err);
-  }
+  // 使用带重试的结算
+  return await settleWithRetry(buyerId, orderId, orderAmount, doSettle);
 }
 
 // 检查是否为复购
@@ -1088,10 +1155,21 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   // 🔒 安全：只使用 wxContext.OPENID，不信任前端传递的 _token
   const openid = wxContext.OPENID;
+  const clientIP = wxContext.CLIENTIP;
 
   if (!openid) {
     logger.warn('Unauthorized access attempt');
     return error(ErrorCodes.NOT_LOGIN, '未登录或登录已过期');
+  }
+
+  // ✅ 频率限制检查（针对敏感操作）
+  const rateLimitActions = ['createOrder', 'cancelOrder', 'applyRefund'];
+  if (rateLimitActions.includes(action)) {
+    const rateLimitResult = await checkRateLimit(db, action, openid, clientIP);
+    if (!rateLimitResult.allowed) {
+      logger.warn('Rate limit exceeded', { action, openid, remaining: rateLimitResult.remaining });
+      return error(ErrorCodes.RATE_LIMIT_EXCEEDED, rateLimitResult.message);
+    }
   }
 
   logger.info('Order action', { action });
@@ -1102,6 +1180,8 @@ exports.main = async (event, context) => {
         return await createOrder(openid, data);
       case 'getOrders':
         return await getOrders(openid, data ? data.status : null);
+      case 'getOrderDetail':
+        return await getOrderDetail(openid, data.orderId);
       case 'updateOrderStatus':
         return await updateOrderStatus(openid, data.orderId, data.status);
       case 'cancelOrder':

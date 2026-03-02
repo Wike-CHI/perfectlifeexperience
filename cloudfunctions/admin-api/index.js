@@ -22,6 +22,9 @@ const {
 // ERP 模块
 const erp = require('./erp')
 
+// 业务模块
+const orderModule = require('./modules/order')
+
 // ==================== 库存流水辅助函数 ====================
 
 /**
@@ -85,11 +88,15 @@ const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required')
 }
-const JWT_EXPIRES_IN = '7d' // 7天过期
+// 🔒 安全修复：将JWT过期时间从7天改为2小时，降低token泄露风险
+// 如果需要长时间登录，前端应实现token刷新机制
+const JWT_EXPIRES_IN = '2h' // 2小时过期（原为7天，存在安全风险）
+const JWT_REFRESH_EXPIRES_IN = '24h' // 🔒 安全修复：刷新token有效期24小时（原为7天）
 
 // Main entry point
 exports.main = async (event, context) => {
-  const { action, data } = event
+  // 🔧 安全解构：确保 data 始终是对象
+  const { action, data = {} } = event || {}
   const wxContext = cloud.getWXContext()
 
   try {
@@ -99,8 +106,8 @@ exports.main = async (event, context) => {
     // 如果需要权限验证
     if (requiredPermission !== null) {
       // 从请求中获取管理员信息（前端应该传递 adminToken）
-      // 安全地获取 adminToken，data 可能是 undefined
-      const adminToken = (data && data.adminToken) || event.adminToken
+      // 🔧 修复：优先从顶层 event 获取 adminToken，兼容两种调用方式
+      const adminToken = event.adminToken || data.adminToken
 
       if (!adminToken) {
         return {
@@ -148,15 +155,15 @@ exports.main = async (event, context) => {
       case 'getCategories':
         return await getCategoriesAdmin()
       case 'getOrders':
-        return await getOrdersAdmin(data)
+        return await orderModule.getOrdersAdmin(data)
       case 'getOrderDetail':
-        return await getOrderDetailAdmin(data)
+        return await orderModule.getOrderDetailAdmin(data)
       case 'updateOrderStatus':
-        return await updateOrderStatusAdmin(data, wxContext)
+        return await orderModule.updateOrderStatusAdmin(data, wxContext)
       case 'searchOrderByExpress':
-        return await searchOrderByExpress(data)
+        return await orderModule.searchOrderByExpress(data)
       case 'updateOrderExpress':
-        return await updateOrderExpressAdmin(data, wxContext)
+        return await orderModule.updateOrderExpressAdmin(data, wxContext)
       case 'getAnnouncements':
         return await getAnnouncementsAdmin(data)
       case 'createAnnouncement':
@@ -353,18 +360,32 @@ async function verifyAdminPermission(adminToken, requiredPermission) {
       }
     }
 
-    // 验证 JWT token
+    // 验证 JWT token（jwt.verify会自动验证过期时间）
     let decoded;
     try {
       decoded = jwt.verify(adminToken, JWT_SECRET);
     } catch (error) {
+      // 🔒 安全修复：区分不同的token验证失败原因
+      if (error.name === 'TokenExpiredError') {
+        return {
+          authorized: false,
+          message: '登录已过期，请重新登录',
+          code: 'TOKEN_EXPIRED'
+        }
+      } else if (error.name === 'JsonWebTokenError') {
+        return {
+          authorized: false,
+          message: 'Token无效',
+          code: 'TOKEN_INVALID'
+        }
+      }
       return {
         authorized: false,
-        message: 'Token无效或已过期'
+        message: 'Token验证失败'
       }
     }
 
-    // 从数据库查询管理员信息（确保账号仍然有效）
+    // 🔒 安全增强：检查token签发时间，如果密码在此之后被修改，则token失效
     const adminResult = await db.collection('admins')
       .where({
         _id: decoded.adminId,
@@ -381,6 +402,19 @@ async function verifyAdminPermission(adminToken, requiredPermission) {
     }
 
     const admin = adminResult.data[0];
+
+    // 🔒 安全增强：如果密码在token签发后被修改，token失效
+    if (admin.passwordUpdatedAt) {
+      const tokenIssuedAt = new Date(decoded.iat * 1000); // JWT iat 是秒级时间戳
+      const passwordUpdatedAt = new Date(admin.passwordUpdatedAt);
+      if (passwordUpdatedAt > tokenIssuedAt) {
+        return {
+          authorized: false,
+          message: '密码已更改，请重新登录',
+          code: 'PASSWORD_CHANGED'
+        }
+      }
+    }
 
     // 检查权限
     if (requiredPermission) {

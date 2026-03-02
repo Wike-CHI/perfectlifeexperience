@@ -126,10 +126,10 @@
       ".read": "auth.openid != null && auth.openid == doc._openid",
       ".write": "auth.openid != null && auth.openid == doc._openid",
       "agentLevel": {
-        ".write": "auth.openid == doc._openid && newData.agentLevel >= oldData.agentLevel"
+        ".write": false
       },
       "starLevel": {
-        ".write": "auth.openid == doc._openid && newData.starLevel >= oldData.starLevel"
+        ".write": false
       },
       "_openid": {
         ".write": false
