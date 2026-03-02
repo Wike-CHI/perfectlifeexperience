@@ -1,0 +1,18 @@
+{
+  "name": "common-layer",
+  "version": "1.0.0",
+  "description": "云函数公共代码层 - 包含日志、响应、验证等共享模块",
+  "main": "shared/index.js",
+  "scripts": {
+    "deploy": "tcb fn deploy common-layer --layer"
+  },
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  },
+  "cloudbaseFramework": {
+    "functionLayer": {
+      "name": "common-layer",
+      "runtime": "Nodejs16.13"
+    }
+  }
+}
