@@ -32,6 +32,324 @@ const {
   productCache
 } = require('./common/cache');
 
+// ==================== 库存管理 ====================
+
+/**
+ * 生成库存流水号
+ * 格式：IT + 年月日时分秒 + 6位随机数
+ */
+function generateTransactionNo() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  const second = String(now.getSeconds()).padStart(2, '0');
+  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+
+  return `IT${year}${month}${day}${hour}${minute}${second}${random}`;
+}
+
+/**
+ * 创建库存流水记录
+ * @param {Object} params - 流水参数
+ * @param {string} params.productId - 商品ID
+ * @param {string} params.productName - 商品名称
+ * @param {string} params.sku - SKU
+ * @param {string} params.type - 流水类型: sale_out | refund_in | adjustment
+ * @param {number} params.quantity - 数量（正数）
+ * @param {number} params.beforeStock - 变更前库存
+ * @param {number} params.afterStock - 变更后库存
+ * @param {string} params.relatedId - 关联单据ID
+ * @param {string} params.relatedNo - 关联单据号
+ * @param {string} params.operatorId - 操作人ID
+ * @param {string} params.operatorName - 操作人名称
+ * @param {string} params.remark - 备注
+ */
+async function createInventoryTransaction(params) {
+  try {
+    const transaction = {
+      transactionNo: generateTransactionNo(),
+      productId: params.productId,
+      productName: params.productName,
+      sku: params.sku || '',
+      type: params.type,
+      quantity: params.quantity,
+      beforeStock: params.beforeStock,
+      afterStock: params.afterStock,
+      relatedId: params.relatedId || '',
+      relatedNo: params.relatedNo || '',
+      operatorId: params.operatorId || 'system',
+      operatorName: params.operatorName || '系统',
+      remark: params.remark || '',
+      createTime: db.serverDate()
+    };
+
+    await db.collection('inventory_transactions').add({ data: transaction });
+
+    logger.debug('Inventory transaction created', {
+      transactionNo: transaction.transactionNo,
+      type: params.type,
+      productId: params.productId,
+      quantity: params.quantity
+    });
+
+    return { success: true, transactionNo: transaction.transactionNo };
+  } catch (err) {
+    logger.error('Failed to create inventory transaction', {
+      productId: params.productId,
+      error: err.message
+    });
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 扣减库存（原子性操作）
+ * 创建订单成功后调用
+ * @param {Array} items - 订单商品列表
+ * @param {Object} orderInfo - 订单信息（用于记录流水）
+ * @returns {Promise<{success: boolean, errors: Array, deductedItems: Array}>}
+ */
+async function deductStock(items, orderInfo = {}) {
+  const errors = [];
+  const deductedItems = []; // 记录成功扣减的项目，用于回滚
+
+  for (const item of items) {
+    try {
+      // 先获取当前库存（用于记录流水）
+      const productRes = await db.collection('products').doc(item.productId).get();
+      const beforeStock = productRes.data?.stock || 0;
+
+      let updateResult;
+
+      if (item.skuId) {
+        // 有SKU：同时扣减产品库存和SKU库存（原子性操作）
+        updateResult = await db.collection('products')
+          .where({
+            _id: item.productId,
+            stock: _.gte(item.quantity),
+            'skus._id': item.skuId,
+            'skus.stock': _.gte(item.quantity)
+          })
+          .update({
+            data: {
+              stock: _.inc(-item.quantity),
+              'skus.$.stock': _.inc(-item.quantity),
+              updateTime: db.serverDate()
+            }
+          });
+      } else {
+        // 无SKU：只扣减产品库存
+        updateResult = await db.collection('products')
+          .where({
+            _id: item.productId,
+            stock: _.gte(item.quantity)
+          })
+          .update({
+            data: {
+              stock: _.inc(-item.quantity),
+              updateTime: db.serverDate()
+            }
+          });
+      }
+
+      if (updateResult.stats.updated === 0) {
+        logger.error('Stock deduction failed - insufficient stock or product not found', {
+          productId: item.productId,
+          skuId: item.skuId,
+          quantity: item.quantity
+        });
+        errors.push(`"${item.productName}"库存不足`);
+      } else {
+        logger.debug('Stock deducted successfully', {
+          productId: item.productId,
+          skuId: item.skuId,
+          deducted: item.quantity
+        });
+
+        const afterStock = beforeStock - item.quantity;
+        deductedItems.push({
+          ...item,
+          beforeStock,
+          afterStock
+        }); // 记录成功扣减的项目（包含库存信息）
+
+        // 创建库存流水记录（销售出库）
+        await createInventoryTransaction({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.skuName || item.skuId || '',
+          type: 'sale_out',
+          quantity: item.quantity,
+          beforeStock,
+          afterStock,
+          relatedId: orderInfo.orderId || '',
+          relatedNo: orderInfo.orderNo || '',
+          operatorId: orderInfo.openid || 'system',
+          operatorName: '订单销售',
+          remark: `订单销售出库 - ${orderInfo.orderNo || ''}`
+        });
+      }
+    } catch (err) {
+      logger.error('Stock deduction error', {
+        productId: item.productId,
+        error: err.message
+      });
+      errors.push(`"${item.productName}"库存扣减异常`);
+    }
+  }
+
+  // 如果有失败，回滚已扣减的库存
+  if (errors.length > 0 && deductedItems.length > 0) {
+    logger.warn('Rolling back deducted stock due to partial failure', {
+      deductedCount: deductedItems.length,
+      errorCount: errors.length
+    });
+    await restoreStock(deductedItems, { isRollback: true });
+  }
+
+  return {
+    success: errors.length === 0,
+    errors,
+    deductedItems: errors.length === 0 ? deductedItems : []
+  };
+}
+
+/**
+ * 恢复库存
+ * 订单取消或退款成功后调用
+ * @param {Array} items - 订单商品列表
+ * @param {Object} options - 选项
+ * @param {boolean} options.isRollback - 是否为库存回滚（不记录流水）
+ * @param {Object} options.orderInfo - 订单信息（用于记录流水）
+ * @returns {Promise<{success: boolean}>}
+ */
+async function restoreStock(items, options = {}) {
+  const { isRollback = false, orderInfo = {} } = options;
+
+  for (const item of items) {
+    try {
+      // 先获取当前库存（用于记录流水）
+      const productRes = await db.collection('products').doc(item.productId).get();
+      const beforeStock = productRes.data?.stock || 0;
+
+      // 恢复产品库存
+      await db.collection('products')
+        .doc(item.productId)
+        .update({
+          data: {
+            stock: _.inc(item.quantity),
+            updateTime: db.serverDate()
+          }
+        });
+
+      logger.debug('Stock restored', {
+        productId: item.productId,
+        restored: item.quantity
+      });
+
+      // 如果有SKU，同时恢复SKU库存
+      if (item.skuId) {
+        await db.collection('products')
+          .where({
+            _id: item.productId,
+            'skus._id': item.skuId
+          })
+          .update({
+            data: {
+              'skus.$.stock': _.inc(item.quantity),
+              updateTime: db.serverDate()
+            }
+          });
+      }
+
+      // 如果不是回滚操作，创建库存流水记录（退款入库）
+      if (!isRollback) {
+        const afterStock = beforeStock + item.quantity;
+        await createInventoryTransaction({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.skuName || item.skuId || '',
+          type: 'refund_in',
+          quantity: item.quantity,
+          beforeStock,
+          afterStock,
+          relatedId: orderInfo.orderId || '',
+          relatedNo: orderInfo.orderNo || '',
+          operatorId: orderInfo.openid || 'system',
+          operatorName: '订单取消/退款',
+          remark: `订单取消/退款入库 - ${orderInfo.orderNo || ''}`
+        });
+      }
+    } catch (err) {
+      logger.error('Stock restore error', {
+        productId: item.productId,
+        error: err.message
+      });
+    }
+  }
+
+  return { success: true };
+}
+
+// ==================== 优惠券恢复 ====================
+
+/**
+ * 恢复优惠券
+ * 订单取消时调用
+ * @param {string} openid - 用户openid
+ * @param {string} couponId - 优惠券ID
+ * @param {string} orderNo - 订单号
+ * @returns {Promise<{success: boolean}>}
+ */
+async function restoreCoupon(openid, couponId, orderNo) {
+  if (!couponId) {
+    return { success: true };
+  }
+
+  try {
+    const result = await db.collection('user_coupons')
+      .where({
+        _id: couponId,
+        _openid: openid,
+        status: 'used'
+      })
+      .update({
+        data: {
+          status: 'unused',
+          useTime: null,
+          orderNo: null,
+          restoreTime: db.serverDate(),
+          restoreReason: `订单取消: ${orderNo}`,
+          updateTime: db.serverDate()
+        }
+      });
+
+    if (result.stats.updated > 0) {
+      logger.info('Coupon restored', {
+        couponId,
+        orderNo,
+        openid
+      });
+    } else {
+      logger.warn('Coupon restore - no matching coupon found or already restored', {
+        couponId,
+        orderNo
+      });
+    }
+
+    return { success: true };
+  } catch (err) {
+    logger.error('Coupon restore error', {
+      couponId,
+      error: err.message
+    });
+    return { success: false };
+  }
+}
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -318,9 +636,29 @@ async function createOrder(openid, orderData) {
       );
     }
 
+    // 🔧 修复：先扣减库存，成功后再创建订单（确保原子性）
+    // 生成订单号（用于库存流水记录）
+    const orderNo = `ORD${Date.now()}${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const orderInfoForStock = { orderNo, openid };
+
+    const stockResult = await deductStock(cartValidation.validatedItems, orderInfoForStock);
+    if (!stockResult.success) {
+      logger.warn('Stock deduction failed, order creation aborted', {
+        errors: stockResult.errors
+      });
+      return error(
+        ErrorCodes.INSUFFICIENT_STOCK,
+        stockResult.errors[0] || '库存不足',
+        { errors: stockResult.errors }
+      );
+    }
+
+    logger.info('Stock deducted successfully, proceeding to create order');
+
     // 使用验证后的数据创建订单
     const order = {
       ...orderData,
+      orderNo: orderNo,
       items: cartValidation.validatedItems,
       totalAmount: cartValidation.serverTotalAmount,
       _openid: openid,
@@ -332,28 +670,36 @@ async function createOrder(openid, orderData) {
       amountValidationPassed: true
     };
 
-    const res = await db.collection('orders').add({
-      data: order
-    });
+    try {
+      const res = await db.collection('orders').add({
+        data: order
+      });
 
-    logger.info('Order created successfully', {
-      orderId: res._id,
-      amount: cartValidation.serverTotalAmount
-    });
-
-    // 清除订单列表缓存（新订单会出现在 pending 列表）
-    userCache.delete(`orders_${openid}_all`);
-    userCache.delete(`orders_${openid}_pending`);
-    logger.debug('Order list cache cleared after creation', { openid });
-
-    return success(
-      {
+      logger.info('Order created successfully', {
         orderId: res._id,
-        validatedItems: cartValidation.validatedItems,
-        serverTotalAmount: cartValidation.serverTotalAmount
-      },
-      '订单创建成功'
-    );
+        orderNo: orderNo,
+        amount: cartValidation.serverTotalAmount
+      });
+
+      // 清除订单列表缓存（新订单会出现在 pending 列表）
+      userCache.delete(`orders_${openid}_all`);
+      userCache.delete(`orders_${openid}_pending`);
+      logger.debug('Order list cache cleared after creation', { openid });
+
+      return success(
+        {
+          orderId: res._id,
+          validatedItems: cartValidation.validatedItems,
+          serverTotalAmount: cartValidation.serverTotalAmount
+        },
+        '订单创建成功'
+      );
+    } catch (orderError) {
+      // 订单创建失败，回滚库存（不记录流水）
+      logger.error('Order creation failed, rolling back stock', orderError);
+      await restoreStock(stockResult.deductedItems, { isRollback: true });
+      return error(ErrorCodes.DATABASE_ERROR, '订单创建失败', orderError.message);
+    }
   } catch (err) {
     logger.error('Failed to create order', err);
     return error(ErrorCodes.DATABASE_ERROR, '订单创建失败', err.message);
@@ -405,6 +751,36 @@ async function updateOrderStatus(openid, orderId, status) {
   try {
     logger.info('Updating order status', { orderId, status });
 
+    // 先获取订单信息（用于恢复库存和优惠券）
+    const orderRes = await db.collection('orders')
+      .where({ _id: orderId, _openid: openid })
+      .get();
+
+    if (orderRes.data.length === 0) {
+      logger.warn('Order not found for update', { orderId });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+    }
+
+    const order = orderRes.data[0];
+
+    // 检查订单当前状态是否允许更新到目标状态
+    const allowedTransitions = {
+      'pending': ['paid', 'cancelled'],
+      'paid': ['shipping', 'cancelled'],
+      'shipping': ['completed', 'cancelled'],
+      'completed': [],
+      'cancelled': []
+    };
+
+    if (!allowedTransitions[order.status]?.includes(status)) {
+      logger.warn('Invalid status transition', {
+        orderId,
+        from: order.status,
+        to: status
+      });
+      return error(ErrorCodes.INVALID_STATUS, `订单状态不允许从"${order.status}"变更为"${status}"`);
+    }
+
     const updateData = {
       status,
       updateTime: new Date()
@@ -413,43 +789,73 @@ async function updateOrderStatus(openid, orderId, status) {
     if (status === 'paid') updateData.payTime = new Date();
     else if (status === 'shipping') updateData.shipTime = new Date();
     else if (status === 'completed') updateData.completeTime = new Date();
+    else if (status === 'cancelled') {
+      updateData.cancelTime = new Date();
+      updateData.cancelReason = '用户取消';
+    }
 
-    // 只能更新自己的订单
-    const updateResult = await db.collection('orders').where({
-      _id: orderId,
-      _openid: openid
-    }).update({
-      data: updateData
-    });
+    // 更新订单状态
+    const updateResult = await db.collection('orders')
+      .where({
+        _id: orderId,
+        _openid: openid
+      })
+      .update({
+        data: updateData
+      });
 
     if (updateResult.stats.updated === 0) {
-      logger.warn('Order not found for update', { orderId });
-      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+      logger.warn('Order update failed - concurrent modification', { orderId });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单状态更新失败，请重试');
     }
 
     logger.info('Order status updated', { orderId, status });
 
+    // 🔧 订单取消：恢复库存和优惠券
+    if (status === 'cancelled') {
+      // 恢复库存
+      if (order.items && order.items.length > 0) {
+        logger.info('Restoring stock for cancelled order', { orderId });
+        const orderInfoForStock = {
+          orderId: order._id,
+          orderNo: order.orderNo,
+          openid: openid
+        };
+        await restoreStock(order.items, { orderInfo: orderInfoForStock });
+      }
+
+      // 恢复优惠券
+      if (order.couponId) {
+        logger.info('Restoring coupon for cancelled order', {
+          orderId,
+          couponId: order.couponId
+        });
+        await restoreCoupon(openid, order.couponId, order.orderNo);
+      }
+
+      // 如果已支付，需要处理退款（这里只记录日志，实际退款需要管理员处理）
+      if (['paid', 'shipping'].includes(order.status)) {
+        logger.warn('Cancelled order was already paid - refund may be needed', {
+          orderId,
+          originalStatus: order.status,
+          paidAmount: order.totalAmount
+        });
+      }
+    }
+
     // 如果订单完成，触发推广奖励结算（统一在完成时结算）
     if (status === 'completed') {
-      const orderRes = await db.collection('orders')
-        .where({ _id: orderId })
-        .get();
-
-      if (orderRes.data.length > 0) {
-        const order = orderRes.data[0];
-
-        // 只处理未结算的订单（无论支付方式）
-        if (!order.rewardSettled) {
-          logger.info('Triggering reward settlement', { orderId });
-          await settleOrderReward(order._openid, orderId, order.totalAmount);
-        }
+      // 只处理未结算的订单（无论支付方式）
+      if (!order.rewardSettled) {
+        logger.info('Triggering reward settlement', { orderId });
+        await settleOrderReward(order._openid, orderId, order.totalAmount);
       }
     }
 
     // 清除该用户的所有订单列表缓存（订单状态变更后列表会变化）
     const orderStatuses = ['all', 'pending', 'paid', 'shipping', 'completed', 'cancelled'];
-    orderStatuses.forEach(status => {
-      const cacheKey = `orders_${openid}_${status}`;
+    orderStatuses.forEach(s => {
+      const cacheKey = `orders_${openid}_${s}`;
       userCache.delete(cacheKey);
     });
     logger.debug('Order list cache cleared', { openid });
@@ -812,6 +1218,8 @@ async function applyRefund(openid, data) {
             productId: item.productId,
             productName: item.productName,
             productImage: item.productImage,
+            skuId: item.skuId || null,
+            skuName: item.skuName || null,
             quantity: item.quantity,
             refundQuantity: refundItem.refundQuantity,
             price: item.price
@@ -830,6 +1238,8 @@ async function applyRefund(openid, data) {
         productId: item.productId,
         productName: item.productName,
         productImage: item.productImage,
+        skuId: item.skuId || null,
+        skuName: item.skuName || null,
         quantity: item.quantity,
         refundQuantity: item.quantity,
         price: item.price

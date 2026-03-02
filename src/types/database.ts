@@ -196,6 +196,24 @@ export interface ProductDB {
   createTime: DBDate
   /** 更新时间 */
   updateTime?: DBDate
+
+  // ========== ERP 扩展字段 ==========
+  /** SKU编码（唯一） */
+  sku?: string
+  /** 成本价（分） */
+  costPrice?: number
+  /** 库存预警阈值（默认10） */
+  lowStockThreshold?: number
+  /** 保质期天数 */
+  shelfLifeDays?: number
+  /** 默认库位 */
+  storageLocation?: string
+  /** 是否启用批次追踪 */
+  enableBatchTracking?: boolean
+  /** 最后采购成本（分） */
+  lastPurchaseCost?: number
+  /** 加权平均成本（分） */
+  averageCost?: number
 }
 
 /**
@@ -774,4 +792,295 @@ export interface UserCouponDB {
   orderId?: string
   /** 创建时间 */
   createTime: DBDate
+}
+
+// ============================================================================
+// ERP 相关
+// ============================================================================
+
+/**
+ * suppliers 集合
+ * 数据库集合名: suppliers
+ * 描述: 供应商表
+ */
+export interface SupplierDB {
+  _id: string
+  /** 供应商名称 */
+  name: string
+  /** 联系人 */
+  contactPerson: string
+  /** 联系电话 */
+  phone: string
+  /** 地址 */
+  address: string
+  /** 开户行 */
+  bankName?: string
+  /** 银行账号 */
+  bankAccount?: string
+  /** 备注 */
+  remark?: string
+  /** 状态 */
+  status: 'active' | 'inactive'
+  /** 创建时间 */
+  createTime: DBDate
+  /** 更新时间 */
+  updateTime?: DBDate
+}
+
+/**
+ * purchase_orders 集合
+ * 数据库集合名: purchase_orders
+ * 描述: 采购订单表
+ */
+export interface PurchaseOrderDB {
+  _id: string
+  /** 采购单号 PO+时间戳 */
+  purchaseNo: string
+  /** 供应商ID */
+  supplierId: string
+  /** 供应商名称（冗余） */
+  supplierName: string
+  /** 采购单状态 */
+  status: PurchaseOrderStatus
+  /** 采购明细 */
+  items: PurchaseOrderItem[]
+  /** 总金额（分） */
+  totalAmount: number
+  /** 已付金额（分） */
+  paidAmount?: number
+  /** 预计到货日期 */
+  expectedDate?: DBDate
+  /** 实际到货日期 */
+  receivedDate?: DBDate
+  /** 操作员ID */
+  operatorId?: string
+  /** 操作员名称 */
+  operatorName?: string
+  /** 备注 */
+  remark?: string
+  /** 创建时间 */
+  createTime: DBDate
+  /** 更新时间 */
+  updateTime?: DBDate
+}
+
+/**
+ * 采购订单状态
+ */
+export enum PurchaseOrderStatus {
+  /** 草稿 */
+  DRAFT = 'draft',
+  /** 待收货 */
+  PENDING = 'pending',
+  /** 已收货 */
+  RECEIVED = 'received',
+  /** 部分收货 */
+  PARTIAL = 'partial',
+  /** 已完成 */
+  COMPLETED = 'completed',
+  /** 已取消 */
+  CANCELLED = 'cancelled'
+}
+
+/**
+ * 采购订单明细项
+ */
+export interface PurchaseOrderItem {
+  /** 商品ID */
+  productId: string
+  /** 商品名称 */
+  productName: string
+  /** SKU编码 */
+  sku?: string
+  /** 采购数量 */
+  quantity: number
+  /** 已收货数量 */
+  receivedQuantity: number
+  /** 单位成本（分） */
+  unitCost: number
+  /** 小计（分） */
+  totalCost: number
+  /** 备注 */
+  remark?: string
+}
+
+/**
+ * inventory_batches 集合
+ * 数据库集合名: inventory_batches
+ * 描述: 库存批次表
+ */
+export interface InventoryBatchDB {
+  _id: string
+  /** 商品ID */
+  productId: string
+  /** 商品名称（冗余） */
+  productName: string
+  /** SKU编码 */
+  sku?: string
+  /** 批次号 */
+  batchNo: string
+  /** 采购单ID */
+  purchaseOrderId: string
+  /** 批次数量 */
+  quantity: number
+  /** 剩余数量 */
+  remainingQuantity: number
+  /** 单位成本（分） */
+  unitCost: number
+  /** 生产日期 */
+  productionDate?: DBDate
+  /** 过期日期 */
+  expiryDate?: DBDate
+  /** 批次状态 */
+  status: BatchStatus
+  /** 库位 */
+  location?: string
+  /** 备注 */
+  remark?: string
+  /** 创建时间 */
+  createTime: DBDate
+  /** 更新时间 */
+  updateTime?: DBDate
+}
+
+/**
+ * 批次状态
+ */
+export enum BatchStatus {
+  /** 正常 */
+  NORMAL = 'normal',
+  /** 临期 */
+  EXPIRING_SOON = 'expiring_soon',
+  /** 已过期 */
+  EXPIRED = 'expired'
+}
+
+/**
+ * inventory_transactions 集合
+ * 数据库集合名: inventory_transactions
+ * 描述: 库存流水表
+ */
+export interface InventoryTransactionDB {
+  _id: string
+  /** 流水号 */
+  transactionNo: string
+  /** 商品ID */
+  productId: string
+  /** 商品名称 */
+  productName: string
+  /** SKU编码 */
+  sku?: string
+  /** 流水类型 */
+  type: InventoryTransactionType
+  /** 数量（正数） */
+  quantity: number
+  /** 变动前库存 */
+  beforeStock: number
+  /** 变动后库存 */
+  afterStock: number
+  /** 批次ID */
+  batchId?: string
+  /** 批次号 */
+  batchNo?: string
+  /** 单位成本（分） */
+  unitCost?: number
+  /** 总成本（分） */
+  totalCost?: number
+  /** 关联单据ID（订单/采购单/盘点单） */
+  relatedId?: string
+  /** 关联单据号 */
+  relatedNo?: string
+  /** 操作员ID */
+  operatorId?: string
+  /** 操作员名称 */
+  operatorName?: string
+  /** 备注 */
+  remark?: string
+  /** 创建时间 */
+  createTime: DBDate
+}
+
+/**
+ * 库存流水类型
+ */
+export enum InventoryTransactionType {
+  /** 采购入库 */
+  PURCHASE_IN = 'purchase_in',
+  /** 销售出库 */
+  SALE_OUT = 'sale_out',
+  /** 退款入库 */
+  REFUND_IN = 'refund_in',
+  /** 库存调整 */
+  ADJUSTMENT = 'adjustment',
+  /** 盘点盈 */
+  INVENTORY_GAIN = 'inventory_gain',
+  /** 盘点亏 */
+  INVENTORY_LOSS = 'inventory_loss'
+}
+
+/**
+ * inventory_checks 集合
+ * 数据库集合名: inventory_checks
+ * 描述: 库存盘点表
+ */
+export interface InventoryCheckDB {
+  _id: string
+  /** 盘点单号 */
+  checkNo: string
+  /** 盘点状态 */
+  status: InventoryCheckStatus
+  /** 盘点明细 */
+  items: InventoryCheckItem[]
+  /** 总盘盈数量 */
+  totalGain?: number
+  /** 总盘亏数量 */
+  totalLoss?: number
+  /** 操作员ID */
+  operatorId?: string
+  /** 操作员名称 */
+  operatorName?: string
+  /** 备注 */
+  remark?: string
+  /** 创建时间 */
+  createTime: DBDate
+  /** 更新时间 */
+  updateTime?: DBDate
+  /** 完成时间 */
+  completeTime?: DBDate
+}
+
+/**
+ * 盘点状态
+ */
+export enum InventoryCheckStatus {
+  /** 草稿 */
+  DRAFT = 'draft',
+  /** 盘点中 */
+  CHECKING = 'checking',
+  /** 已完成 */
+  COMPLETED = 'completed',
+  /** 已取消 */
+  CANCELLED = 'cancelled'
+}
+
+/**
+ * 盘点明细项
+ */
+export interface InventoryCheckItem {
+  /** 商品ID */
+  productId: string
+  /** 商品名称 */
+  productName: string
+  /** SKU编码 */
+  sku?: string
+  /** 系统库存 */
+  systemStock: number
+  /** 实际库存 */
+  actualStock: number
+  /** 差异（正数=盘盈，负数=盘亏） */
+  difference: number
+  /** 是否已盘点 */
+  checked: boolean
+  /** 备注 */
+  remark?: string
 }

@@ -1275,7 +1275,7 @@ export const calculatePromotionReward = async (orderId: string, buyerId: string,
 
   try {
     const res = await callFunction('promotion', {
-      action: 'calculateRewardV2',
+      action: 'calculateReward',  // 修复：使用正确的 action 名称
       orderId,
       buyerId,
       orderAmount

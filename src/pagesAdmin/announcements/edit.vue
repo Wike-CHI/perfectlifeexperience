@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
 
 const isEdit = ref(false)
 const announcementId = ref('')
@@ -64,6 +65,7 @@ const loadAnnouncement = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getCouponDetail',
+      adminToken: AdminAuthManager.getToken(),
       data: { id: announcementId.value }
     })
 
@@ -104,6 +106,7 @@ const handleSubmit = async () => {
 
     const res = await callFunction('admin-api', {
       action,
+      adminToken: AdminAuthManager.getToken(),
       data: params
     })
 

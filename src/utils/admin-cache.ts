@@ -164,6 +164,11 @@ class AdminCacheManager {
    */
   static getConfigKey(type: keyof typeof CACHE_CONFIG, params?: Record<string, any>): string {
     const config = CACHE_CONFIG[type]
+    // 如果配置不存在，使用 type 作为 key 前缀
+    if (!config) {
+      console.warn(`缓存配置 "${type}" 不存在，使用默认配置`)
+      return getCacheKey(`admin_${type}`, params)
+    }
     return getCacheKey(config.key, params)
   }
 

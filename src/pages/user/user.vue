@@ -184,6 +184,7 @@ import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin, getCommissionWalletBalance } from '@/utils/api';
 import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
+import { getFavoriteCount } from '@/utils/favorite';
 
 // 类型定义（内联，避免分包导入问题）
 interface UserInfo {
@@ -227,6 +228,7 @@ const orderCount = ref({
   shipping: 0,
   completed: 0
 });
+const favoriteCount = ref(0); // 收藏数量
 
 // 加载用户信息
 const loadUserInfo = async () => {
@@ -240,6 +242,7 @@ const loadUserInfo = async () => {
       loadWalletBalance();
       loadCommissionWalletBalance();
       loadPromotionReward();
+      loadFavoriteCount();
     } else {
       userInfo.value = {};
       isLoggedIn.value = false;
@@ -248,11 +251,17 @@ const loadUserInfo = async () => {
       commissionBalance.value = 0;
       promotionReward.value = 0;
       orderCount.value = { pending: 0, paid: 0, shipping: 0, completed: 0 };
+      favoriteCount.value = 0;
     }
   } catch (error) {
     console.error('加载用户信息失败:', error);
     isLoggedIn.value = false;
   }
+};
+
+// 加载收藏数量
+const loadFavoriteCount = () => {
+  favoriteCount.value = getFavoriteCount();
 };
 
 // 点击头部区域
@@ -387,10 +396,9 @@ const goToCoupon = () => {
 };
 
 const goToFavorites = () => {
-  if (!checkAuth()) return;
-  uni.showToast({
-    title: '功能开发中',
-    icon: 'none'
+  // 收藏不需要登录也可以查看（本地存储）
+  uni.navigateTo({
+    url: '/pages/user/favorites'
   });
 };
 

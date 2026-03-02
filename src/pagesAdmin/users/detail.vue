@@ -34,6 +34,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
 
 const userInfo = ref<any>({})
 
@@ -66,6 +67,7 @@ const loadUser = async (id: string) => {
 
     const res = await callFunction('admin-api', {
       action: 'getUserDetail',
+      adminToken: AdminAuthManager.getToken(),
       data: { userId: id }
     })
 

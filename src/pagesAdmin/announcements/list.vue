@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
+import AdminAuthManager from '@/utils/admin-auth'
 
 const list = ref<any[]>([])
 
@@ -35,6 +36,7 @@ const loadList = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getAnnouncements',
+      adminToken: AdminAuthManager.getToken(),
       data: { page: 1, limit: 20 }
     })
 

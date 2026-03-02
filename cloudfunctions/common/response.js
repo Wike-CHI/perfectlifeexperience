@@ -61,6 +61,7 @@ const ErrorCodes = {
   UNKNOWN_ERROR: -1,
   INVALID_PARAMS: -2,
   NOT_LOGIN: -3,
+  NOT_FOUND: -4,
 
   // 用户相关 (100-199)
   USER_NOT_FOUND: 100,
@@ -76,6 +77,9 @@ const ErrorCodes = {
   ORDER_NOT_FOUND: 301,
   ORDER_STATUS_INVALID: 302,
   CART_INVALID: 303,
+  INSUFFICIENT_STOCK: 304,
+  INVALID_STATUS: 305,
+  DUPLICATE_REQUEST: 306,
 
   // 系统相关 (500-599)
   DATABASE_ERROR: 500,
@@ -88,6 +92,7 @@ const ErrorCodes = {
 const ErrorMessages = {
   [ErrorCodes.INVALID_PARAMS]: '参数错误',
   [ErrorCodes.NOT_LOGIN]: '未登录',
+  [ErrorCodes.NOT_FOUND]: '资源不存在',
   [ErrorCodes.USER_NOT_FOUND]: '用户不存在',
   [ErrorCodes.USER_ALREADY_EXISTS]: '用户已存在',
   [ErrorCodes.INVALID_INVITE_CODE]: '邀请码无效',
@@ -97,6 +102,9 @@ const ErrorMessages = {
   [ErrorCodes.ORDER_NOT_FOUND]: '订单不存在',
   [ErrorCodes.ORDER_STATUS_INVALID]: '订单状态异常',
   [ErrorCodes.CART_INVALID]: '购物车数据异常',
+  [ErrorCodes.INSUFFICIENT_STOCK]: '库存不足',
+  [ErrorCodes.INVALID_STATUS]: '状态不正确',
+  [ErrorCodes.DUPLICATE_REQUEST]: '重复请求',
   [ErrorCodes.DATABASE_ERROR]: '数据库错误',
   [ErrorCodes.TRANSACTION_FAILED]: '事务失败'
 };

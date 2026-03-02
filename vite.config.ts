@@ -10,6 +10,8 @@ export default defineConfig({
       scss: {
         // 使用新版 Sass API（需要 sass-embedded），消除警告并提升编译速度
         api: 'modern-compiler',
+        // 抑制 Dart Sass 弃用警告
+        silenceDeprecations: ['legacy-js-api'],
       }
     }
   },

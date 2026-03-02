@@ -218,6 +218,7 @@ const loadOrders = async (forceRefresh: boolean = false) => {
 
     const res = await callFunction('admin-api', {
       action: 'getOrders',
+      adminToken: AdminAuthManager.getToken(),
       data: {
         page: currentPage.value,
         limit: pageSize,
@@ -228,7 +229,8 @@ const loadOrders = async (forceRefresh: boolean = false) => {
 
     if (res.code === 0 && res.data) {
       const newOrders = currentPage.value === 1 ? [] : orders.value
-      newOrders.push(...res.data.list)
+      const orderList = res.data.list || []
+      newOrders.push(...orderList)
       orders.value = newOrders
 
       hasMore.value = currentPage.value < res.data.totalPages
@@ -276,6 +278,7 @@ const handleScanOrder = async (order: any) => {
 
         await callFunction('admin-api', {
           action: 'updateOrderExpress',
+          adminToken: AdminAuthManager.getToken(),
           data: {
             orderId: order.id,
             expressCode: res.result
@@ -331,6 +334,7 @@ const handleUpdateStatus = (order: any) => {
 
         await callFunction('admin-api', {
           action: 'updateOrderStatus',
+          adminToken: AdminAuthManager.getToken(),
           data: {
             orderId: order.id,
             status: newStatus

@@ -61,6 +61,54 @@ export const CACHE_CONFIG: Record<string, CacheConfig> = {
   inventory: {
     key: 'admin_inventory_data',
     expire: 15
+  },
+
+  // 佣金钱包 - 10分钟过期
+  'commission-wallets': {
+    key: 'admin_commission_wallets_list',
+    expire: 10
+  },
+
+  // 佣金明细 - 10分钟过期
+  commissions: {
+    key: 'admin_commissions_list',
+    expire: 10
+  },
+
+  // 用户钱包 - 10分钟过期
+  wallets: {
+    key: 'admin_wallets_list',
+    expire: 10
+  },
+
+  // 地址列表 - 20分钟过期
+  addresses: {
+    key: 'admin_addresses_list',
+    expire: 20
+  },
+
+  // 退款列表 - 5分钟过期
+  refunds: {
+    key: 'admin_refunds_list',
+    expire: 5
+  },
+
+  // 分类列表 - 30分钟过期
+  categories: {
+    key: 'admin_categories_list',
+    expire: 30
+  },
+
+  // Banner列表 - 30分钟过期
+  banners: {
+    key: 'admin_banners_list',
+    expire: 30
+  },
+
+  // 优惠券列表 - 15分钟过期
+  coupons: {
+    key: 'admin_coupons_list',
+    expire: 15
   }
 }
 

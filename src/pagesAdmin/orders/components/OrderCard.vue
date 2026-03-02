@@ -55,7 +55,6 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**

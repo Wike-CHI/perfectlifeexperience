@@ -142,6 +142,14 @@
           <image class="action-icon" src="/static/tabbar/home.png" mode="aspectFit" />
           <text class="action-text">首页</text>
         </view>
+        <view class="action-item" @click="toggleFavoriteStatus">
+          <image
+            class="action-icon"
+            :src="isFavorited ? '/static/icons/favorite-filled.svg' : '/static/icons/favorite-outline.svg'"
+            mode="aspectFit"
+          />
+          <text class="action-text" :class="{ 'favorite-active': isFavorited }">{{ isFavorited ? '已收藏' : '收藏' }}</text>
+        </view>
         <view class="action-item" @click="goToCart">
           <image class="action-icon" src="/static/tabbar/cart.png" mode="aspectFit" />
           <text class="action-text">购物车</text>
@@ -176,6 +184,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { getProductDetail, addToCart as apiAddToCart, getCartItems, formatPrice } from '@/utils/api';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
 import { CDN_IMAGES } from '@/config/cdn';
+import { isFavorite, toggleFavorite } from '@/utils/favorite';
 
 // 类型定义（内联，避免分包导入问题）
 interface Product {
@@ -205,6 +214,7 @@ const currentPrice = ref(0);
 const currentSpec = ref('');
 const quantity = ref(1);
 const loading = ref(false);
+const isFavorited = ref(false); // 收藏状态
 
 // 距离相关
 const distance = ref<number | null>(null);
@@ -262,6 +272,8 @@ const loadProductDetail = async (id: string) => {
       currentPrice.value = res.price;
       currentSpec.value = res.specs || ''; // 如果没有 priceList，尝试使用 specs 字段
     }
+    // 检查收藏状态
+    checkFavoriteStatus();
   } catch (error) {
     uni.showToast({
       title: '获取详情失败',
@@ -403,6 +415,31 @@ const goToHome = () => {
 
 const goToCart = () => {
   uni.switchTab({ url: '/pages/cart/cart' });
+};
+
+// 收藏功能
+const toggleFavoriteStatus = () => {
+  if (!product.value._id) return;
+
+  const newState = toggleFavorite({
+    productId: product.value._id,
+    name: product.value.name,
+    price: currentPrice.value,
+    image: product.value.images?.[0] || ''
+  });
+
+  isFavorited.value = newState;
+  uni.showToast({
+    title: newState ? '已收藏' : '已取消收藏',
+    icon: 'none'
+  });
+};
+
+// 检查收藏状态
+const checkFavoriteStatus = () => {
+  if (product.value._id) {
+    isFavorited.value = isFavorite(product.value._id);
+  }
 };
 
 // 跳转到门店位置页面
@@ -864,6 +901,10 @@ onLoad((options) => {
 .action-text {
   font-size: 22rpx;
   color: #6B5B4F;
+}
+
+.action-text.favorite-active {
+  color: #C44536;
 }
 
 .cart-badge {

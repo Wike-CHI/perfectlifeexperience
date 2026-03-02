@@ -36,7 +36,11 @@
     "type-check": "vue-tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:cf": "node scripts/run-cf-tests.js",
+    "test:all": "npm run test:run && npm run test:cf"
   },
   "dependencies": {
     "@cloudbase/adapter-uni-app": "^1.0.0-beta.1",

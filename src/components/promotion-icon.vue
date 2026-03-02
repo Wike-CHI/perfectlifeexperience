@@ -86,6 +86,7 @@
  * 推广管理专用图标组件
  * 使用自定义SVG，无emoji依赖
  */
+import { computed } from 'vue'
 
 interface Props {
   name: 'promoters' | 'team' | 'commission' | 'chart' | 'sales' | 'rank' | 'growth' | 'users' | 'level' | 'trophy' | 'alert'

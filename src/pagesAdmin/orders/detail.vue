@@ -185,6 +185,7 @@ const loadOrderDetail = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getOrderDetail',
+      adminToken: AdminAuthManager.getToken(),
       data: { id: orderId }
     })
 
@@ -239,6 +240,7 @@ const scanExpress = () => {
 
         await callFunction('admin-api', {
           action: 'updateOrderExpress',
+          adminToken: AdminAuthManager.getToken(),
           data: {
             orderId: order.value.id,
             expressCode: res.result
@@ -288,6 +290,7 @@ const handleUpdateStatus = () => {
 
         await callFunction('admin-api', {
           action: 'updateOrderStatus',
+          adminToken: AdminAuthManager.getToken(),
           data: {
             orderId: order.value.id,
             status: newStatus
@@ -326,6 +329,7 @@ const handleAddExpress = () => {
 
           await callFunction('admin-api', {
             action: 'updateOrderExpress',
+            adminToken: AdminAuthManager.getToken(),
             data: {
               orderId: order.value.id,
               expressCode: res.content

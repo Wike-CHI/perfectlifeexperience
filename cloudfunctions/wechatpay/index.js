@@ -276,16 +276,22 @@ async function validateAndUpdateOrderStatus(orderId, newStatus) {
 /**
  * 获取商户配置
  * 优先级：环境变量 > 本地配置
+ *
+ * 支持两种环境变量命名方式（兼容性）：
+ * - WX_APPID / WX_PAY_APP_ID
+ * - WX_MCHID / WX_PAY_MCH_ID
+ * 等
  */
 function getConfig() {
   // 优先使用环境变量，其次使用本地配置
+  // 支持两种环境变量命名方式，确保兼容性
   const config = {
-    appid: process.env.WX_PAY_APP_ID || localConfig.appid,
-    mchid: process.env.WX_PAY_MCH_ID || localConfig.mchid,
-    serialNo: process.env.WX_PAY_SERIAL_NO || localConfig.serialNo,
-    privateKey: decodePrivateKey(process.env.WX_PAY_PRIVATE_KEY) || localConfig.privateKey,
-    apiV3Key: process.env.WX_PAY_API_V3_KEY || localConfig.apiV3Key,
-    notifyUrl: process.env.WX_PAY_NOTIFY_URL || localConfig.notifyUrl
+    appid: process.env.WX_PAY_APP_ID || process.env.WX_APPID || localConfig.appid,
+    mchid: process.env.WX_PAY_MCH_ID || process.env.WX_MCHID || localConfig.mchid,
+    serialNo: process.env.WX_PAY_SERIAL_NO || process.env.WX_SERIAL_NO || localConfig.serialNo,
+    privateKey: decodePrivateKey(process.env.WX_PAY_PRIVATE_KEY || process.env.WX_PRIVATE_KEY) || localConfig.privateKey,
+    apiV3Key: process.env.WX_PAY_API_V3_KEY || process.env.WX_API_V3_KEY || localConfig.apiV3Key,
+    notifyUrl: process.env.WX_PAY_NOTIFY_URL || process.env.WX_NOTIFY_URL || localConfig.notifyUrl
   };
 
   // 验证配置完整性（不暴露具体配置项名称）
@@ -563,22 +569,37 @@ async function createPayment(data, config) {
     return error(ErrorCodes.INVALID_PARAMS, `订单金额异常: ${order.totalAmount} 分`);
   }
 
-  // 4. ✅ 验证并更新订单状态为 processing（防止重复支付）
+  // 4. ✅ 检查订单当前状态
   const currentStatus = order.paymentStatus || PAYMENT_STATUS.PENDING;
+
+  // 如果订单已支付，直接返回错误
+  if (currentStatus === PAYMENT_STATUS.PAID) {
+    return error(ErrorCodes.ORDER_STATUS_INVALID, '订单已支付，请勿重复支付');
+  }
+
+  // 5. ✅ 验证并更新订单状态为 processing（防止重复支付）
   const statusUpdate = await validateAndUpdateOrderStatus(
     orderId,
     PAYMENT_STATUS.PROCESSING
   );
 
-  if (!statusUpdate.success) {
+  // 注意：validateAndUpdateOrderStatus 返回 {code, msg, data} 格式
+  // code !== 0 表示失败
+  if (statusUpdate.code !== 0) {
     return statusUpdate;
   }
 
+  // 如果订单已是 PROCESSING 状态（幂等返回），仍然继续尝试创建支付
+  // 这样可以支持用户在支付页面刷新或重新发起支付
+  if (statusUpdate.msg === '订单已是目标状态' || statusUpdate.msg === '订单已在处理中') {
+    logger.info('订单状态已是 PROCESSING，继续创建支付', { orderId });
+  }
+
   try {
-    // 5. 生成或使用现有订单号
+    // 6. 生成或使用现有订单号
     const outTradeNo = order.orderNo || generateOutTradeNo();
 
-    // 6. 如果订单没有订单号，更新订单号
+    // 7. 如果订单没有订单号，更新订单号
     if (!order.orderNo) {
       await db.collection('orders')
         .doc(orderId)
@@ -590,7 +611,7 @@ async function createPayment(data, config) {
         });
     }
 
-    // 7. 调用微信支付统一下单
+    // 8. 调用微信支付统一下单
     const orderResult = await jsapiOrder({
       appid: config.appid,
       mchid: config.mchid,
@@ -606,7 +627,7 @@ async function createPayment(data, config) {
       }
     }, config);
 
-    // 8. 生成小程序支付参数
+    // 9. 生成小程序支付参数
     const payParams = generateMiniProgramPayParams(orderResult.prepay_id, config);
 
     logger.info('支付订单创建成功', { orderId, orderNo: outTradeNo });
@@ -615,7 +636,7 @@ async function createPayment(data, config) {
       payParams: payParams
     });
   } catch (err) {
-    // 9. ✅ 支付失败，回滚订单状态为 pending
+    // 10. ✅ 支付失败，回滚订单状态为 pending
     await validateAndUpdateOrderStatus(orderId, PAYMENT_STATUS.PENDING);
     logger.error('创建支付订单失败', err);
     return error(ErrorCodes.TRANSACTION_FAILED, err.message || '创建支付订单失败');
@@ -1127,11 +1148,10 @@ async function handleRefundCallback(event, config) {
           name: 'promotion',
           data: {
             action: 'revertReward',
-            data: {
-              orderId: refundRecord.orderId,
-              refundAmount: refundRecord.refundAmount,
-              totalAmount: refundRecord.totalAmount
-            }
+            // 修复：参数直接传递，不嵌套在 data 中
+            orderId: refundRecord.orderId,
+            refundAmount: refundRecord.refundAmount,
+            totalAmount: refundRecord.totalAmount
           }
         });
 
@@ -1154,6 +1174,116 @@ async function handleRefundCallback(event, config) {
           error: revertError.message
         });
         // 奖励扣回异常不影响退款流程，只记录日志
+      }
+
+      // 10. ✅ 恢复库存（根据退款商品）- 带幂等性保护
+      if (!refundRecord.stockRestored) {
+        try {
+          if (refundRecord.products && refundRecord.products.length > 0) {
+            for (const item of refundRecord.products) {
+              // 恢复产品库存
+              await db.collection('products')
+                .doc(item.productId)
+                .update({
+                  data: {
+                    stock: _.inc(item.refundQuantity || item.quantity),
+                    updateTime: db.serverDate()
+                  }
+                });
+
+              console.log(`[退款库存恢复] 产品库存已恢复`, {
+                productId: item.productId,
+                restoredQuantity: item.refundQuantity || item.quantity
+              });
+
+              // 如果有SKU，同时恢复SKU库存
+              if (item.skuId) {
+                await db.collection('products')
+                  .where({
+                    _id: item.productId,
+                    'skus._id': item.skuId
+                  })
+                  .update({
+                    data: {
+                      'skus.$.stock': _.inc(item.refundQuantity || item.quantity),
+                      updateTime: db.serverDate()
+                    }
+                  });
+              }
+            }
+          }
+
+          // 标记库存已恢复
+          await db.collection('refunds').doc(refundRecord._id).update({
+            data: {
+              stockRestored: true,
+              stockRestoreTime: db.serverDate()
+            }
+          });
+          console.log(`[退款库存恢复] 已标记库存恢复完成`, { refundNo: out_refund_no });
+        } catch (stockError) {
+          console.error(`[退款库存恢复] 异常`, {
+            refundNo: out_refund_no,
+            error: stockError.message
+          });
+          // 库存恢复异常不影响退款流程，但需要记录以便人工处理
+        }
+      } else {
+        console.log(`[退款库存恢复] 库存已恢复，跳过`, { refundNo: out_refund_no });
+      }
+
+      // 11. ✅ 恢复优惠券（仅全额退款时）- 带幂等性保护
+      if (!refundRecord.couponRestored) {
+        try {
+          // 获取订单信息检查优惠券
+          const orderRes = await db.collection('orders')
+            .where({ _id: refundRecord.orderId })
+            .get();
+
+          if (orderRes.data.length > 0) {
+            const orderInfo = orderRes.data[0];
+
+            if (orderInfo.couponId && refundRecord.refundAmount >= orderInfo.totalAmount) {
+              await db.collection('user_coupons')
+                .where({
+                  _id: orderInfo.couponId,
+                  _openid: refundRecord._openid,
+                  status: 'used'
+                })
+                .update({
+                  data: {
+                    status: 'unused',
+                    useTime: null,
+                    orderNo: null,
+                    restoreTime: db.serverDate(),
+                    restoreReason: `订单全额退款: ${orderInfo.orderNo}`,
+                    updateTime: db.serverDate()
+                  }
+                });
+
+              console.log(`[退款优惠券恢复] 优惠券已恢复`, {
+                couponId: orderInfo.couponId,
+                orderNo: orderInfo.orderNo
+              });
+            }
+
+            // 标记优惠券已处理（无论是否恢复）
+            await db.collection('refunds').doc(refundRecord._id).update({
+              data: {
+                couponRestored: true,
+                couponRestoreTime: db.serverDate()
+              }
+            });
+          }
+        } catch (couponError) {
+          console.error(`[退款优惠券恢复] 异常`, {
+            refundNo: out_refund_no,
+            error: couponError.message
+          });
+          // 优惠券恢复异常不影响退款流程
+        }
+      } else {
+        console.log(`[退款优惠券恢复] 优惠券已处理，跳过`, { refundNo: out_refund_no });
       }
     } else {
       // 退款失败

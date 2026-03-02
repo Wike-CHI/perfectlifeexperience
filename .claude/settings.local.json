@@ -81,7 +81,11 @@
       "Bash(npm run dev:mp-weixin:*)",
       "Bash(timeout:*)",
       "Bash(npx cross-env NODE_ENV=development npx vite:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(oc search:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(do echo \"运行: $f\")"
     ]
   },
   "enableAllProjectMcpServers": true,

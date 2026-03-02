@@ -4,24 +4,60 @@ import { resolve } from 'path'
 export default defineConfig({
   test: {
     globals: true,
+    // 默认使用node环境
     environment: 'node',
-    include: ['src/utils/**/*.test.ts', 'src/constants/**/*.test.ts'],
+    include: [
+      // 前端工具函数测试
+      'src/utils/**/*.test.ts',
+      // 常量测试
+      'src/constants/**/*.test.ts',
+      // Composables测试
+      'src/composables/**/*.test.ts',
+      // 配置测试
+      'src/config/**/*.test.ts',
+      // 类型测试
+      'src/types/**/*.test.ts',
+    ],
+    // 针对不同文件的测试环境配置
+    environmentMatchGlobs: [
+      // Vue composables使用happy-dom
+      [['src/composables/**/*.test.ts'], 'happy-dom'],
+    ],
+    // 全局setup文件
+    setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      include: [
+        'src/utils/**/*.ts',
+        'src/constants/**/*.ts',
+        'src/composables/**/*.ts',
+        'src/config/**/*.ts',
+      ],
       exclude: [
         'node_modules/',
         'dist/',
         '**/*.d.ts',
         '**/*.config.*',
         '**/mockData',
-        'cloudfunctions/'
-      ]
-    }
+        '**/*.test.ts',
+        '**/__tests__/**',
+      ],
+      // 覆盖率阈值
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+        statements: 60,
+      },
+    },
+    // 测试超时配置
+    testTimeout: 10000,
+    hookTimeout: 10000,
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  }
+      '@': resolve(__dirname, 'src'),
+    },
+  },
 })

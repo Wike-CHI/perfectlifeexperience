@@ -19,6 +19,67 @@ const {
   sanitizeUpdateData
 } = require('./validator')
 
+// ERP 模块
+const erp = require('./erp')
+
+// ==================== 库存流水辅助函数 ====================
+
+/**
+ * 生成库存流水号
+ */
+function generateTransactionNo() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  const second = String(now.getSeconds()).padStart(2, '0');
+  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+  return `IT${year}${month}${day}${hour}${minute}${second}${random}`;
+}
+
+/**
+ * 创建库存流水记录
+ */
+async function createInventoryTransaction(params) {
+  try {
+    const transaction = {
+      transactionNo: generateTransactionNo(),
+      productId: params.productId,
+      productName: params.productName,
+      sku: params.sku || '',
+      type: params.type,
+      quantity: params.quantity,
+      beforeStock: params.beforeStock,
+      afterStock: params.afterStock,
+      relatedId: params.relatedId || '',
+      relatedNo: params.relatedNo || '',
+      operatorId: params.operatorId || 'system',
+      operatorName: params.operatorName || '系统',
+      remark: params.remark || '',
+      createTime: db.serverDate()
+    };
+
+    await db.collection('inventory_transactions').add({ data: transaction });
+
+    console.log('[库存流水] 创建成功', {
+      transactionNo: transaction.transactionNo,
+      type: params.type,
+      productId: params.productId,
+      quantity: params.quantity
+    });
+
+    return { success: true, transactionNo: transaction.transactionNo };
+  } catch (err) {
+    console.error('[库存流水] 创建失败', {
+      productId: params.productId,
+      error: err.message
+    });
+    return { success: false, error: err.message };
+  }
+}
+
 // JWT配置 - 必须从环境变量获取
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
@@ -38,7 +99,8 @@ exports.main = async (event, context) => {
     // 如果需要权限验证
     if (requiredPermission !== null) {
       // 从请求中获取管理员信息（前端应该传递 adminToken）
-      const adminToken = data.adminToken || event.adminToken
+      // 安全地获取 adminToken，data 可能是 undefined
+      const adminToken = (data && data.adminToken) || event.adminToken
 
       if (!adminToken) {
         return {
@@ -202,6 +264,64 @@ exports.main = async (event, context) => {
         return await getSystemConfigAdmin(data)
       case 'updateSystemConfig':
         return await updateSystemConfigAdmin(data, wxContext)
+
+      // ========== ERP APIs ==========
+      // 供应商管理
+      case 'getSuppliers':
+        return await erp.getSuppliers(data)
+      case 'getSupplierDetail':
+        return await erp.getSupplierDetail(data)
+      case 'createSupplier':
+        return await erp.createSupplier(data, wxContext)
+      case 'updateSupplier':
+        return await erp.updateSupplier(data, wxContext)
+      case 'deleteSupplier':
+        return await erp.deleteSupplier(data, wxContext)
+
+      // 采购管理
+      case 'getPurchaseOrders':
+        return await erp.getPurchaseOrders(data)
+      case 'getPurchaseOrderDetail':
+        return await erp.getPurchaseOrderDetail(data)
+      case 'createPurchaseOrder':
+        return await erp.createPurchaseOrder(data, wxContext)
+      case 'updatePurchaseOrder':
+        return await erp.updatePurchaseOrder(data, wxContext)
+      case 'submitPurchaseOrder':
+        return await erp.submitPurchaseOrder(data, wxContext)
+      case 'receivePurchaseOrder':
+        return await erp.receivePurchaseOrder(data, wxContext)
+      case 'cancelPurchaseOrder':
+        return await erp.cancelPurchaseOrder(data, wxContext)
+
+      // 库存管理
+      case 'getInventoryOverview':
+        return await erp.getInventoryOverview(data, wxContext)
+      case 'getInventoryBatches':
+        return await erp.getInventoryBatches(data, wxContext)
+      case 'getInventoryTransactions':
+        return await erp.getInventoryTransactions(data, wxContext)
+      case 'adjustInventory':
+        return await erp.adjustInventory(data, wxContext)
+      case 'getExpiringBatches':
+        return await erp.getExpiringBatches(data, wxContext)
+      case 'getExpiredBatches':
+        return await erp.getExpiredBatches(data, wxContext)
+
+      // 盘点管理
+      case 'getInventoryChecks':
+        return await erp.getInventoryChecks(data, wxContext)
+      case 'getInventoryCheckDetail':
+        return await erp.getInventoryCheckDetail(data, wxContext)
+      case 'createInventoryCheck':
+        return await erp.createInventoryCheck(data, wxContext)
+      case 'updateInventoryCheckItem':
+        return await erp.updateInventoryCheckItem(data, wxContext)
+      case 'completeInventoryCheck':
+        return await erp.completeInventoryCheck(data, wxContext)
+      case 'cancelInventoryCheck':
+        return await erp.cancelInventoryCheck(data, wxContext)
+
       default:
         return {
           code: 400,
@@ -338,7 +458,7 @@ async function checkAdminStatus(wxContext) {
 
 // Auth functions
 async function adminLogin(data) {
-  const { username, password } = data;
+  const { username, password } = data || {};
 
   if (!username || !password) {
     return { code: 400, msg: '用户名和密码不能为空' };
@@ -463,7 +583,7 @@ async function getPromotionStatsAdmin(data) {
 // Product functions
 async function getProductsList(data) {
   try {
-    const { page = 1, limit = 20, category, keyword, status } = data;
+    const { page = 1, limit = 20, category, keyword, status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -519,7 +639,7 @@ async function getProductsList(data) {
 
 async function getProductDetailAdmin(data) {
   try {
-    const { id } = data;
+    const { id } = data || {};
 
     const productResult = await db.collection('products').doc(id).get();
 
@@ -586,7 +706,7 @@ async function updateProductAdmin(data, wxContext) {
       return { code: 400, msg: '商品ID格式无效' };
     }
 
-    const { id, ...updateData } = data;
+    const { id, ...updateData } = data || {};
 
     // 清理不允许更新的字段
     updateData = sanitizeUpdateData(updateData, ['_id', '_openid', 'createTime']);
@@ -617,7 +737,7 @@ async function deleteProductAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     await db.collection('products').doc(id).remove();
 
@@ -639,7 +759,7 @@ async function deleteProductAdmin(data, wxContext) {
 async function adjustProductStock(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-    const { productId, delta, reason } = data;
+    const { productId, delta, reason } = data || {};
 
     // 参数验证
     if (!isValidObjectId(productId)) {
@@ -713,7 +833,7 @@ async function getCategoriesAdmin() {
 // Order functions
 async function getOrdersAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data;
+    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -763,7 +883,7 @@ async function getOrdersAdmin(data) {
 
 async function getOrderDetailAdmin(data) {
   try {
-    const { id } = data;
+    const { id } = data || {};
 
     const orderResult = await db.collection('orders').doc(id).get();
 
@@ -804,7 +924,7 @@ async function updateOrderStatusAdmin(data, wxContext) {
       return { code: 400, msg: statusValidation.message };
     }
 
-    const { orderId, status } = data;
+    const { orderId, status } = data || {};
 
     const updateData = {
       status,
@@ -836,7 +956,7 @@ async function updateOrderStatusAdmin(data, wxContext) {
  */
 async function searchOrderByExpress(data) {
   try {
-    const { expressCode } = data;
+    const { expressCode } = data || {};
 
     if (!expressCode || typeof expressCode !== 'string') {
       return { code: 400, msg: '快递单号不能为空' };
@@ -875,7 +995,7 @@ async function updateOrderExpressAdmin(data, wxContext) {
       return { code: 400, msg: '订单ID格式无效' };
     }
 
-    const { orderId, expressCode } = data;
+    const { orderId, expressCode } = data || {};
 
     if (!expressCode || typeof expressCode !== 'string') {
       return { code: 400, msg: '快递单号不能为空' };
@@ -907,7 +1027,7 @@ async function updateOrderExpressAdmin(data, wxContext) {
 // Announcement functions
 async function getAnnouncementsAdmin(data) {
   try {
-    const { page = 1, limit = 20, type, status } = data;
+    const { page = 1, limit = 20, type, status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -982,7 +1102,7 @@ async function updateAnnouncementAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id, ...updateData } = data;
+    const { id, ...updateData } = data || {};
     if (updateData.isActive && !updateData.publishTime) {
       updateData.publishTime = new Date();
     }
@@ -1010,7 +1130,7 @@ async function deleteAnnouncementAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     await db.collection('announcements').doc(id).remove();
 
@@ -1029,7 +1149,7 @@ async function deleteAnnouncementAdmin(data, wxContext) {
 // User Management functions
 async function getUsersAdmin(data) {
   try {
-    const { page = 1, pageSize = 20, agentLevel, keyword } = data;
+    const { page = 1, pageSize = 20, agentLevel, keyword } = data || {};
     const skip = (page - 1) * pageSize;
 
     let query = {};
@@ -1081,7 +1201,7 @@ async function getUsersAdmin(data) {
 
 async function getUserDetailAdmin(data) {
   try {
-    const { userId } = data;
+    const { userId } = data || {};
 
     const userResult = await db.collection('users').doc(userId).get();
 
@@ -1101,7 +1221,7 @@ async function getUserDetailAdmin(data) {
 
 async function getUserWalletAdmin(data) {
   try {
-    const { userId } = data;
+    const { userId } = data || {};
 
     const walletResult = await db.collection('wallets')
       .where({ _openid: data.openid || userId })
@@ -1127,7 +1247,7 @@ async function getUserWalletAdmin(data) {
 
 async function getPromotionPathAdmin(data) {
   try {
-    const { userId } = data;
+    const { userId } = data || {};
 
     const userResult = await db.collection('users').doc(userId).get();
 
@@ -1174,7 +1294,7 @@ async function getPromotionPathAdmin(data) {
 
 async function getUserOrdersAdmin(data) {
   try {
-    const { userId, limit = 5 } = data;
+    const { userId, limit = 5 } = data || {};
 
     const userResult = await db.collection('users').doc(userId).get();
 
@@ -1200,7 +1320,7 @@ async function getUserOrdersAdmin(data) {
 
 async function getUserRewardsAdmin(data) {
   try {
-    const { userId, limit = 5 } = data;
+    const { userId, limit = 5 } = data || {};
 
     const userResult = await db.collection('users').doc(userId).get();
 
@@ -1227,7 +1347,7 @@ async function getUserRewardsAdmin(data) {
 // Financial Management functions
 async function getWithdrawalsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status } = data;
+    const { page = 1, limit = 20, status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1281,7 +1401,7 @@ async function approveWithdrawalAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { withdrawalId } = data;
+    const { withdrawalId } = data || {};
 
     const withdrawalResult = await db.collection('withdrawals').doc(withdrawalId).get();
 
@@ -1427,7 +1547,7 @@ async function rejectWithdrawalAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { withdrawalId, reason } = data;
+    const { withdrawalId, reason } = data || {};
 
     const withdrawalResult = await db.collection('withdrawals').doc(withdrawalId).get();
 
@@ -1490,7 +1610,7 @@ async function rejectWithdrawalAdmin(data, wxContext) {
 // Promoter Management functions
 async function getPromotersAdmin(data) {
   try {
-    const { page = 1, pageSize = 20, agentLevel, keyword } = data;
+    const { page = 1, pageSize = 20, agentLevel, keyword } = data || {};
     const skip = (page - 1) * pageSize;
 
     // 推广员：代理等级1-3（金牌、银牌、铜牌）
@@ -1557,7 +1677,7 @@ async function getPromotersAdmin(data) {
 
 async function getCommissionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, type, dateRange } = data;
+    const { page = 1, limit = 20, type, dateRange } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1649,7 +1769,7 @@ async function getCommissionsAdmin(data) {
 // Marketing Configuration functions - Coupons
 async function getCouponsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status } = data;
+    const { page = 1, limit = 20, status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1719,7 +1839,7 @@ async function updateCouponAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id, ...updateData } = data;
+    const { id, ...updateData } = data || {};
     updateData.updateTime = new Date();
 
     await db.collection('coupons').doc(id).update({
@@ -1745,7 +1865,7 @@ async function deleteCouponAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     await db.collection('coupons').doc(id).remove();
 
@@ -1764,7 +1884,7 @@ async function deleteCouponAdmin(data, wxContext) {
 // Marketing Configuration functions - Banners
 async function getBannersAdmin(data) {
   try {
-    const { page = 1, limit = 20, status } = data;
+    const { page = 1, limit = 20, status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1834,7 +1954,7 @@ async function updateBannerAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id, ...updateData } = data;
+    const { id, ...updateData } = data || {};
     updateData.updateTime = new Date();
 
     await db.collection('banners').doc(id).update({
@@ -1860,7 +1980,7 @@ async function deleteBannerAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     await db.collection('banners').doc(id).remove();
 
@@ -1879,7 +1999,7 @@ async function deleteBannerAdmin(data, wxContext) {
 // Detail functions
 async function getCouponDetailAdmin(data) {
   try {
-    const { id } = data;
+    const { id } = data || {};
 
     const couponResult = await db.collection('coupons').doc(id).get();
 
@@ -1899,7 +2019,7 @@ async function getCouponDetailAdmin(data) {
 
 async function getBannerDetailAdmin(data) {
   try {
-    const { id } = data;
+    const { id } = data || {};
 
     const bannerResult = await db.collection('banners').doc(id).get();
 
@@ -1919,7 +2039,7 @@ async function getBannerDetailAdmin(data) {
 
 async function getTeamMembersAdmin(data) {
   try {
-    const { userId, maxLevel = -1 } = data;
+    const { userId, maxLevel = -1 } = data || {};
 
     // Get the user's promotion path
     const userResult = await db.collection('users').doc(userId).get();
@@ -2056,7 +2176,7 @@ async function getMembersAtLevel(parentUserId, level) {
  */
 async function getPromotionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, type } = data;
+    const { page = 1, limit = 20, status, type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2100,7 +2220,7 @@ async function getPromotionsAdmin(data) {
  */
 async function getPromotionDetailAdmin(data) {
   try {
-    const { id } = data;
+    const { id } = data || {};
 
     const promotionResult = await db.collection('promotions').doc(id).get();
 
@@ -2166,7 +2286,7 @@ async function updatePromotionAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id, ...updateData } = data;
+    const { id, ...updateData } = data || {};
     updateData.updateTime = new Date();
 
     await db.collection('promotions').doc(id).update({
@@ -2195,7 +2315,7 @@ async function deletePromotionAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     // Delete promotion products first
     const productsResult = await db.collection('promotion_products')
@@ -2235,7 +2355,7 @@ async function deletePromotionAdmin(data, wxContext) {
  */
 async function getPromotionProductsAdmin(data) {
   try {
-    const { promotionId } = data;
+    const { promotionId } = data || {};
 
     const productsResult = await db.collection('promotion_products')
       .where({ promotionId })
@@ -2272,7 +2392,7 @@ async function addPromotionProductsAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { promotionId, products } = data;
+    const { promotionId, products } = data || {};
 
     // products should be an array of { productId, discountPrice, stockLimit }
     const results = [];
@@ -2314,7 +2434,7 @@ async function removePromotionProductAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { id } = data;
+    const { id } = data || {};
 
     await db.collection('promotion_products').doc(id).remove();
 
@@ -2335,7 +2455,7 @@ async function removePromotionProductAdmin(data, wxContext) {
  */
 async function getPromotionActivityStatsAdmin(data) {
   try {
-    const { promotionId, startDate, endDate } = data;
+    const { promotionId, startDate, endDate } = data || {};
 
     let query = { promotionId };
 
@@ -2379,7 +2499,7 @@ async function getPromotionActivityStatsAdmin(data) {
  */
 async function getRefundListAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data;
+    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2455,7 +2575,7 @@ async function getRefundListAdmin(data) {
  */
 async function getRefundDetailAdmin(data) {
   try {
-    const { refundId } = data;
+    const { refundId } = data || {};
 
     if (!refundId) {
       return { code: 400, msg: '缺少退款ID' };
@@ -2496,7 +2616,7 @@ async function approveRefundAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { refundId, refundAmount, remark } = data;
+    const { refundId, refundAmount, remark } = data || {};
 
     if (!refundId) {
       return { code: 400, msg: '缺少退款ID' };
@@ -2665,6 +2785,131 @@ async function executeRefund(refund, order, adminInfo, customRefundAmount, remar
 
       // 触发奖励扣回
       await triggerRewardDeduction(order._id, finalRefundAmount, order.totalAmount);
+
+      // 🔧 恢复库存（根据退款商品）- 带幂等性保护
+      if (!refund.stockRestored) {
+        try {
+          if (refund.products && refund.products.length > 0) {
+            for (const item of refund.products) {
+              // 获取当前库存（用于记录流水）
+              const productRes = await db.collection('products').doc(item.productId).get();
+              const beforeStock = productRes.data?.stock || 0;
+              const restoreQty = item.refundQuantity || item.quantity;
+
+              // 恢复产品库存
+              await db.collection('products')
+                .doc(item.productId)
+                .update({
+                  data: {
+                    stock: _.inc(restoreQty),
+                    updateTime: db.serverDate()
+                  }
+                });
+
+              const afterStock = beforeStock + restoreQty;
+
+              console.log(`[余额退款-库存恢复] 产品库存已恢复`, {
+                productId: item.productId,
+                productName: item.productName,
+                restoredQuantity: restoreQty
+              });
+
+              // 创建库存流水记录（退款入库）
+              await createInventoryTransaction({
+                productId: item.productId,
+                productName: item.productName,
+                sku: item.skuName || item.skuId || '',
+                type: 'refund_in',
+                quantity: restoreQty,
+                beforeStock,
+                afterStock,
+                relatedId: refund._id,
+                relatedNo: refund.refundNo,
+                operatorId: adminInfo.id,
+                operatorName: adminInfo.username || '管理员',
+                remark: `退款入库 - ${refund.refundNo}`
+              });
+
+              // 如果有SKU，同时恢复SKU库存
+              if (item.skuId) {
+                await db.collection('products')
+                  .where({
+                    _id: item.productId,
+                    'skus._id': item.skuId
+                  })
+                  .update({
+                    data: {
+                      'skus.$.stock': _.inc(restoreQty),
+                      updateTime: db.serverDate()
+                    }
+                  });
+              }
+            }
+          }
+
+          // 标记库存已恢复
+          await db.collection('refunds').doc(refund._id).update({
+            data: {
+              stockRestored: true,
+              stockRestoreTime: db.serverDate()
+            }
+          });
+          console.log(`[余额退款-库存恢复] 已标记库存恢复完成`, { refundId: refund._id });
+        } catch (stockError) {
+          console.error(`[余额退款-库存恢复] 异常`, {
+            refundId: refund._id,
+            error: stockError.message
+          });
+          // 库存恢复异常不影响退款流程，但需要记录以便人工处理
+        }
+      } else {
+        console.log(`[余额退款-库存恢复] 库存已恢复，跳过`, { refundId: refund._id });
+      }
+
+      // 🔧 恢复优惠券（仅全额退款时）- 带幂等性保护
+      if (!refund.couponRestored) {
+        if (order.couponId && finalRefundAmount >= order.totalAmount) {
+          try {
+            await db.collection('user_coupons')
+              .where({
+                _id: order.couponId,
+                _openid: refund._openid,
+                status: 'used'
+              })
+              .update({
+                data: {
+                  status: 'unused',
+                  useTime: null,
+                  orderNo: null,
+                  restoreTime: db.serverDate(),
+                  restoreReason: `订单全额退款: ${order.orderNo}`,
+                  updateTime: db.serverDate()
+                }
+              });
+
+            console.log(`[余额退款-优惠券恢复] 优惠券已恢复`, {
+              couponId: order.couponId,
+              orderNo: order.orderNo
+            });
+          } catch (couponError) {
+            console.error(`[余额退款-优惠券恢复] 异常`, {
+              couponId: order.couponId,
+              error: couponError.message
+            });
+            // 优惠券恢复异常不影响退款流程
+          }
+        }
+
+        // 标记优惠券已处理（无论是否恢复）
+        await db.collection('refunds').doc(refund._id).update({
+          data: {
+            couponRestored: true,
+            couponRestoreTime: db.serverDate()
+          }
+        });
+      } else {
+        console.log(`[余额退款-优惠券恢复] 优惠券已处理，跳过`, { refundId: refund._id });
+      }
     }
 
     await logOperation(adminInfo.id, 'approveRefund', {
@@ -2700,7 +2945,7 @@ async function confirmReceiptAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { refundId } = data;
+    const { refundId } = data || {};
 
     if (!refundId) {
       return { code: 400, msg: '缺少退款ID' };
@@ -2753,7 +2998,7 @@ async function rejectRefundAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { refundId, reason } = data;
+    const { refundId, reason } = data || {};
 
     if (!refundId) {
       return { code: 400, msg: '缺少退款ID' };
@@ -2807,7 +3052,7 @@ async function retryRefundAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    const { refundId } = data;
+    const { refundId } = data || {};
 
     if (!refundId) {
       return { code: 400, msg: '缺少退款ID' };
@@ -2899,7 +3144,7 @@ async function triggerRewardDeduction(orderId, refundAmount, totalOrderAmount) {
  */
 async function getAddressesAdmin(data) {
   try {
-    const { page = 1, limit = 20, keyword } = data;
+    const { page = 1, limit = 20, keyword } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2991,7 +3236,7 @@ async function getAddressesAdmin(data) {
 async function deleteAddressAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-    const { addressId, openid } = data;
+    const { addressId, openid } = data || {};
 
     if (!addressId) {
       return { code: 400, msg: '缺少地址ID' };
@@ -3113,7 +3358,7 @@ async function updateStoreInfoAdmin(data, wxContext) {
  */
 async function getWalletTransactionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, type } = data;
+    const { page = 1, limit = 20, type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -3185,7 +3430,7 @@ async function getWalletTransactionsAdmin(data) {
  */
 async function getCommissionWalletsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, type } = data;
+    const { page = 1, limit = 20, status, type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};

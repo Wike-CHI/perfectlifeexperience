@@ -204,6 +204,77 @@ async function updateUserInfo(openid, updateData) {
   }
 }
 
+/**
+ * 绑定手机号 - 使用新版云调用 API
+ * 微信2023年后更新：使用 cloud.openapi.phonenumber.getPhoneNumber
+ * 旧版 cloud.getOpenData 已弃用
+ */
+async function bindPhone(openid, code) {
+  try {
+    // 使用新版云调用 API 获取手机号
+    const res = await cloud.openapi.phonenumber.getPhoneNumber({
+      code: code
+    });
+
+    // 检查返回结果
+    if (res.errcode !== 0 || !res.phoneInfo) {
+      logger.warn('获取手机号失败', { errcode: res.errcode, errmsg: res.errmsg });
+      return {
+        success: false,
+        error: '获取手机号失败',
+        message: res.errmsg || '请重新授权'
+      };
+    }
+
+    const phoneNumber = res.phoneInfo.phoneNumber;
+
+    if (!phoneNumber) {
+      return {
+        success: false,
+        error: '获取手机号失败',
+        message: '请重新授权'
+      };
+    }
+
+    // 更新用户手机号
+    const usersCollection = db.collection('users');
+    const { data: users } = await usersCollection
+      .where({ _openid: openid })
+      .limit(1)
+      .get();
+
+    if (users.length === 0) {
+      return {
+        success: false,
+        error: '用户不存在',
+        message: '请先登录'
+      };
+    }
+
+    await usersCollection.doc(users[0]._id).update({
+      data: {
+        phone: phoneNumber,
+        phoneUpdateTime: new Date()
+      }
+    });
+
+    logger.info('Phone bound', { openid, phone: phoneNumber.slice(-4) });
+
+    return {
+      success: true,
+      phone: phoneNumber,
+      message: '绑定成功'
+    };
+  } catch (error) {
+    logger.error('Bind phone failed', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '绑定失败，请重试'
+    };
+  }
+}
+
 // 云函数入口函数
 exports.main = async (event, context) => {
   logger.debug('User function called', { action: event.action });
@@ -256,7 +327,18 @@ exports.main = async (event, context) => {
           };
         }
         return await updateUserInfo(openid, data);
-        
+
+      case 'bindPhone':
+        // 绑定手机号
+        if (!data || !data.code) {
+          return {
+            success: false,
+            error: '缺少授权码',
+            message: '请重新授权'
+          };
+        }
+        return await bindPhone(openid, data.code);
+
       default:
         return {
           success: false,

@@ -12,11 +12,11 @@
       <view class="menu-item">
         <text class="menu-text">昵称</text>
         <view class="menu-right">
-          <input 
-            type="nickname" 
-            class="nickname-input" 
-            placeholder="请输入昵称" 
-            :value="userInfo.nickName" 
+          <input
+            type="nickname"
+            class="nickname-input"
+            placeholder="请输入昵称"
+            :value="userInfo.nickName"
             @blur="onNicknameBlur"
           />
           <uni-icons type="right" size="14" color="#9B8B7F"></uni-icons>
@@ -26,13 +26,20 @@
 
     <view class="section-title">账号绑定</view>
     <view class="menu-section">
-      <view class="menu-item" @click="handleBindPhone">
+      <!-- 手机号绑定 - 使用微信原生按钮 -->
+      <button
+        class="menu-item phone-btn"
+        open-type="getPhoneNumber"
+        @getphonenumber="onGetPhoneNumber"
+      >
         <text class="menu-text">手机号</text>
         <view class="menu-right">
-          <text class="menu-value">{{ userInfo.phone ? maskPhone(userInfo.phone) : '未绑定' }}</text>
+          <text class="menu-value" :class="{ highlight: userInfo.phone }">
+            {{ userInfo.phone ? maskPhone(userInfo.phone) : '点击绑定' }}
+          </text>
           <uni-icons type="right" size="14" color="#9B8B7F"></uni-icons>
         </view>
-      </view>
+      </button>
       <view class="menu-item">
         <text class="menu-text">微信</text>
         <view class="menu-right">
@@ -62,7 +69,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getUserInfo, saveUserInfo, updateCloudUserInfo } from '@/utils/api';
+import { getUserInfo, saveUserInfo, updateCloudUserInfo, callFunction } from '@/utils/api';
 
 // 用户信息
 const userInfo = ref({
@@ -144,14 +151,14 @@ const onNicknameBlur = async (e: any) => {
   try {
     // 1. 更新本地显示
     userInfo.value.nickName = nickName;
-    
+
     // 2. 更新云端用户信息
     const success = await updateCloudUserInfo({ nickName });
     if (!success) throw new Error('同步到云端失败');
-    
+
     // 3. 更新本地缓存
     await saveUserInfo({ nickName });
-    
+
     uni.showToast({ title: '昵称更新成功', icon: 'none' });
   } catch (error) {
     console.error('更新昵称失败:', error);
@@ -159,16 +166,50 @@ const onNicknameBlur = async (e: any) => {
   }
 };
 
+// 处理手机号绑定
+const onGetPhoneNumber = async (e: any) => {
+  console.log('getPhoneNumber event:', e);
+
+  // 用户拒绝授权
+  if (e.detail.errMsg && e.detail.errMsg.includes('fail')) {
+    uni.showToast({ title: '已取消授权', icon: 'none' });
+    return;
+  }
+
+  // 没有获取到code
+  if (!e.detail.code) {
+    uni.showToast({ title: '获取手机号失败', icon: 'none' });
+    return;
+  }
+
+  try {
+    uni.showLoading({ title: '绑定中...' });
+
+    // 调用云函数绑定手机号
+    const res = await callFunction('user', {
+      action: 'bindPhone',
+      data: { code: e.detail.code }
+    });
+
+    uni.hideLoading();
+
+    if (res.code === 0 && res.data?.success) {
+      userInfo.value.phone = res.data.phone;
+      await saveUserInfo({ phone: res.data.phone });
+      uni.showToast({ title: '绑定成功', icon: 'success' });
+    } else {
+      throw new Error(res.data?.message || res.msg || '绑定失败');
+    }
+  } catch (error: any) {
+    uni.hideLoading();
+    console.error('绑定手机号失败:', error);
+    uni.showToast({ title: error.message || '绑定失败', icon: 'none' });
+  }
+};
+
 // 手机号脱敏
 const maskPhone = (phone: string) => {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
-};
-
-const handleBindPhone = () => {
-  uni.showToast({
-    title: '功能开发中',
-    icon: 'none'
-  });
 };
 
 const handleChangePassword = () => {
