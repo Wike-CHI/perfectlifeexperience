@@ -7,6 +7,10 @@ cloud.init({
 
 const db = cloud.database()
 const _ = db.command
+
+// 引入共享工具函数
+const { generateTransactionNo } = require('./common/utils')
+
 const { verifyAdmin, hasPermission, logOperation, getDefaultPermissions } = require('./auth')
 const { getRequiredPermission } = require('./permissions')
 const { sendWithdrawalNotification } = require('./common/notification')
@@ -20,27 +24,26 @@ const {
 } = require('./validator')
 
 // ERP 模块
-const erp = require('./erp')
+const erpModule = require('./modules/erp')
 
 // 业务模块
 const orderModule = require('./modules/order')
+const bannerModule = require('./modules/banner')
+const announcementModule = require('./modules/announcement')
+const couponModule = require('./modules/coupon')
+const productModule = require('./modules/product')
+const userModule = require('./modules/user')
+const withdrawalModule = require('./modules/withdrawal')
+const promotionModule = require('./modules/promotion')
+const promoterModule = require('./modules/promoter')
+const inventoryModule = require('./modules/inventory')
+const categoryModule = require('./modules/category')
+const orderAdminModule = require('./modules/order-admin')
+const dashboardModule = require('./modules/dashboard')
+const refundModule = require('./modules/refund')
+const miscModule = require('./modules/misc')
 
 // ==================== 库存流水辅助函数 ====================
-
-/**
- * 生成库存流水号
- */
-function generateTransactionNo() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hour = String(now.getHours()).padStart(2, '0');
-  const minute = String(now.getMinutes()).padStart(2, '0');
-  const second = String(now.getSeconds()).padStart(2, '0');
-  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-  return `IT${year}${month}${day}${hour}${minute}${second}${random}`;
-}
 
 /**
  * 创建库存流水记录
@@ -96,7 +99,13 @@ const JWT_REFRESH_EXPIRES_IN = '24h' // 🔒 安全修复：刷新token有效期
 // Main entry point
 exports.main = async (event, context) => {
   // 🔧 安全解构：确保 data 始终是对象
-  const { action, data = {} } = event || {}
+  // 🔧 兼容所有可能的调用方式（MCP/微信云函数）
+  let action = event.action || null
+  let data = event.data || event || {}
+  if (data.action) {
+    action = data.action
+    data = data.data || {}
+  }
   const wxContext = cloud.getWXContext()
 
   try {
@@ -135,199 +144,199 @@ exports.main = async (event, context) => {
       case 'adminLogin':
         return await adminLogin(data)
       case 'getDashboardData':
-        return await getDashboardData(data)
+        return await dashboardModule.getDashboardData(db)
       case 'checkAuth':
         return { success: true, message: 'Admin API connected', openId: wxContext.OPENID }
       case 'checkAdminStatus':
         return await checkAdminStatus(wxContext)
       case 'getProducts':
-        return await getProductsList(data)
+        return await productModule.getProductsList(db, data)
       case 'getProductDetail':
-        return await getProductDetailAdmin(data)
+        return await productModule.getProductDetailAdmin(db, data)
       case 'createProduct':
-        return await createProductAdmin(data, wxContext)
+        return await productModule.createProductAdmin(db, logOperation, data, wxContext)
       case 'updateProduct':
-        return await updateProductAdmin(data, wxContext)
+        return await productModule.updateProductAdmin(db, logOperation, data, wxContext)
       case 'deleteProduct':
-        return await deleteProductAdmin(data, wxContext)
+        return await productModule.deleteProductAdmin(db, logOperation, data, wxContext)
       case 'adjustProductStock':
-        return await adjustProductStock(data, wxContext)
+        return await inventoryModule.adjustProductStock(db, logOperation, data, wxContext)
       case 'getCategories':
-        return await getCategoriesAdmin()
+        return await categoryModule.getCategories(db, data)
       case 'getOrders':
-        return await orderModule.getOrdersAdmin(data)
+        return await orderAdminModule.getOrders(db, data)
       case 'getOrderDetail':
-        return await orderModule.getOrderDetailAdmin(data)
+        return await orderAdminModule.getOrderDetail(db, data)
       case 'updateOrderStatus':
-        return await orderModule.updateOrderStatusAdmin(data, wxContext)
+        return await orderAdminModule.updateOrderStatus(db, logOperation, data, wxContext)
       case 'searchOrderByExpress':
-        return await orderModule.searchOrderByExpress(data)
+        return await orderAdminModule.searchOrderByExpress(db, data)
       case 'updateOrderExpress':
-        return await orderModule.updateOrderExpressAdmin(data, wxContext)
+        return await orderAdminModule.updateOrderExpress(db, logOperation, data, wxContext)
       case 'getAnnouncements':
-        return await getAnnouncementsAdmin(data)
+        return await announcementModule.getAnnouncementsAdmin(db, data)
       case 'createAnnouncement':
-        return await createAnnouncementAdmin(data, wxContext)
+        return await announcementModule.createAnnouncementAdmin(db, logOperation, data, wxContext)
       case 'updateAnnouncement':
-        return await updateAnnouncementAdmin(data, wxContext)
+        return await announcementModule.updateAnnouncementAdmin(db, logOperation, data, wxContext)
       case 'deleteAnnouncement':
-        return await deleteAnnouncementAdmin(data, wxContext)
+        return await announcementModule.deleteAnnouncementAdmin(db, logOperation, data, wxContext)
       case 'getPromotionStats':
         return await getPromotionStatsAdmin(data)
       case 'getUsers':
-        return await getUsersAdmin(data)
+        return await userModule.getUsersAdmin(db, data)
       case 'getUserDetail':
-        return await getUserDetailAdmin(data)
+        return await userModule.getUserDetailAdmin(db, data)
       case 'getUserWallet':
-        return await getUserWalletAdmin(data)
+        return await userModule.getUserWalletAdmin(db, data)
       case 'getPromotionPath':
-        return await getPromotionPathAdmin(data)
+        return await userModule.getPromotionPathAdmin(db, data)
       case 'getUserOrders':
-        return await getUserOrdersAdmin(data)
+        return await userModule.getUserOrdersAdmin(db, data)
       case 'getUserRewards':
-        return await getUserRewardsAdmin(data)
+        return await userModule.getUserRewardsAdmin(db, data)
       case 'getWithdrawals':
-        return await getWithdrawalsAdmin(data)
+        return await withdrawalModule.getWithdrawalsAdmin(db, data)
       case 'approveWithdrawal':
-        return await approveWithdrawalAdmin(data, wxContext)
+        return await withdrawalModule.approveWithdrawalAdmin(db, logOperation, data, wxContext)
       case 'rejectWithdrawal':
-        return await rejectWithdrawalAdmin(data, wxContext)
+        return await withdrawalModule.rejectWithdrawalAdmin(db, logOperation, data, wxContext)
       case 'getPromoters':
-        return await getPromotersAdmin(data)
+        return await promoterModule.getPromotersAdmin(db, data)
       case 'getCommissions':
-        return await getCommissionsAdmin(data)
+        return await promoterModule.getCommissionsAdmin(db, data)
       case 'getCoupons':
-        return await getCouponsAdmin(data)
+        return await couponModule.getCouponsAdmin(db, data)
       case 'createCoupon':
-        return await createCouponAdmin(data, wxContext)
+        return await couponModule.createCouponAdmin(db, logOperation, data, wxContext)
       case 'updateCoupon':
-        return await updateCouponAdmin(data, wxContext)
+        return await couponModule.updateCouponAdmin(db, logOperation, data, wxContext)
       case 'deleteCoupon':
-        return await deleteCouponAdmin(data, wxContext)
+        return await couponModule.deleteCouponAdmin(db, logOperation, data, wxContext)
       case 'getBanners':
-        return await getBannersAdmin(data)
+        return await bannerModule.getBannersAdmin(db, data)
       case 'createBanner':
-        return await createBannerAdmin(data, wxContext)
+        return await bannerModule.createBannerAdmin(db, logOperation, data, wxContext)
       case 'updateBanner':
-        return await updateBannerAdmin(data, wxContext)
+        return await bannerModule.updateBannerAdmin(db, logOperation, data, wxContext)
       case 'deleteBanner':
-        return await deleteBannerAdmin(data, wxContext)
+        return await bannerModule.deleteBannerAdmin(db, logOperation, data, wxContext)
       case 'getCouponDetail':
-        return await getCouponDetailAdmin(data)
+        return await couponModule.getCouponDetailAdmin(db, data)
       case 'getBannerDetail':
-        return await getBannerDetailAdmin(data)
+        return await bannerModule.getBannerDetailAdmin(db, data)
       case 'getTeamMembers':
         return await getTeamMembersAdmin(data)
       // Activity Management APIs
       case 'getPromotions':
-        return await getPromotionsAdmin(data)
+        return await promotionModule.getPromotionsAdmin(db, data)
       case 'getPromotionDetail':
-        return await getPromotionDetailAdmin(data)
+        return await promotionModule.getPromotionDetailAdmin(db, data)
       case 'createPromotion':
-        return await createPromotionAdmin(data, wxContext)
+        return await promotionModule.createPromotionAdmin(db, logOperation, data, wxContext)
       case 'updatePromotion':
-        return await updatePromotionAdmin(data, wxContext)
+        return await promotionModule.updatePromotionAdmin(db, logOperation, data, wxContext)
       case 'deletePromotion':
-        return await deletePromotionAdmin(data, wxContext)
+        return await promotionModule.deletePromotionAdmin(db, logOperation, data, wxContext)
       case 'getPromotionProducts':
-        return await getPromotionProductsAdmin(data)
+        return await promotionModule.getPromotionProductsAdmin(db, data)
       case 'addPromotionProducts':
-        return await addPromotionProductsAdmin(data, wxContext)
+        return await promotionModule.addPromotionProductsAdmin(db, logOperation, data, wxContext)
       case 'removePromotionProduct':
-        return await removePromotionProductAdmin(data, wxContext)
+        return await promotionModule.removePromotionProductAdmin(db, logOperation, data, wxContext)
       case 'getPromotionActivityStats':
-        return await getPromotionActivityStatsAdmin(data)
+        return await promotionModule.getPromotionActivityStatsAdmin(db, data)
       // Refund Management APIs
       case 'getRefundList':
-        return await getRefundListAdmin(data)
+        return await refundModule.getRefundList(db, data)
       case 'getRefundDetail':
-        return await getRefundDetailAdmin(data)
+        return await refundModule.getRefundDetail(db, data)
       case 'approveRefund':
-        return await approveRefundAdmin(data, wxContext)
+        return await refundModule.approveRefund(db, logOperation, data, wxContext)
       case 'confirmReceipt':
-        return await confirmReceiptAdmin(data, wxContext)
+        return await refundModule.confirmReceipt(db, logOperation, data, wxContext)
       case 'rejectRefund':
-        return await rejectRefundAdmin(data, wxContext)
+        return await refundModule.rejectRefund(db, logOperation, data, wxContext)
       case 'retryRefund':
-        return await retryRefundAdmin(data, wxContext)
+        return await refundModule.retryRefund(db, logOperation, data, wxContext)
       // Address Management APIs
       case 'getAddresses':
-        return await getAddressesAdmin(data)
+        return await miscModule.getAddresses(db, data)
       case 'deleteAddress':
-        return await deleteAddressAdmin(data, wxContext)
+        return await miscModule.deleteAddress(db, logOperation, data, wxContext)
       // Store Management APIs
       case 'getStoreInfo':
-        return await getStoreInfoAdmin(data)
+        return await miscModule.getStoreInfo(db)
       case 'updateStoreInfo':
-        return await updateStoreInfoAdmin(data, wxContext)
+        return await miscModule.updateStoreInfo(db, logOperation, data, wxContext)
       // Wallet Management APIs
       case 'getWalletTransactions':
-        return await getWalletTransactionsAdmin(data)
+        return await miscModule.getWalletTransactions(db, data)
       // Commission Wallet APIs
       case 'getCommissionWallets':
-        return await getCommissionWalletsAdmin(data)
+        return await miscModule.getCommissionWallets(db, data)
       // System Configuration APIs
       case 'getSystemConfig':
-        return await getSystemConfigAdmin(data)
+        return await miscModule.getSystemConfig(db)
       case 'updateSystemConfig':
-        return await updateSystemConfigAdmin(data, wxContext)
+        return await miscModule.updateSystemConfig(db, data, wxContext)
 
       // ========== ERP APIs ==========
       // 供应商管理
       case 'getSuppliers':
-        return await erp.getSuppliers(data)
+        return await miscModule.getSuppliers(db, data)
       case 'getSupplierDetail':
-        return await erp.getSupplierDetail(data)
+        return await miscModule.getSupplierDetail(db, data)
       case 'createSupplier':
-        return await erp.createSupplier(data, wxContext)
+        return await miscModule.createSupplier(db, logOperation, data, wxContext)
       case 'updateSupplier':
-        return await erp.updateSupplier(data, wxContext)
+        return await miscModule.updateSupplier(db, logOperation, data, wxContext)
       case 'deleteSupplier':
-        return await erp.deleteSupplier(data, wxContext)
+        return await miscModule.deleteSupplier(db, logOperation, data, wxContext)
 
       // 采购管理
       case 'getPurchaseOrders':
-        return await erp.getPurchaseOrders(data)
+        return await erpModule.getPurchaseOrders(db, data)
       case 'getPurchaseOrderDetail':
-        return await erp.getPurchaseOrderDetail(data)
+        return await erpModule.getPurchaseOrderDetail(db, data)
       case 'createPurchaseOrder':
-        return await erp.createPurchaseOrder(data, wxContext)
+        return await erpModule.createPurchaseOrder(db, logOperation, data, wxContext)
       case 'updatePurchaseOrder':
-        return await erp.updatePurchaseOrder(data, wxContext)
+        return await erpModule.updatePurchaseOrder(db, logOperation, data, wxContext)
       case 'submitPurchaseOrder':
-        return await erp.submitPurchaseOrder(data, wxContext)
+        return await erpModule.submitPurchaseOrder(db, logOperation, data, wxContext)
       case 'receivePurchaseOrder':
-        return await erp.receivePurchaseOrder(data, wxContext)
+        return await erpModule.receivePurchaseOrder(db, logOperation, data, wxContext)
       case 'cancelPurchaseOrder':
-        return await erp.cancelPurchaseOrder(data, wxContext)
+        return await erpModule.cancelPurchaseOrder(db, logOperation, data, wxContext)
 
       // 库存管理
       case 'getInventoryOverview':
-        return await erp.getInventoryOverview(data, wxContext)
+        return await erpModule.getInventoryOverview(db)
       case 'getInventoryBatches':
-        return await erp.getInventoryBatches(data, wxContext)
+        return await erpModule.getInventoryBatches(db, data)
       case 'getInventoryTransactions':
-        return await erp.getInventoryTransactions(data, wxContext)
+        return await erpModule.getInventoryTransactions(db, data)
       case 'adjustInventory':
-        return await erp.adjustInventory(data, wxContext)
+        return await erpModule.adjustInventory(db, logOperation, data, wxContext)
       case 'getExpiringBatches':
-        return await erp.getExpiringBatches(data, wxContext)
+        return await erpModule.getExpiringBatches(db, data)
       case 'getExpiredBatches':
-        return await erp.getExpiredBatches(data, wxContext)
+        return await erpModule.getExpiredBatches(db)
 
       // 盘点管理
       case 'getInventoryChecks':
-        return await erp.getInventoryChecks(data, wxContext)
+        return await erpModule.getInventoryChecks(db, data)
       case 'getInventoryCheckDetail':
-        return await erp.getInventoryCheckDetail(data, wxContext)
+        return await erpModule.getInventoryCheckDetail(db, data)
       case 'createInventoryCheck':
-        return await erp.createInventoryCheck(data, wxContext)
+        return await erpModule.createInventoryCheck(db, logOperation, data, wxContext)
       case 'updateInventoryCheckItem':
-        return await erp.updateInventoryCheckItem(data, wxContext)
+        return await erpModule.updateInventoryCheckItem(db, data)
       case 'completeInventoryCheck':
-        return await erp.completeInventoryCheck(data, wxContext)
+        return await erpModule.completeInventoryCheck(db, logOperation, data, wxContext)
       case 'cancelInventoryCheck':
-        return await erp.cancelInventoryCheck(data, wxContext)
+        return await erpModule.cancelInventoryCheck(db, logOperation, data, wxContext)
 
       default:
         return {
@@ -614,179 +623,6 @@ async function getPromotionStatsAdmin(data) {
   }
 }
 
-// Product functions
-async function getProductsList(data) {
-  try {
-    const { page = 1, limit = 20, category, keyword, status } = data || {};
-    const skip = (page - 1) * limit;
-
-    let query = {};
-
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-
-    if (keyword) {
-      query.name = db.RegExp({
-        regexp: keyword,
-        options: 'i'
-      });
-    }
-
-    if (status === 'active') {
-      query.stock = _.gte(1);
-    } else if (status === 'inactive') {
-      query.stock = 0;
-    }
-
-    const [productsResult, categoriesResult] = await Promise.all([
-      db.collection('products')
-        .where(query)
-        .orderBy('createTime', 'desc')
-        .skip(skip)
-        .limit(limit)
-        .get(),
-      db.collection('categories')
-        .where({ isActive: true })
-        .orderBy('sort', 'asc')
-        .get()
-    ]);
-
-    const countResult = await db.collection('products').where(query).count();
-
-    return {
-      code: 0,
-      data: {
-        list: productsResult.data,
-        total: countResult.total,
-        page,
-        limit,
-        totalPages: Math.ceil(countResult.total / limit),
-        categories: categoriesResult.data
-      }
-    };
-  } catch (error) {
-    console.error('Get products error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getProductDetailAdmin(data) {
-  try {
-    const { id } = data || {};
-
-    const productResult = await db.collection('products').doc(id).get();
-
-    if (!productResult.data) {
-      return { code: 404, msg: '商品不存在' };
-    }
-
-    const categoriesResult = await db.collection('categories')
-      .where({ isActive: true })
-      .orderBy('sort', 'asc')
-      .get();
-
-    return {
-      code: 0,
-      data: {
-        product: productResult.data,
-        categories: categoriesResult.data
-      }
-    };
-  } catch (error) {
-    console.error('Get product detail error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function createProductAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const productData = {
-      ...data,
-      createTime: new Date(),
-      updateTime: new Date(),
-      sales: 0,
-      rating: 0
-    };
-
-    const result = await db.collection('products').add({
-      data: productData
-    });
-
-    await logOperation(adminInfo.id, 'createProduct', {
-      productId: result._id,
-      name: data.name
-    });
-
-    return {
-      code: 0,
-      data: { id: result._id },
-      msg: '商品创建成功'
-    };
-  } catch (error) {
-    console.error('Create product error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function updateProductAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    // 验证输入
-    if (!isValidObjectId(data.id)) {
-      return { code: 400, msg: '商品ID格式无效' };
-    }
-
-    const { id, ...updateData } = data || {};
-
-    // 清理不允许更新的字段
-    updateData = sanitizeUpdateData(updateData, ['_id', '_openid', 'createTime']);
-
-    // 添加更新时间
-    updateData.updateTime = new Date();
-
-    await db.collection('products').doc(id).update({
-      data: updateData
-    });
-
-    await logOperation(adminInfo.id, 'updateProduct', {
-      productId: id,
-      ...updateData
-    });
-
-    return {
-      code: 0,
-      msg: '商品更新成功'
-    };
-  } catch (error) {
-    console.error('Update product error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function deleteProductAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id } = data || {};
-
-    await db.collection('products').doc(id).remove();
-
-    await logOperation(adminInfo.id, 'deleteProduct', { productId: id });
-
-    return {
-      code: 0,
-      msg: '商品删除成功'
-    };
-  } catch (error) {
-    console.error('Delete product error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
 /**
  * 调整商品库存
  */
@@ -1054,326 +890,6 @@ async function updateOrderExpressAdmin(data, wxContext) {
     };
   } catch (error) {
     console.error('Update order express error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-// Announcement functions
-async function getAnnouncementsAdmin(data) {
-  try {
-    const { page = 1, limit = 20, type, status } = data || {};
-    const skip = (page - 1) * limit;
-
-    let query = {};
-
-    if (type && type !== 'all') {
-      query.type = type;
-    }
-
-    if (status === 'active') {
-      query.isActive = true;
-    } else if (status === 'inactive') {
-      query.isActive = false;
-    }
-
-    const [announcementsResult, countResult] = await Promise.all([
-      db.collection('announcements')
-        .where(query)
-        .orderBy('createTime', 'desc')
-        .skip(skip)
-        .limit(limit)
-        .get(),
-      db.collection('announcements').where(query).count()
-    ]);
-
-    return {
-      code: 0,
-      data: {
-        list: announcementsResult.data,
-        total: countResult.total,
-        page,
-        limit,
-        totalPages: Math.ceil(countResult.total / limit)
-      }
-    };
-  } catch (error) {
-    console.error('Get announcements error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function createAnnouncementAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const announcementData = {
-      ...data,
-      createTime: new Date(),
-      publishTime: data.isActive ? new Date() : null
-    };
-
-    const result = await db.collection('announcements').add({
-      data: announcementData
-    });
-
-    await logOperation(adminInfo.id, 'createAnnouncement', {
-      announcementId: result.id,
-      title: data.title
-    });
-
-    return {
-      code: 0,
-      data: { id: result.id },
-      msg: '公告创建成功'
-    };
-  } catch (error) {
-    console.error('Create announcement error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function updateAnnouncementAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id, ...updateData } = data || {};
-    if (updateData.isActive && !updateData.publishTime) {
-      updateData.publishTime = new Date();
-    }
-
-    await db.collection('announcements').doc(id).update({
-      data: updateData
-    });
-
-    await logOperation(adminInfo.id, 'updateAnnouncement', {
-      announcementId: id,
-      ...updateData
-    });
-
-    return {
-      code: 0,
-      msg: '公告更新成功'
-    };
-  } catch (error) {
-    console.error('Update announcement error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function deleteAnnouncementAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id } = data || {};
-
-    await db.collection('announcements').doc(id).remove();
-
-    await logOperation(adminInfo.id, 'deleteAnnouncement', { announcementId: id });
-
-    return {
-      code: 0,
-      msg: '公告删除成功'
-    };
-  } catch (error) {
-    console.error('Delete announcement error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-// User Management functions
-async function getUsersAdmin(data) {
-  try {
-    const { page = 1, pageSize = 20, agentLevel, keyword } = data || {};
-    const skip = (page - 1) * pageSize;
-
-    let query = {};
-
-    if (agentLevel !== undefined && agentLevel >= 0) {
-      query.agentLevel = agentLevel;
-    }
-
-    if (keyword) {
-      query.$or = [
-        { nickName: db.RegExp({ regexp: keyword, options: 'i' }) },
-        { phoneNumber: db.RegExp({ regexp: keyword, options: 'i' }) },
-        { _openid: db.RegExp({ regexp: keyword, options: 'i' }) }
-      ];
-    }
-
-    const [usersResult, countResult] = await Promise.all([
-      db.collection('users')
-        .where(query)
-        .orderBy('createTime', 'desc')
-        .skip(skip)
-        .limit(pageSize)
-        .field({
-          _id: true,
-          _openid: true,
-          nickName: true,
-          avatarUrl: true,
-          agentLevel: true,
-          performance: true
-        })
-        .get(),
-      db.collection('users').where(query).count()
-    ]);
-
-    return {
-      code: 0,
-      data: {
-        list: usersResult.data,
-        total: countResult.total,
-        page,
-        pageSize
-      }
-    };
-  } catch (error) {
-    console.error('Get users error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getUserDetailAdmin(data) {
-  try {
-    const { userId } = data || {};
-
-    const userResult = await db.collection('users').doc(userId).get();
-
-    if (!userResult.data) {
-      return { code: 404, msg: '用户不存在' };
-    }
-
-    return {
-      code: 0,
-      data: userResult.data
-    };
-  } catch (error) {
-    console.error('Get user detail error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getUserWalletAdmin(data) {
-  try {
-    const { userId } = data || {};
-
-    const walletResult = await db.collection('wallets')
-      .where({ _openid: data.openid || userId })
-      .limit(1)
-      .get();
-
-    if (walletResult.data.length === 0) {
-      return {
-        code: 0,
-        data: { balance: 0, totalReward: 0, withdrawn: 0 }
-      };
-    }
-
-    return {
-      code: 0,
-      data: walletResult.data[0]
-    };
-  } catch (error) {
-    console.error('Get user wallet error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getPromotionPathAdmin(data) {
-  try {
-    const { userId } = data || {};
-
-    const userResult = await db.collection('users').doc(userId).get();
-
-    if (!userResult.data) {
-      return { code: 404, msg: '用户不存在' };
-    }
-
-    const promotionPath = userResult.data.promotionPath || '';
-
-    if (!promotionPath) {
-      return {
-        code: 0,
-        data: []
-      };
-    }
-
-    const parentIds = promotionPath.split('/').filter(id => id);
-    const parents = [];
-
-    for (const parentId of parentIds) {
-      const parentResult = await db.collection('users')
-        .doc(parentId)
-        .field({
-          _id: true,
-          nickName: true,
-          agentLevel: true
-        })
-        .get();
-
-      if (parentResult.data) {
-        parents.push(parentResult.data);
-      }
-    }
-
-    return {
-      code: 0,
-      data: parents
-    };
-  } catch (error) {
-    console.error('Get promotion path error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getUserOrdersAdmin(data) {
-  try {
-    const { userId, limit = 5 } = data || {};
-
-    const userResult = await db.collection('users').doc(userId).get();
-
-    if (!userResult.data) {
-      return { code: 404, msg: '用户不存在' };
-    }
-
-    const ordersResult = await db.collection('orders')
-      .where({ _openid: userResult.data._openid })
-      .orderBy('createTime', 'desc')
-      .limit(limit)
-      .get();
-
-    return {
-      code: 0,
-      data: ordersResult.data
-    };
-  } catch (error) {
-    console.error('Get user orders error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getUserRewardsAdmin(data) {
-  try {
-    const { userId, limit = 5 } = data || {};
-
-    const userResult = await db.collection('users').doc(userId).get();
-
-    if (!userResult.data) {
-      return { code: 404, msg: '用户不存在' };
-    }
-
-    const rewardsResult = await db.collection('reward_records')
-      .where({ _openid: userResult.data._openid })
-      .orderBy('createTime', 'desc')
-      .limit(limit)
-      .get();
-
-    return {
-      code: 0,
-      data: rewardsResult.data
-    };
-  } catch (error) {
-    console.error('Get user rewards error:', error);
     return { code: 500, msg: error.message };
   }
 }
@@ -1796,277 +1312,6 @@ async function getCommissionsAdmin(data) {
     };
   } catch (error) {
     console.error('Get commissions error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-// Marketing Configuration functions - Coupons
-async function getCouponsAdmin(data) {
-  try {
-    const { page = 1, limit = 20, status } = data || {};
-    const skip = (page - 1) * limit;
-
-    let query = {};
-
-    if (status === 'active') {
-      query.isActive = true;
-    } else if (status === 'inactive') {
-      query.isActive = false;
-    }
-
-    const [couponsResult, countResult] = await Promise.all([
-      db.collection('coupons')
-        .where(query)
-        .orderBy('createTime', 'desc')
-        .skip(skip)
-        .limit(limit)
-        .get(),
-      db.collection('coupons').where(query).count()
-    ]);
-
-    return {
-      code: 0,
-      data: {
-        list: couponsResult.data,
-        total: countResult.total,
-        page,
-        limit
-      }
-    };
-  } catch (error) {
-    console.error('Get coupons error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function createCouponAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const couponData = {
-      ...data,
-      createTime: new Date(),
-      updateTime: new Date()
-    };
-
-    const result = await db.collection('coupons').add({
-      data: couponData
-    });
-
-    await logOperation(adminInfo.id, 'createCoupon', {
-      couponId: result.id,
-      name: data.name
-    });
-
-    return {
-      code: 0,
-      data: { id: result.id },
-      msg: '优惠券创建成功'
-    };
-  } catch (error) {
-    console.error('Create coupon error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function updateCouponAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id, ...updateData } = data || {};
-    updateData.updateTime = new Date();
-
-    await db.collection('coupons').doc(id).update({
-      data: updateData
-    });
-
-    await logOperation(adminInfo.id, 'updateCoupon', {
-      couponId: id,
-      ...updateData
-    });
-
-    return {
-      code: 0,
-      msg: '优惠券更新成功'
-    };
-  } catch (error) {
-    console.error('Update coupon error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function deleteCouponAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id } = data || {};
-
-    await db.collection('coupons').doc(id).remove();
-
-    await logOperation(adminInfo.id, 'deleteCoupon', { couponId: id });
-
-    return {
-      code: 0,
-      msg: '优惠券删除成功'
-    };
-  } catch (error) {
-    console.error('Delete coupon error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-// Marketing Configuration functions - Banners
-async function getBannersAdmin(data) {
-  try {
-    const { page = 1, limit = 20, status } = data || {};
-    const skip = (page - 1) * limit;
-
-    let query = {};
-
-    if (status === 'active') {
-      query.isActive = true;
-    } else if (status === 'inactive') {
-      query.isActive = false;
-    }
-
-    const [bannersResult, countResult] = await Promise.all([
-      db.collection('banners')
-        .where(query)
-        .orderBy('sort', 'asc')
-        .skip(skip)
-        .limit(limit)
-        .get(),
-      db.collection('banners').where(query).count()
-    ]);
-
-    return {
-      code: 0,
-      data: {
-        list: bannersResult.data,
-        total: countResult.total,
-        page,
-        limit
-      }
-    };
-  } catch (error) {
-    console.error('Get banners error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function createBannerAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const bannerData = {
-      ...data,
-      createTime: new Date(),
-      updateTime: new Date()
-    };
-
-    const result = await db.collection('banners').add({
-      data: bannerData
-    });
-
-    await logOperation(adminInfo.id, 'createBanner', {
-      bannerId: result.id,
-      title: data.title
-    });
-
-    return {
-      code: 0,
-      data: { id: result.id },
-      msg: 'Banner创建成功'
-    };
-  } catch (error) {
-    console.error('Create banner error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function updateBannerAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id, ...updateData } = data || {};
-    updateData.updateTime = new Date();
-
-    await db.collection('banners').doc(id).update({
-      data: updateData
-    });
-
-    await logOperation(adminInfo.id, 'updateBanner', {
-      bannerId: id,
-      ...updateData
-    });
-
-    return {
-      code: 0,
-      msg: 'Banner更新成功'
-    };
-  } catch (error) {
-    console.error('Update banner error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function deleteBannerAdmin(data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-
-    const { id } = data || {};
-
-    await db.collection('banners').doc(id).remove();
-
-    await logOperation(adminInfo.id, 'deleteBanner', { bannerId: id });
-
-    return {
-      code: 0,
-      msg: 'Banner删除成功'
-    };
-  } catch (error) {
-    console.error('Delete banner error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-// Detail functions
-async function getCouponDetailAdmin(data) {
-  try {
-    const { id } = data || {};
-
-    const couponResult = await db.collection('coupons').doc(id).get();
-
-    if (!couponResult.data) {
-      return { code: 404, msg: '优惠券不存在' };
-    }
-
-    return {
-      code: 0,
-      data: couponResult.data
-    };
-  } catch (error) {
-    console.error('Get coupon detail error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function getBannerDetailAdmin(data) {
-  try {
-    const { id } = data || {};
-
-    const bannerResult = await db.collection('banners').doc(id).get();
-
-    if (!bannerResult.data) {
-      return { code: 404, msg: 'Banner不存在' };
-    }
-
-    return {
-      code: 0,
-      data: bannerResult.data
-    };
-  } catch (error) {
-    console.error('Get banner detail error:', error);
     return { code: 500, msg: error.message };
   }
 }

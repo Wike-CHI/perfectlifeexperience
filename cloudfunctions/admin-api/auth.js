@@ -26,6 +26,20 @@ async function verifyPassword(plainPassword, hashedPassword) {
 }
 
 /**
+ * 检查密码是否为 bcrypt 哈希格式
+ * bcrypt 哈希格式: $2a$, $2b$, $2y$ 开头，后跟轮数和哈希值
+ * @param {string} password - 待检查的密码
+ * @returns {boolean} 是否为 bcrypt 哈希
+ */
+function isBcryptHash(password) {
+  if (!password || typeof password !== 'string') {
+    return false;
+  }
+  // bcrypt 哈希以 $2a$, $2b$, 或 $2y$ 开头
+  return /^\$2[aby]\$\d{2}\$/.test(password);
+}
+
+/**
  * Verify admin credentials and return admin user
  */
 async function verifyAdmin(username, password) {
@@ -39,6 +53,12 @@ async function verifyAdmin(username, password) {
     }
 
     const admin = admins[0];
+
+    // 🔒 安全修复：检查存储的密码是否为 bcrypt 哈希格式
+    if (!isBcryptHash(admin.password)) {
+      console.error('[安全警告] 管理员密码不是 bcrypt 哈希格式，请立即重置密码:', { username });
+      return { success: false, message: '账号安全配置异常，请联系管理员重置密码' };
+    }
 
     // 🔒 密码验证：仅支持 bcrypt 哈希（生产安全）
     let isValid = false;
