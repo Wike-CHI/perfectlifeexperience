@@ -65,16 +65,19 @@ onMounted(() => {
 
 const loadProduct = async () => {
   try {
-    const res = await callFunction('product', {
+    const res = await callFunction('admin-api', {
       action: 'getProductDetail',
+      adminToken: AdminAuthManager.getToken(),
       data: { id: productId.value }
     })
-    if (res.code === 0 && res.data) {
+    // 使用 extractData 兼容返回格式
+    const data = res.data?.data || res.data
+    if (res.code === 0 && data) {
       formData.value = {
-        name: res.data.name || '',
-        price: (res.data.price / 100).toFixed(2),
-        stock: String(res.data.stock || 0),
-        description: res.data.description || ''
+        name: data.name || '',
+        price: (data.price / 100).toFixed(2),
+        stock: String(data.stock || 0),
+        description: data.description || ''
       }
     }
   } catch (e) {
@@ -94,14 +97,17 @@ const handleSubmit = async () => {
     const action = isEdit.value ? 'updateProduct' : 'createProduct'
     const params = isEdit.value ? { id: productId.value, ...data } : data
 
-    const res = await callFunction('product', {
+    const res = await callFunction('admin-api', {
       action,
+      adminToken: AdminAuthManager.getToken(),
       data: params
     })
 
     if (res.code === 0) {
       uni.showToast({ title: '保存成功', icon: 'success' })
       setTimeout(() => uni.navigateBack(), 1500)
+    } else {
+      uni.showToast({ title: res.msg || '保存失败', icon: 'none' })
     }
   } catch (e) {
     console.error('保存失败', e)

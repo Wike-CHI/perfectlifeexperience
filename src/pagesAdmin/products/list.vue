@@ -131,7 +131,14 @@ const loadCategories = async () => {
     })
 
     if (res.code === 0 && res.data) {
-      categories.value = res.data.categories || res.data || []
+      // 兼容返回格式：可能是数组或 {categories: [...]} 对象
+      if (Array.isArray(res.data)) {
+        categories.value = res.data
+      } else if (res.data.categories) {
+        categories.value = res.data.categories
+      } else {
+        categories.value = []
+      }
     }
   } catch (error) {
     console.error('加载分类失败:', error)
@@ -225,10 +232,18 @@ const formatPrice = (price: number): string => {
 
 /**
  * 获取分类名称
+ * category 可能是分类ID或分类名称
  */
-const getCategoryName = (categoryId: string): string => {
-  const cat = categories.value.find(c => c._id === categoryId)
-  return cat?.name || '未分类'
+const getCategoryName = (category: string): string => {
+  if (!category) return '未分类'
+  // 先尝试用ID查找
+  const cat = categories.value.find(c => c._id === category)
+  if (cat) return cat.name
+  // 再尝试用名称查找
+  const catByName = categories.value.find(c => c.name === category)
+  if (catByName) return catByName.name
+  // 如果都没找到，返回原始值
+  return category || '未分类'
 }
 
 /**
