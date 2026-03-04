@@ -119,7 +119,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { COMMISSION_RULES, AGENT_LEVEL_NAMES } from '@/constants/promotion';
 
 // 晋升路径节点
 const pathNodes = [
@@ -130,15 +131,15 @@ const pathNodes = [
 ];
 
 // 晋升条件（与后端 PromotionThreshold 配置保持一致）
-// 四级→三级: 累计销售额 >= 1,000元
-// 三级→二级: 本月销售额 >= 5,000元 或 团队 >= 30人
-// 二级→一级: 本月销售额 >= 20,000元 或 团队 >= 100人
+// 四级→三级: 累计销售额 >= 20,000元
+// 三级→二级: 本月销售额 >= 50,000元 或 团队 >= 50人
+// 二级→一级: 本月销售额 >= 100,000元 或 团队 >= 200人
 const conditions = [
   {
     name: '铜牌会员',
     icon: '铜',
     bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    salesReq: '累计 ≥ ¥1,000',
+    salesReq: '累计 ≥ ¥20,000',
     countReq: '无人数要求',
     tip: '完成累计销售额即可自动晋升'
   },
@@ -146,41 +147,56 @@ const conditions = [
     name: '银牌会员',
     icon: '银',
     bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    salesReq: '本月 ≥ ¥5,000',
-    countReq: '或团队 ≥ 30人',
+    salesReq: '本月 ≥ ¥50,000',
+    countReq: '或团队 ≥ 50人',
     tip: '满足任一条件即可晋升'
   },
   {
     name: '金牌会员',
     icon: '金',
     bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    salesReq: '本月 ≥ ¥20,000',
-    countReq: '或团队 ≥ 100人',
+    salesReq: '本月 ≥ ¥100,000',
+    countReq: '或团队 ≥ 200人',
     tip: '最高等级，享受全部权益'
   }
 ];
 
-// 权益对比
-const compareItems = [
-  {
-    name: '推广佣金',
+// 权益对比 - 根据常量动态生成
+const compareItems = computed(() => {
+  // 1. 推广佣金比例
+  const commissionRow = {
+    name: '推广佣金比例',
+    values: [4, 3, 2, 1].map(level => {
+      const ratio = COMMISSION_RULES[level as keyof typeof COMMISSION_RULES]?.own || 0;
+      return {
+        text: `${(ratio * 100).toFixed(0)}%`,
+        type: level === 1 ? 'highlight' : 'normal'
+      };
+    })
+  };
+
+  // 2. 身份标识
+  const levelRow = {
+    name: '身份标识',
+    values: [4, 3, 2, 1].map(level => ({
+      text: AGENT_LEVEL_NAMES[level as keyof typeof AGENT_LEVEL_NAMES],
+      type: 'normal'
+    }))
+  };
+
+  // 3. 推广权限
+  const permissionRow = {
+    name: '推广权限',
     values: [
       { text: '✓', type: 'yes' },
       { text: '✓', type: 'yes' },
       { text: '✓', type: 'yes' },
       { text: '✓', type: 'yes' }
     ]
-  },
-  {
-    name: '身份标识',
-    values: [
-      { text: '普通', type: 'normal' },
-      { text: '铜牌', type: 'normal' },
-      { text: '银牌', type: 'normal' },
-      { text: '金牌', type: 'normal' }
-    ]
-  },
-  {
+  };
+
+  // 4. 优先客服
+  const serviceRow = {
     name: '优先客服',
     values: [
       { text: '✗', type: 'no' },
@@ -188,14 +204,21 @@ const compareItems = [
       { text: '✗', type: 'no' },
       { text: '✓', type: 'yes' }
     ]
-  }
-];
+  };
+
+  return [commissionRow, levelRow, permissionRow, serviceRow];
+});
 
 // FAQ列表
 const faqList = ref([
   {
+    question: '佣金比例如何计算？',
+    answer: '不同等级享受不同佣金比例：金牌20%，银牌12%，铜牌12%，普通8%。推广好友下单时，您将获得对应比例的佣金。',
+    expanded: false
+  },
+  {
     question: '晋升条件是累计还是按月？',
-    answer: '铜牌晋升为累计条件（累计销售额或累计直推人数）；银牌和金牌为月度条件（本月销售额或当前团队人数），每月销售额会重置。',
+    answer: '铜牌晋升为累计条件（累计销售额≥2万元）；银牌和金牌为月度条件（本月销售额或当前团队人数），每月销售额会重置。',
     expanded: false
   },
   {

@@ -10,7 +10,7 @@ const db = cloud.database();
 const _ = db.command;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('user');
 
 const { getUserIdentity, parseEvent, withAuth, isDeprecatedAuth } = require('./common/auth');
