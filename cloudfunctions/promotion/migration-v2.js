@@ -18,7 +18,7 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
-const { createLogger } = require('./common/logger');
+const { createLogger } = require('../common/logger');
 const logger = createLogger('migration-v2');
 
 /**

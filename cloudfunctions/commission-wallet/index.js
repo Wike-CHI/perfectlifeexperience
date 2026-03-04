@@ -23,7 +23,7 @@ const db = cloud.database();
 const _ = db.command;
 
 // 引入安全日志工具
-const { createLogger } = require('./common/logger');
+const { createLogger } = require('../common/logger');
 const logger = createLogger('commission-wallet');
 
 // 集合名称

@@ -8,7 +8,7 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { success, error, ErrorCodes } = require('./response');
+const { success, error, ErrorCodes } = require('../common/response');
 const { createLogger } = require('./logger');
 const logger = createLogger('wechatpay');
 
@@ -341,15 +341,19 @@ function decodePrivateKey(key) {
 exports.main = async (event, context) => {
   const { action, data } = event;
 
+  // 🔒 安全修复：从 wxContext 获取 openid，不信任前端传递的 openid
+  const wxContext = cloud.getWXContext();
+  const secureOpenid = wxContext.OPENID;
+
   try {
     const config = getConfig();
 
     switch (action) {
       case 'createPayment':
-        return await createPayment(data, config);
+        return await createPayment(data, config, secureOpenid);
 
       case 'createRechargePayment':
-        return await createRechargePayment(data, config);
+        return await createRechargePayment(data, config, secureOpenid);
 
       case 'queryOrder':
         return await queryOrder(data, config);
@@ -398,9 +402,15 @@ exports.main = async (event, context) => {
 
 /**
  * 创建充值支付订单
+ * @param {object} data - 请求数据
+ * @param {object} config - 支付配置
+ * @param {string} secureOpenid - 从 wxContext 获取的安全 openid
  */
-async function createRechargePayment(data, config) {
-  const { openid, amount, giftAmount = 0 } = data;
+async function createRechargePayment(data, config, secureOpenid) {
+  const { amount, giftAmount = 0 } = data;
+
+  // 🔒 安全修复：使用从 wxContext 获取的 openid，不信任前端传递的 openid
+  const openid = secureOpenid;
 
   // 1. ✅ 参数验证
   if (!openid || !amount) {
@@ -538,9 +548,15 @@ async function createRechargePayment(data, config) {
 
 /**
  * 创建支付订单
+ * @param {object} data - 请求数据
+ * @param {object} config - 支付配置
+ * @param {string} secureOpenid - 从 wxContext 获取的安全 openid
  */
-async function createPayment(data, config) {
-  const { orderId, openid } = data;
+async function createPayment(data, config, secureOpenid) {
+  const { orderId } = data;
+
+  // 🔒 安全修复：使用从 wxContext 获取的 openid，不信任前端传递的 openid
+  const openid = secureOpenid;
 
   // 1. ✅ 参数验证
   if (!orderId || !openid) {
@@ -1142,7 +1158,11 @@ async function handleRefundCallback(event, config) {
         }
       });
 
-      // 9. ✅ 触发推广奖励扣回（调用推广系统）
+      // 9. ✅ 触发推广奖励扣回（调用推广系统）- 带状态追踪
+      // 🔧 修复：记录奖励扣回状态，支持后续补偿
+      let rewardRevertStatus = 'pending';
+      let rewardRevertError = null;
+
       try {
         const revertResult = await cloud.callFunction({
           name: 'promotion',
@@ -1156,24 +1176,47 @@ async function handleRefundCallback(event, config) {
         });
 
         if (revertResult.result.code === 0) {
+          rewardRevertStatus = 'success';
           console.log(`[退款奖励扣回] 成功`, {
             refundNo: out_refund_no,
             revertedCount: revertResult.result.data.revertedCount,
             revertedAmount: revertResult.result.data.revertedAmount
           });
         } else {
+          rewardRevertStatus = 'failed';
+          rewardRevertError = revertResult.result.msg;
           console.error(`[退款奖励扣回] 失败`, {
             refundNo: out_refund_no,
             error: revertResult.result.msg
           });
-          // 奖励扣回失败不影响退款流程，只记录日志
         }
       } catch (revertError) {
+        rewardRevertStatus = 'failed';
+        rewardRevertError = revertError.message;
         console.error(`[退款奖励扣回] 异常`, {
           refundNo: out_refund_no,
           error: revertError.message
         });
-        // 奖励扣回异常不影响退款流程，只记录日志
+      }
+
+      // 🔧 修复：始终更新奖励扣回状态，支持后续补偿
+      await db.collection('refunds').doc(refundRecord._id).update({
+        data: {
+          rewardRevertStatus: rewardRevertStatus,
+          rewardRevertTime: db.serverDate(),
+          rewardRevertError: rewardRevertError,
+          rewardRevertRetryCount: 0, // 初始重试次数
+          updateTime: db.serverDate()
+        }
+      });
+
+      if (rewardRevertStatus === 'failed') {
+        // 记录到待补偿队列（通过日志或单独的集合）
+        console.warn(`[退款奖励扣回] 需要后续补偿`, {
+          refundNo: out_refund_no,
+          orderId: refundRecord.orderId,
+          error: rewardRevertError
+        });
       }
 
       // 10. ✅ 恢复库存（根据退款商品）- 带幂等性保护

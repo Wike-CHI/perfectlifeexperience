@@ -8,26 +8,8 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
-/**
- * 获取当前月份标识
- */
-function getCurrentMonthTag() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/**
- * 获取默认业绩对象
- */
-function getDefaultPerformance() {
-  return {
-    totalSales: 0,
-    monthSales: 0,
-    monthTag: getCurrentMonthTag(),
-    directCount: 0,
-    teamCount: 0
-  };
-}
+// 引入共享工具函数
+const { getDefaultPerformance, getCurrentMonthTag } = require('../common/utils');
 
 /**
  * 数据迁移 - 为现有用户添加新字段

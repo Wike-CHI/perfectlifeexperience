@@ -9,14 +9,17 @@ const db = cloud.database();
 const _ = db.command;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('./common/logger');
+const { createLogger } = require('../common/logger');
 const logger = createLogger('order');
 
 // ✅ 引入验证工具
 const { validateAmount, validateObject } = require('./common/validator');
 
 // ✅ 引入统一响应工具
-const { success, error, ErrorCodes } = require('./common/response');
+const { success, error, ErrorCodes } = require('../common/response');
+
+// ✅ 引入共享工具函数
+const { generateTransactionNo } = require('../common/utils');
 
 // ✅ 引入常量配置
 const {
@@ -39,23 +42,6 @@ const { checkRateLimit } = require('./common/rateLimiter');
 const { settleWithRetry } = require('./common/reward-settlement');
 
 // ==================== 库存管理 ====================
-
-/**
- * 生成库存流水号
- * 格式：IT + 年月日时分秒 + 6位随机数
- */
-function generateTransactionNo() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hour = String(now.getHours()).padStart(2, '0');
-  const minute = String(now.getMinutes()).padStart(2, '0');
-  const second = String(now.getSeconds()).padStart(2, '0');
-  const random = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-
-  return `IT${year}${month}${day}${hour}${minute}${second}${random}`;
-}
 
 /**
  * 创建库存流水记录

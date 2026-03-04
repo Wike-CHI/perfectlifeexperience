@@ -62,6 +62,7 @@ const ErrorCodes = {
   INVALID_PARAMS: -2,
   NOT_LOGIN: -3,
   NOT_FOUND: -4,
+  RATE_LIMIT_EXCEEDED: -5,  // 请求频率超限
 
   // 用户相关 (100-199)
   USER_NOT_FOUND: 100,
@@ -93,6 +94,7 @@ const ErrorMessages = {
   [ErrorCodes.INVALID_PARAMS]: '参数错误',
   [ErrorCodes.NOT_LOGIN]: '未登录',
   [ErrorCodes.NOT_FOUND]: '资源不存在',
+  [ErrorCodes.RATE_LIMIT_EXCEEDED]: '请求过于频繁，请稍后再试',
   [ErrorCodes.USER_NOT_FOUND]: '用户不存在',
   [ErrorCodes.USER_ALREADY_EXISTS]: '用户已存在',
   [ErrorCodes.INVALID_INVITE_CODE]: '邀请码无效',

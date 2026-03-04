@@ -513,6 +513,28 @@ ${indexConfigs.map(idx => `
               comment: '提现状态索引（用于后台审核列表）'
             }
           ]
+        },
+
+        // rate_limits 集合索引（频率限制）
+        {
+          collection: 'rate_limits',
+          indexes: [
+            {
+              name: 'idx_identifier_timestamp',
+              fields: [
+                { name: 'identifier', order: 'asc' },
+                { name: 'timestamp', order: 'desc' }
+              ],
+              comment: '频率限制查询索引（用于快速查找用户+操作的请求记录）'
+            },
+            {
+              name: 'idx_expireAt',
+              fields: [
+                { name: 'expireAt', order: 'asc' }
+              ],
+              comment: '过期时间索引（用于定期清理过期记录）'
+            }
+          ]
         }
       ];
 
@@ -552,9 +574,218 @@ ${indexConfigs.map(idx => `
     }
   }
 
+  // 🔧 新增：为退款表添加奖励扣回状态字段
+  if (action === 'addRefundRewardRevertFields') {
+    return await addRefundRewardRevertFields();
+  }
+
+  // 🔧 新增：为用户表添加团队计数字段
+  if (action === 'addTeamCountFields') {
+    return await addTeamCountFields();
+  }
+
+  // 🔧 新增：生成新的索引配置（包含退款奖励扣回和团队统计）
+  if (action === 'createIndexesV4') {
+    try {
+      console.log('[迁移] 生成数据库索引配置 V4');
+
+      const indexes = [
+        // refunds 集合新增索引
+        {
+          collection: 'refunds',
+          indexes: [
+            {
+              name: 'idx_rewardRevertStatus',
+              fields: [
+                { name: 'rewardRevertStatus', order: 'asc' }
+              ],
+              comment: '奖励扣回状态索引（用于补偿任务查询失败的扣回）'
+            }
+          ]
+        },
+        // users 集合新增索引
+        {
+          collection: 'users',
+          indexes: [
+            {
+              name: 'idx_teamCount',
+              fields: [
+                { name: 'teamCount', order: 'desc' }
+              ],
+              comment: '团队人数索引（用于快速排序和筛选）'
+            },
+            {
+              name: 'idx_parentId',
+              fields: [
+                { name: 'parentId', order: 'asc' }
+              ],
+              comment: '上级ID索引（用于查询直接下级）'
+            }
+          ]
+        }
+      ];
+
+      const cliConfig = indexes.map(idxGroup => {
+        return idxGroup.indexes.map(idx => {
+          const MergedFields = idx.fields.map(f => `${f.name}:${f.order}`).join(',');
+          return {
+            collection: idxGroup.collection,
+            indexName: idx.name,
+            unique: !!idx.unique,
+            MergedFields: MergedFields,
+            comment: idx.comment || ''
+          };
+        });
+      }).flat();
+
+      console.log('[迁移] 索引配置 V4 生成完成');
+
+      return {
+        code: 0,
+        msg: '索引配置 V4 生成成功',
+        data: {
+          totalCount: cliConfig.length,
+          indexes: cliConfig
+        }
+      };
+
+    } catch (error) {
+      console.error('[迁移] 生成索引配置失败:', error);
+      return {
+        code: -1,
+        msg: error.message
+      };
+    }
+  }
+
   // 未知操作
   return {
     code: -1,
     msg: `未知操作: ${action}`
   };
 };
+
+// 🔧 新增：为退款表添加奖励扣回状态字段和索引
+async function addRefundRewardRevertFields() {
+  try {
+    console.log('[迁移] 开始为退款表添加奖励扣回状态字段');
+
+    let hasMore = true;
+    let skip = 0;
+    const LIMIT = 100;
+    let totalProcessed = 0;
+
+    while (hasMore) {
+      const res = await db.collection('refunds')
+        .where({
+          rewardRevertStatus: _.exists(false) // 只处理没有这个字段的记录
+        })
+        .field({ _id: true })
+        .limit(LIMIT)
+        .skip(skip)
+        .get();
+
+      if (res.data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // 批量更新
+      const updates = res.data.map(refund => {
+        return db.collection('refunds').doc(refund._id).update({
+          data: {
+            rewardRevertStatus: 'pending',    // pending | success | failed
+            rewardRevertTime: null,
+            rewardRevertError: null,
+            rewardRevertRetryCount: 0
+          }
+        });
+      });
+
+      await Promise.all(updates);
+      totalProcessed += res.data.length;
+      skip += LIMIT;
+
+      console.log(`[迁移] 已处理 ${totalProcessed} 条退款记录`);
+    }
+
+    console.log(`[迁移] 完成，共处理 ${totalProcessed} 条退款记录`);
+
+    return {
+      code: 0,
+      msg: `成功更新 ${totalProcessed} 条退款记录`,
+      data: { totalProcessed }
+    };
+
+  } catch (error) {
+    console.error('[迁移] 失败:', error);
+    return {
+      code: -1,
+      msg: error.message
+    };
+  }
+}
+
+// 🔧 新增：为用户表添加团队计数字段
+async function addTeamCountFields() {
+  try {
+    console.log('[迁移] 开始为用户表添加团队计数字段');
+
+    let hasMore = true;
+    let skip = 0;
+    const LIMIT = 100;
+    let totalProcessed = 0;
+
+    while (hasMore) {
+      const res = await db.collection('users')
+        .where({
+          teamCount: _.exists(false) // 只处理没有这个字段的记录
+        })
+        .field({ _id: true, _openid: true })
+        .limit(LIMIT)
+        .skip(skip)
+        .get();
+
+      if (res.data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // 为每个用户计算并设置团队总数
+      for (const user of res.data) {
+        // 计算一级团队
+        const level1Count = await db.collection('users')
+          .where({ parentId: user._openid })
+          .count();
+
+        // 设置 teamCount
+        await db.collection('users').doc(user._id).update({
+          data: {
+            teamCount: level1Count.total,
+            'performance.teamCount': level1Count.total
+          }
+        });
+
+        totalProcessed++;
+      }
+
+      skip += LIMIT;
+      console.log(`[迁移] 已处理 ${totalProcessed} 条用户记录`);
+    }
+
+    console.log(`[迁移] 完成，共处理 ${totalProcessed} 条用户记录`);
+
+    return {
+      code: 0,
+      msg: `成功更新 ${totalProcessed} 条用户记录`,
+      data: { totalProcessed }
+    };
+
+  } catch (error) {
+    console.error('[迁移] 失败:', error);
+    return {
+      code: -1,
+      msg: error.message
+    };
+  }
+}

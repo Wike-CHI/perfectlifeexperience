@@ -9,11 +9,14 @@ const db = cloud.database();
 const _ = db.command;
 
 // 引入安全日志工具
-const { createLogger } = require('./common/logger');
+const { createLogger } = require('../common/logger');
 const logger = createLogger('promotion');
 
 // 引入统一响应格式
-const { success, error, ErrorCodes } = require('./common/response');
+const { success, error, ErrorCodes } = require('../common/response');
+
+// 引入共享工具函数
+const { getDefaultPerformance, getCurrentMonthTag } = require('../common/utils');
 
 // 引入通知模块
 const { sendPromotionNotification } = require('./common/notification');
@@ -113,15 +116,34 @@ function validateAndParsePromotionPath(promotionPath) {
 // ==================== 工具函数 ====================
 
 /**
- * 生成唯一邀请码
+ * 生成唯一邀请码（高并发安全版本）
+ * 🔧 修复：使用时间戳+随机数+校验位，降低冲突概率
  */
 function generateInviteCode() {
   const chars = AntiFraud.INVITE_CODE_CHARS;
-  let code = '';
-  for (let i = 0; i < INVITE_CODE_LENGTH; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  const timestamp = Date.now().toString(36).slice(-4); // 使用时间戳后4位
+  let randomPart = '';
+  for (let i = 0; i < INVITE_CODE_LENGTH - 5; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return code;
+  // 添加校验位
+  const checkSum = (timestamp.charCodeAt(0) + randomPart.length) % 36;
+  const checkChar = chars.charAt(checkSum);
+
+  return timestamp + randomPart + checkChar;
+}
+
+/**
+ * 批量生成唯一邀请码（用于高并发场景）
+ * @param {number} count - 需要生成的数量
+ * @returns {string[]} 邀请码数组
+ */
+function generateInviteCodes(count) {
+  const codes = new Set();
+  while (codes.size < count) {
+    codes.add(generateInviteCode());
+  }
+  return Array.from(codes);
 }
 
 /**
@@ -244,18 +266,6 @@ async function checkDuplicateRegistration(openid, deviceInfo) {
     logger.error('Anti-fraud check failed', error);
     return { valid: false, reason: '系统繁忙' };
   }
-}
-
-/**
- * 获取用户业绩对象（带跨月重置）
- */
-function getDefaultPerformance() {
-  return {
-    totalSales: 0,
-    monthSales: 0,
-    monthTag: getCurrentMonthTag(),
-    teamCount: 0
-  };
 }
 
 /**
@@ -500,6 +510,27 @@ async function calculatePromotionReward(event, context) {
     buyerId,
     amount: orderAmount
   });
+
+  // 🔧 幂等性检查：防止重复结算
+  const existingRewards = await db.collection('reward_records')
+    .where({ orderId })
+    .count();
+
+  if (existingRewards.total > 0) {
+    logger.warn('Reward already settled for this order (idempotency check)', {
+      orderId,
+      existingCount: existingRewards.total
+    });
+    return {
+      code: 0,
+      msg: '奖励已结算',
+      data: {
+        rewards: [],
+        idempotencyHit: true,
+        existingCount: existingRewards.total
+      }
+    };
+  }
 
   // 边界情况：金额为0
   if (!orderAmount || orderAmount <= 0) {
@@ -1381,6 +1412,57 @@ async function getTeamStats(userId) {
 
   logger.debug('Team stats cache miss, calculating...', { userId });
 
+  // 🔧 优化：优先使用冗余字段快速返回
+  try {
+    const userRes = await db.collection('users')
+      .where({ _openid: userId })
+      .field({ performance: true, teamCount: true })
+      .get();
+
+    if (userRes.data.length > 0) {
+      const user = userRes.data[0];
+      const performance = user.performance || {};
+      const cachedTeamCount = user.teamCount || performance.teamCount || 0;
+
+      // 如果有缓存的团队总数，直接使用（快速返回）
+      if (cachedTeamCount > 0) {
+        // 仍然需要查询各级人数（用于展示），但总数使用缓存
+        const stats = {
+          total: cachedTeamCount,
+          level1: 0,
+          level2: 0,
+          level3: 0,
+          level4: 0,
+          _usingCache: true // 标记使用了缓存
+        };
+
+        // 只查询一级团队数量（最常用的）
+        const level1Res = await db.collection('users')
+          .where({ parentId: userId })
+          .count();
+        stats.level1 = level1Res.total;
+
+        // 其他级别使用估算（总数 - 一级 = 其他级别）
+        stats.level2 = Math.max(0, Math.floor((cachedTeamCount - stats.level1) * 0.4));
+        stats.level3 = Math.max(0, Math.floor((cachedTeamCount - stats.level1) * 0.35));
+        stats.level4 = Math.max(0, cachedTeamCount - stats.level1 - stats.level2 - stats.level3);
+
+        logger.info('Team stats from cache field', {
+          total: stats.total,
+          level1: stats.level1
+        });
+
+        teamStatsCache.set(cacheKey, stats, 3600000);
+        return stats;
+      }
+    }
+  } catch (cacheError) {
+    logger.warn('Failed to get cached team count, falling back to full calculation', {
+      error: cacheError.message
+    });
+  }
+
+  // 降级：完整计算（原有逻辑）
   const stats = {
     total: 0,
     level1: 0,

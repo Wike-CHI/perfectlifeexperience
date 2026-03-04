@@ -8,6 +8,9 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// 引入共享工具函数
+const { getDefaultPerformance, getCurrentMonthTag } = require('../common/utils');
+
 // 结算周期（天）
 const SETTLEMENT_DAYS = 7;
 
@@ -30,26 +33,6 @@ const PROMOTION_THRESHOLDS = {
   SILVER: { monthSales: 500000, teamCount: 30 }, // 月销售额 >= 5,000元 或 团队 >= 30人
   GOLD: { monthSales: 2000000, teamCount: 100 }  // 月销售额 >= 20,000元 或 团队 >= 100人
 };
-
-/**
- * 获取当前月份标识
- */
-function getCurrentMonthTag() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/**
- * 获取默认业绩对象（无directCount）
- */
-function getDefaultPerformance() {
-  return {
-    totalSales: 0,
-    monthSales: 0,
-    monthTag: getCurrentMonthTag(),
-    teamCount: 0
-  };
-}
 
 /**
  * 执行奖励结算

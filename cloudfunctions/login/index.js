@@ -29,17 +29,21 @@ function getAppConfig() {
 /**
  * 获取或创建用户
  * @param {string} openid
- * @param {object} extraData 额外数据 (如 unionid, session_key)
+ * @param {object} extraData 额外数据 (如 unionid)
  */
 async function getOrCreateUser(openid, extraData = {}) {
   const userCollection = db.collection('users');
   const userResult = await userCollection.where({
     _openid: openid
   }).get();
-  
+
   let user = null;
   let isNewUser = false;
-  
+
+  // 🔒 安全修复：移除 session_key 存储，避免敏感信息泄露
+  // session_key 是微信敏感数据，不应存储到数据库
+  const { session_key, ...safeExtraData } = extraData;
+
   if (userResult.data.length === 0) {
     // 新用户，创建记录
     isNewUser = true;
@@ -49,9 +53,9 @@ async function getOrCreateUser(openid, extraData = {}) {
       lastLoginTime: new Date(),
       loginCount: 1,
       platform: 'weixin_miniprogram',
-      ...extraData
+      ...safeExtraData
     };
-    
+
     const createResult = await userCollection.add({
       data: createData
     });
@@ -63,14 +67,15 @@ async function getOrCreateUser(openid, extraData = {}) {
       lastLoginTime: new Date(),
       loginCount: _.inc(1)
     };
-    if (extraData.session_key) updateData.session_key = extraData.session_key;
-    if (extraData.unionid) updateData.unionid = extraData.unionid;
-    
+    // 🔒 安全修复：不再存储 session_key
+    // if (extraData.session_key) updateData.session_key = extraData.session_key;
+    if (safeExtraData.unionid) updateData.unionid = safeExtraData.unionid;
+
     await userCollection.doc(user._id).update({
       data: updateData
     });
   }
-  
+
   return {
     success: true,
     openid,
