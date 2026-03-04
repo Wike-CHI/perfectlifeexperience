@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working on code in this repository.
 
 notice:always chinese output
 
@@ -15,6 +15,7 @@ notice:always chinese output
 - **Cloud Environment**: `cloud1-6gmp2q0y3171c353`
 - **WeChat AppID**: `wx4a0b93c3660d1404`
 - **Runtime**: Node.js 16.13 for cloud functions
+- **Testing**: Vitest 4.0.18
 
 ## Key Architecture Concepts
 
@@ -141,6 +142,12 @@ npm run test:run
 
 # Run tests with coverage
 npm run test:coverage
+
+# Run cloud function tests
+npm run test:cf
+
+# Run all tests
+npm run test:all
 ```
 
 ### Build Output Locations
@@ -183,16 +190,16 @@ npm run test:coverage
   - Manages 7-day login session with local storage
 - **`utils/api.ts`** - Frontend API layer
 
-  - Product/Category APIs (currently local mock data)
+  - Product/Category APIs
   - Cart management (local storage)
   - Order APIs → `order` cloud function
   - User management → `user` cloud function
   - Promotion APIs → `promotion` cloud function
   - Wallet APIs → `wallet` cloud function
   - Commission Wallet APIs → `commission-wallet` cloud function
-  - Coupon system (local mock data)
+  - Coupon system
   - Home page aggregation API for performance optimization
-- **`utils/database.ts`** - Direct database query utilities (performance optimization)
+- **`utils/database.ts`** - Direct database query utilities (性能优化)
 - **`utils/distance.ts`** - Distance calculation utilities
 - **`utils/admin-auth.ts`** - Admin authentication utilities
 - **`utils/admin-cache.ts`** - Admin-side caching utilities
@@ -207,9 +214,22 @@ Each cloud function:
 - Must use `cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })`
 - Receives OPENID via `cloud.getWXContext().OPENID`
 
-#### Shared Utilities (`cloudfunctions/common/`)
+#### CloudBase Layer (`cloudfunctions/layer/shared/`)
 
-All cloud functions share common utilities from the `common/` directory:
+Shared utilities intended for use across all cloud functions via CloudBase Layer:
+
+- **`response.js`** - Standardized response format (`{code, msg, data}`)
+- **`validator.js`** - Input validation utilities
+- **`logger.js`** - Structured logging with levels
+- **`constants.js`** - Shared constants (agent levels, commission ratios, etc.)
+- **`rateLimiter.js`** - Rate limiting module
+- **`reward-settlement.js`** - Reward calculation logic
+- **`notification.js`** - Notification placeholder (未实现)
+- **`cache.js`** - In-memory caching utilities
+
+#### Common Utilities (`cloudfunctions/common/`)
+
+Primary shared utilities (recommended for new cloud functions):
 
 - **`response.js`** - Standardized response format (`{code, msg, data}`)
   - `success(data, message)` - Success response with code 0
@@ -218,64 +238,33 @@ All cloud functions share common utilities from the `common/` directory:
 - **`validator.js`** - Input validation utilities
 - **`logger.js`** - Structured logging with levels
 - **`constants.js`** - Shared constants (agent levels, commission ratios, etc.)
+- **`rateLimiter.js`** - Rate limiting module
+- **`reward-settlement.js`** - Reward calculation logic
+- **`notification.js`** - Notification placeholder (未实现)
 
 #### Cloud Functions List
 
-- **`login/`** - User authentication
-
-  - Gets OPENID from wxContext or exchanges code for openid/session_key
-  - Calls `getOrCreateUser()` to create/update user records
-- **`user/`** - User management
-
-  - Actions: `loginOrUpdate`, `getUserInfo`, `updateUserInfo`
-- **`promotion/`** - Promotion/referral system
-
-  - Actions: `bindRelation`, `calculateReward`, `getInfo`, `getTeamMembers`, `getRewardRecords`, `generateQRCode`, `checkPromotion`, `updatePerformance`
-  - Implements fixed-amount commission distribution based on agent level
-  - Upgrade checking with configurable thresholds
-  - Follow-upgrade mechanism for team advancement
-  - Team statistics with recursive level counting
-  - Anti-fraud measures (IP throttling, duplicate detection)
-- **`product/`** - Product catalog management
-
-  - Actions: `getProducts`, `getProductDetail`, `getHotProducts`, `getCategories`
-  - Supports category filtering, keyword search, pagination
-- **`wechatpay/`** - WeChat Pay integration (V3 API)
-
-  - Actions: `createPayment`, `queryOrder`, `closeOrder`
-  - HTTP trigger callback for payment notifications
-  - Configuration priority: local `config.js` → environment variables
-- **`order/`** - Order management
-
-  - Actions: `createOrder`, `getOrders`, `getOrderDetail`, `updateOrderStatus`
-  - Refund support: refund application, status tracking
-- **`wallet/`** - Wallet balance and transactions
-
-  - Actions: `getBalance`, `getTransactions`, `recharge`, `withdraw`
-- **`commission-wallet/`** - Commission wallet management
-
-  - Actions: `getBalance`, `getTransactions`, `applyWithdraw`, `getWithdrawals`
-  - Separate from regular wallet for commission earnings
-  - Supports withdrawal to WeChat Pay
-- **`coupon/`** - Coupon management
-
-  - Actions: `getCoupons`, `claimCoupon`, `useCoupon`, `getUserCoupons`
-- **`upload/`** - File upload service
-
-  - Handles user avatar uploads to cloud storage
-  - Returns CDN URL for stored files
-- **`rewardSettlement/`** - Reward settlement processing
-- **`migration/`** - Database schema migrations and index creation
-
-  - Actions: `createIndexes`, `createIndexesV2`
-- **`initData/`** - Database initialization with seed data
-- **`initAdminData/`** - Admin account initialization
-- **`admin-api/`** - Admin management backend
-
-  - Comprehensive admin API with role-based permissions
-  - Actions cover orders, products, users, finance, promotions, etc.
-- **`test-helper/`** - Database query helper for testing
-- **`pay/`** - Legacy payment module (deprecated, use `wechatpay`)
+| Function | Purpose | Status |
+|----------|---------|--------|
+| `login/` | User authentication | Active |
+| `user/` | User management | Active |
+| `promotion/` | Promotion/referral system | Active |
+| `product/` | Product catalog management | Active |
+| `wechatpay/` | WeChat Pay V3 API integration | Active |
+| `order/` | Order management | Active |
+| `wallet/` | Wallet balance and transactions | Active |
+| `commission-wallet/` | Commission wallet management | Active |
+| `coupon/` | Coupon management | Active |
+| `upload/` | File upload service | Active |
+| `rewardSettlement/` | Reward settlement processing | Active |
+| `reward-settlement/` | Alternative reward module | Active |
+| `migration/` | Database schema migrations | Active |
+| `initData/` | Database initialization | Active |
+| `initAdminData/` | Admin account initialization | Active |
+| `admin-api/` | Admin management backend | Active |
+| `test-helper/` | Database query helper for testing | Active |
+| `hello/` | Test function | Inactive |
+| `pay/` | Legacy payment module | Deprecated |
 
 ### Key Design System
 
@@ -484,10 +473,6 @@ const ENV_ID: string = 'cloud1-6gmp2q0y3171c353';
 - `stores/edit.vue` - Store information management
 - `settings/config.vue` - System configuration
 
-### Admin Dashboard (`admin_dash/`)
-
-Separate admin application template for CloudBase/UniApp development. See `admin_dash/README.md` for setup instructions.
-
 ## Testing Notes
 
 - Use WeChat Developer Tools for preview/debugging
@@ -498,13 +483,20 @@ Separate admin application template for CloudBase/UniApp development. See `admin
 
 ### Testing Framework
 
-The project uses **vitest** for unit testing:
+The project uses **Vitest** for unit testing:
 
 ```bash
 npm run test           # Run tests in watch mode
 npm run test:run       # Run tests once
 npm run test:coverage  # Run with coverage report
+npm run test:cf        # Run cloud function tests
+npm run test:all       # Run all tests
 ```
+
+**Test Configuration** (`vitest.config.ts`):
+- Default environment: `node`
+- Vue composables: `happy-dom` (browser-like)
+- Coverage thresholds: Lines 60%, Functions 60%, Branches 50%, Statements 60%
 
 ### Testing Cloud Functions
 
@@ -522,6 +514,7 @@ Test files:
 - `cloudfunctions/admin-api/refund.test.js` - Admin refund tests
 - `cloudfunctions/wallet/test.test.js` - Wallet tests
 - `cloudfunctions/commission-wallet/test.test.js` - Commission wallet tests
+- `cloudfunctions/layer/shared/layer.test.js` - Layer tests
 
 ## Deployment
 
@@ -533,6 +526,7 @@ Cloud functions are deployed from `cloudfunctions/` directory. Use Tencent Cloud
 - Runtime is set at creation and cannot be changed
 - Use `cloud.DYNAMIC_CURRENT_ENV` for environment detection
 - Environment variables configured per function in CloudBase console
+- Consider using CloudBase Layer for shared code
 
 ### Mini Program Release
 
@@ -574,6 +568,7 @@ TypeScript types are defined in `src/types/`:
 
 **Configuration (`src/config/`):**
 - `recharge.ts` - Recharge tier configuration
+- `cdn.ts` - CDN configuration
 
 **Constants (`src/constants/`):**
 - `reward.ts` - Reward type constants
@@ -705,6 +700,73 @@ module.exports = {
 
 See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 
+## Known Issues & Technical Debt
+
+### Code Duplication Issues
+
+**WARNING**: There are significant code duplication issues that should be addressed:
+
+1. **Rate Limiter Module** - Exists in 3 locations:
+   - `cloudfunctions/common/rateLimiter.js`
+   - `cloudfunctions/order/common/rateLimiter.js`
+   - `cloudfunctions/layer/shared/rateLimiter.js`
+
+2. **Logger Module** - Exists in 9+ locations:
+   - `cloudfunctions/common/logger.js`
+   - `cloudfunctions/commission-wallet/common/logger.js`
+   - `cloudfunctions/order/common/logger.js`
+   - `cloudfunctions/promotion/common/logger.js`
+   - `cloudfunctions/wallet/common/logger.js`
+   - `cloudfunctions/product/common/logger.js`
+   - `cloudfunctions/user/common/logger.js`
+   - `cloudfunctions/wechatpay/logger.js`
+   - `cloudfunctions/layer/shared/logger.js`
+
+3. **Response Module** - Exists in 5 locations:
+   - `cloudfunctions/common/response.js`
+   - `cloudfunctions/order/common/response.js`
+   - `cloudfunctions/promotion/common/response.js`
+   - `cloudfunctions/wallet/common/response.js`
+   - `cloudfunctions/layer/shared/response.js`
+
+4. **Validator Module** - Exists in 4 locations:
+   - `cloudfunctions/common/validator.js`
+   - `cloudfunctions/order/common/validator.js`
+   - `cloudfunctions/promotion/common/validator.js`
+   - `cloudfunctions/wallet/common/validator.js`
+
+**Recommendation**: Use `cloudfunctions/common/` for new cloud functions, consider consolidating to use CloudBase Layer.
+
+### Unimplemented Features
+
+1. **`src/utils/database.ts` - `queryTeamMembers` function**:
+   - Throws: `'团队查询建议使用云函数，因为需要复杂业务逻辑'`
+   - Needs implementation for direct frontend database queries
+
+2. **Admin Password Change Interface**:
+   - No password change UI in admin panel
+   - Reference: `docs/ADMIN_PASSWORD_MIGRATION.md`
+
+3. **WeChat Subscription Messages**:
+   - Notification modules exist but are not implemented:
+     - `cloudfunctions/promotion/common/notification.js`
+     - `cloudfunctions/admin-api/common/notification.js`
+
+4. ~~Admin Order Map Component~~ (已实现):
+   - Order detail page now shows interactive map preview
+   - Click to open WeChat Maps for navigation
+
+### Security Considerations
+
+1. **Rate Limiting**:
+   - IP throttling implemented in promotion cloud function
+   - 24-hour window for duplicate registration detection
+   - Maximum 3 registrations per IP per day
+
+2. **Admin Password Security**:
+   - bcrypt hashing enforced
+   - Legacy plaintext passwords rejected
+
 ## Development Workflow
 
 ### Adding New Features
@@ -715,13 +777,16 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
    - Add API methods to `src/utils/api.ts` (follows `callFunction('functionName', { action, data })` pattern)
    - Create/modify pages or components
    - Update `src/pages.json` for new pages
+
 2. **Backend Changes**:
 
    - Create new cloud function directory under `cloudfunctions/`
    - Implement `index.js` with `exports.main = async (event, context) => {}`
    - Add `package.json` with dependencies (typically includes `wx-server-sdk`)
+   - Use common utilities from `cloudfunctions/common/`
    - Deploy via CloudBase console, MCP tools, or WeChat Developer Tools
    - **Important**: Runtime cannot be changed after creation (default: Nodejs16.13)
+
 3. **Database Schema Changes**:
 
    - Update documentation in `docs/`
@@ -732,13 +797,15 @@ See `docs/WECHAT_PAY_SETUP.md` for complete setup guide.
 
 1. **Unit Testing**:
 
-   - Cloud functions: `cloudfunctions/promotion/test.test.js`
-   - Use `test-helper` cloud function for database queries
+   - Frontend: `npm run test` (Vitest)
+   - Cloud functions: `npm run test:cf`
+
 2. **Integration Testing**:
 
    - Use WeChat Developer Tools for frontend
    - Test promotion calculations with various user hierarchies
    - Verify monthly reset logic
+
 3. **Performance Testing**:
 
    - Monitor cloud function execution time in console
@@ -897,7 +964,8 @@ See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit detail
 | sass | ^1.89.2 | CSS preprocessing |
 | typescript | ^4.9.4 | Type system |
 | vite | 5.2.8 | Build tool |
-| vitest | - | Unit testing |
+| vitest | ^4.0.18 | Unit testing |
+| happy-dom | ^20.7.0 | DOM environment for Vue testing |
 
 ### Backend Dependencies
 
@@ -905,3 +973,5 @@ See `docs/optimization/OPTIMIZATION_SUMMARY.md` for complete design audit detail
 |---------|---------|
 | wx-server-sdk | WeChat cloud function SDK |
 | axios | HTTP client |
+| bcryptjs | Password hashing |
+| jsonwebtoken | JWT token verification |

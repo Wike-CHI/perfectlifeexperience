@@ -54,7 +54,7 @@
             :key="index"
             @click="goToDetail(product)"
           >
-            <image class="recommend-image" :src="product.images[0]" mode="aspectFill" />
+            <image class="recommend-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
             <view class="recommend-info">
               <text class="recommend-name">{{ product.name }}</text>
               <view class="recommend-bottom">
@@ -134,7 +134,7 @@
             :key="index"
             @click="goToDetail(product)"
           >
-            <image class="product-image" :src="product.images[0]" mode="aspectFill" />
+            <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
             <view class="product-info">
               <text class="product-name">{{ product.name }}</text>
               <text class="product-desc" v-if="product.description">{{ product.description }}</text>

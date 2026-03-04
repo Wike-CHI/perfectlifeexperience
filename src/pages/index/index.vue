@@ -194,7 +194,7 @@
           @click="goToProduct(product)"
         >
           <view class="product-image-wrap">
-            <image class="product-image" :src="product.images[0]" mode="aspectFill" />
+            <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
             <view v-if="product.isNew" class="product-tag">NEW</view>
           </view>
           <view class="product-tags" v-if="product.tags && product.tags.length">
@@ -254,7 +254,7 @@
             @click="goToProduct(product)"
           >
             <view class="new-image-wrap">
-              <image class="new-image" :src="product.images[0]" mode="aspectFill" />
+              <image class="new-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
               <view class="new-overlay"></view>
             </view>
             <view class="new-info">

@@ -87,7 +87,7 @@
           <view class="ranking-badge" :class="'rank-' + (index + 1)">
             <text class="rank-number">{{ index + 1 }}</text>
           </view>
-          <image class="product-image" :src="product.images[0]" mode="aspectFill" />
+          <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
           <view class="product-info">
             <text class="product-name">{{ product.name }}</text>
             <text class="product-sales">销量: {{ product.sales }}</text>
