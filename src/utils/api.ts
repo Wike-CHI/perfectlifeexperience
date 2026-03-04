@@ -6,6 +6,24 @@ export { callFunction };
 
 declare const wx: any;
 
+// ==================== 辅助函数 ====================
+
+/**
+ * 兼容云函数返回数据的格式
+ * 旧的云函数返回: { code: 0, data: {...} }
+ * callFunction包装后变成: { code: 0, msg: "success", data: { code: 0, data: {...} } }
+ * 现在callFunction会直接返回，所以需要兼容两种格式
+ */
+function extractData(res: any): any {
+  if (!res || !res.data) return null;
+  // 如果 res.data 本身就有 code 字段，说明是嵌套格式，需要再取一层
+  if (res.data.code !== undefined) {
+    return res.data.data;
+  }
+  // 否则直接返回 res.data
+  return res.data;
+}
+
 // ==================== 商品相关 API ====================
 
 /**
@@ -23,8 +41,7 @@ export const getHomePageData = async () => {
     });
 
     if (res.code === 0 && res.data) {
-      const result = res.data as { code: number; msg: string; data: { hotProducts: any[]; newProducts: any[]; topSalesProducts: any[] } };
-      return result.data;
+      return extractData(res);
     }
     throw new Error(res.msg || '获取首页数据失败');
   } catch (error) {
@@ -52,10 +69,7 @@ export const getProducts = async (params?: {
     });
 
     if (res.code === 0 && res.data) {
-      // res.data 是云函数返回值 {code: 0, msg: 'success', data: [...], total: 12}
-      // 需要返回 res.data.data 来获取商品数组
-      const result = res.data as { code: number; msg: string; data: any[]; total: number };
-      return result.data || [];
+      return extractData(res) || [];
     }
     throw new Error(res.msg || '获取商品列表失败');
   } catch (error) {
@@ -77,8 +91,7 @@ export const getProductDetail = async (id: string) => {
     });
 
     if (res.code === 0 && res.data) {
-      const result = res.data as { code: number; msg: string; data: any };
-      return result.data;
+      return extractData(res);
     }
     throw new Error(res.msg || '获取商品详情失败');
   } catch (error) {
@@ -100,8 +113,7 @@ export const getHotProducts = async (limitCount = 6) => {
     });
 
     if (res.code === 0 && res.data) {
-      const result = res.data as { code: number; msg: string; data: any[] };
-      return result.data || [];
+      return extractData(res) || [];
     }
     throw new Error(res.msg || '获取热门商品失败');
   } catch (error) {
@@ -123,8 +135,7 @@ export const getNewProducts = async (limitCount = 6) => {
     });
 
     if (res.code === 0 && res.data) {
-      const result = res.data as { code: number; msg: string; data: any[] };
-      return result.data || [];
+      return extractData(res) || [];
     }
     throw new Error(res.msg || '获取新品失败');
   } catch (error) {
@@ -147,8 +158,7 @@ export const getCategories = async () => {
     });
 
     if (res.code === 0 && res.data) {
-      const result = res.data as { code: number; msg: string; data: any[] };
-      return result.data || [];
+      return extractData(res) || [];
     }
     throw new Error(res.msg || '获取分类列表失败');
   } catch (error) {
@@ -800,8 +810,8 @@ export const createRechargePayment = async (amount: number, giftAmount: number =
 
     // 云函数返回格式: { code: 0, msg: '...', data: { prepayId, payParams, orderNo, ... } }
     if (res.code === 0 && res.data) {
-      const result = res.data as { prepayId?: string; payParams?: any; orderNo?: string };
-      if (result.payParams) {
+      const result = extractData(res);
+      if (result && result.payParams) {
         return {
           payParams: result.payParams,
           orderNo: result.orderNo

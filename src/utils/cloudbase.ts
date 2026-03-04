@@ -278,10 +278,19 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
     }
 
     // 成功时，errMsg 是 "cloud.callFunction:ok"，res.result 包含云函数返回值
+    // 如果云函数返回值已经包含code字段，说明它已经是一个完整的响应格式，直接返回
+    // 否则包装成统一格式（兼容旧的云函数）
+    const cloudResult = res.result
+    if (cloudResult && typeof cloudResult === 'object' && 'code' in cloudResult) {
+      // 云函数已经返回了完整的响应格式，直接返回
+      return cloudResult
+    }
+
+    // 旧的云函数没有code字段，需要包装
     return {
       code: 0,
       msg: 'success',
-      data: res.result
+      data: cloudResult
     };
   } catch (error) {
     console.error(`调用云函数 ${name} 失败:`, error);

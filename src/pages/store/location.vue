@@ -12,7 +12,7 @@
     >
       <!-- 用户位置标记 -->
       <cover-view class="user-location-marker" v-if="userLocation">
-        <cover-image class="user-marker-icon" src="/static/icons/user-location.png" />
+        <cover-image class="user-marker-icon" src="/static/logo.png" />
       </cover-view>
     </map>
 

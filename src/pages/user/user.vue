@@ -151,7 +151,7 @@
       <view class="menu-item admin-entry" @click="goToAdmin">
         <view class="menu-left">
           <view class="menu-icon admin">
-            <image class="menu-icon-img" src="/static/icons/menu-admin.svg" mode="aspectFit" />
+            <image class="menu-icon-img" src="/static/icons/icon-crown.svg" mode="aspectFit" />
           </view>
           <text class="menu-text admin-text">管理后台</text>
         </view>

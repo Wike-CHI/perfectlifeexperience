@@ -54,7 +54,23 @@
           <text class="receiver-phone">{{ order.receiverPhone }}</text>
         </view>
         <text class="address-detail">{{ order.fullAddress }}</text>
-        <button v-if="order.location" class="location-btn" @click="showLocation">
+        <!-- 地图预览 -->
+        <view v-if="order.location" class="map-container">
+          <map
+            class="order-map"
+            :latitude="order.location.latitude"
+            :longitude="order.location.longitude"
+            :markers="mapMarkers"
+            :scale="14"
+            :show-location="true"
+            @click="openLocation"
+          />
+          <view class="map-marker-info">
+            <text class="map-marker-label">配送位置</text>
+            <text class="map-marker-hint">点击打开微信地图导航</text>
+          </view>
+        </view>
+        <button v-else class="location-btn" @click="showLocation">
           <AdminIcon name="location" size="small" />
           <text>查看位置</text>
         </button>
@@ -112,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
 import AdminCard from '@/components/admin-card.vue'
@@ -218,17 +234,31 @@ const formatFullTime = (time: string | Date) => {
   })
 }
 
-// 查看位置
-const showLocation = () => {
-  if (!order.value.location) return
+// 地图标记点 - 使用系统默认标记
+const mapMarkers = computed(() => {
+  if (!order.value?.location) return []
+  return [{
+    id: 1,
+    latitude: order.value.location.latitude,
+    longitude: order.value.location.longitude,
+    title: '配送位置'
+  }]
+})
 
-  // TODO: 使用地图组件展示位置
+// 打开微信地图导航
+const openLocation = () => {
+  if (!order.value.location) return
   uni.openLocation({
     latitude: order.value.location.latitude,
     longitude: order.value.location.longitude,
     name: '配送地址',
     address: order.value.fullAddress
   })
+}
+
+// 兼容旧函数
+const showLocation = () => {
+  openLocation()
 }
 
 // 扫描快递单
@@ -507,6 +537,37 @@ const handleAddExpress = () => {
   font-size: 26rpx;
   color: #C9A962;
   border: none;
+}
+
+/* 地图容器 */
+.map-container {
+  margin-top: 16rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.order-map {
+  width: 100%;
+  height: 240rpx;
+}
+
+.map-marker-info {
+  padding: 12rpx 16rpx;
+  background: rgba(201, 169, 98, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.map-marker-label {
+  font-size: 26rpx;
+  color: #3D2914;
+  font-weight: 500;
+}
+
+.map-marker-hint {
+  font-size: 22rpx;
+  color: rgba(61, 41, 20, 0.6);
 }
 
 /* 商品列表 */

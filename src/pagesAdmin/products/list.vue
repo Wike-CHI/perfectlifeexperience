@@ -39,7 +39,7 @@
         class="product-item"
         @click="goToDetail(product._id)"
       >
-        <image class="product-image" :src="product.images[0]" mode="aspectFill" />
+        <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
         <view class="product-info">
           <text class="product-name">{{ product.name }}</text>
           <text class="product-category">{{ getCategoryName(product.category) }}</text>
@@ -131,7 +131,7 @@ const loadCategories = async () => {
     })
 
     if (res.code === 0 && res.data) {
-      categories.value = res.data || []
+      categories.value = res.data.categories || res.data || []
     }
   } catch (error) {
     console.error('加载分类失败:', error)
