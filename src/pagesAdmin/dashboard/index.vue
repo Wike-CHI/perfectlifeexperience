@@ -93,7 +93,7 @@
             <text class="order-user">{{ order.userName }}</text>
           </view>
           <view class="order-right">
-            <text class="order-amount">¥{{ order.totalAmount }}</text>
+            <text class="order-amount">¥{{ (order.totalAmount / 100).toFixed(2) }}</text>
             <view :class="['order-status', order.status]">
               {{ statusMap[order.status] }}
             </view>
@@ -299,8 +299,8 @@ const loadDashboard = async (forceRefresh: boolean = false) => {
 
 // 更新仪表盘数据
 const updateDashboard = (data: any) => {
-  // 更新数据概览
-  stats.value[0].value = data.todaySales || 0
+  // 更新数据概览（金额从分转换为元）
+  stats.value[0].value = Math.round((data.todaySales || 0) / 100)
   stats.value[1].value = data.todayOrders || 0
   stats.value[2].value = data.pendingTasks?.find((t: any) => t.type === 'shipment')?.count || 0
   stats.value[3].value = data.totalUsers || 0

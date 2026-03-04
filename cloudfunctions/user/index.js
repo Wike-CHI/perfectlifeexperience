@@ -149,6 +149,60 @@ async function getUserInfo(openid) {
 }
 
 /**
+ * 获取完整用户信息（包含代理等级等，用于前端同步最新数据）
+ * @param {string} openid - 用户openid
+ */
+async function getFullUserInfo(openid) {
+  try {
+    const usersCollection = db.collection('users');
+
+    const { data: users } = await usersCollection
+      .where({
+        _openid: openid
+      })
+      .limit(1)
+      .get();
+
+    if (users.length === 0) {
+      return {
+        success: false,
+        error: '用户不存在',
+        message: '用户不存在'
+      };
+    }
+
+    const user = users[0];
+
+    // 返回完整用户信息，包含代理等级和业绩
+    return {
+      success: true,
+      code: 0,
+      data: {
+        _id: user._id,
+        _openid: user._openid,
+        nickName: user.nickName,
+        avatarUrl: user.avatarUrl,
+        phone: user.phone,
+        agentLevel: user.agentLevel || 4,  // 代理等级，默认4（普通会员）
+        promotionPath: user.promotionPath,
+        performance: user.performance || {
+          totalSales: 0,
+          monthSales: 0,
+          monthTag: '',
+          teamCount: 0
+        },
+        createTime: user.createTime,
+        lastLoginTime: user.lastLoginTime
+      },
+      message: '获取成功'
+    };
+  } catch (error) {
+    logger.error('Get full user info failed', error);
+    throw error;
+  }
+}
+
+/**
  * 更新用户信息
  * @param {string} openid - 用户openid
  * @param {Object} updateData - 要更新的数据
@@ -316,6 +370,10 @@ exports.main = async (event, context) => {
       case 'getUserInfo':
         // 获取用户信息
         return await getUserInfo(openid);
+
+      case 'getMyInfo':
+        // 获取完整用户信息（包含代理等级等）
+        return await getFullUserInfo(openid);
         
       case 'updateUserInfo':
         // 更新用户信息

@@ -195,6 +195,8 @@ exports.main = async (event, context) => {
         return await userModule.getUserOrdersAdmin(db, data)
       case 'getUserRewards':
         return await userModule.getUserRewardsAdmin(db, data)
+      case 'updateUserAgentLevel':
+        return await userModule.updateUserAgentLevel(db, data)
       case 'getWithdrawals':
         return await withdrawalModule.getWithdrawalsAdmin(db, data)
       case 'approveWithdrawal':
@@ -597,9 +599,9 @@ async function getDashboardData(data) {
 // Promotion functions
 async function getPromotionStatsAdmin(data) {
   try {
-    // 推广员统计：代理等级1-3的都是推广员
+    // 推广员统计：代理等级1-4的都是推广体系成员（含普通会员）
     const [totalPromoters, totalTeams, totalRewards, recentOrders] = await Promise.all([
-      db.collection('users').where({ agentLevel: _.lte(3) }).count(),
+      db.collection('users').where({ agentLevel: _.lte(4) }).count(),
       db.collection('promotion_relations').count(),
       db.collection('reward_records').count(),
       db.collection('promotion_orders')
@@ -1163,12 +1165,12 @@ async function getPromotersAdmin(data) {
     const { page = 1, pageSize = 20, agentLevel, keyword } = data || {};
     const skip = (page - 1) * pageSize;
 
-    // 推广员：代理等级1-3（金牌、银牌、铜牌）
+    // 推广员：代理等级1-4（金牌、银牌、铜牌、普通会员）
     let query = {
-      agentLevel: _.lte(3) // Only get promoters (1=金牌, 2=银牌, 3=铜牌)
+      agentLevel: _.lte(4) // 包含所有代理等级（1-4级）
     };
 
-    if (agentLevel !== undefined && agentLevel >= 1 && agentLevel <= 3) {
+    if (agentLevel !== undefined && agentLevel >= 1 && agentLevel <= 4) {
       query.agentLevel = agentLevel;
     }
 

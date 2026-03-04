@@ -262,11 +262,67 @@ async function getUserRewardsAdmin(db, data) {
   }
 }
 
+/**
+ * 更新用户代理等级（管理员手动设置）
+ * @param {Object} db - 数据库实例
+ * @param {Object} data - 请求数据 { userId, agentLevel }
+ * @returns {Promise<Object>} 更新结果
+ */
+async function updateUserAgentLevel(db, data) {
+  try {
+    const { userId, agentLevel } = data || {};
+
+    // 参数验证
+    if (!userId) {
+      return { code: 400, msg: '用户ID不能为空' };
+    }
+
+    if (agentLevel === undefined || agentLevel === null) {
+      return { code: 400, msg: '代理等级不能为空' };
+    }
+
+    // 验证代理等级范围 (0-4)
+    if (typeof agentLevel !== 'number' || agentLevel < 0 || agentLevel > 4) {
+      return { code: 400, msg: '代理等级必须是0-4之间的数字' };
+    }
+
+    // 检查用户是否存在
+    const userResult = await db.collection('users').doc(userId).get();
+    if (!userResult.data) {
+      return { code: 404, msg: '用户不存在' };
+    }
+
+    const oldLevel = userResult.data.agentLevel || 4;
+
+    // 更新用户代理等级
+    await db.collection('users').doc(userId).update({
+      data: {
+        agentLevel: agentLevel,
+        updateTime: db.serverDate()
+      }
+    });
+
+    return {
+      code: 0,
+      msg: '代理等级更新成功',
+      data: {
+        userId,
+        oldLevel,
+        newLevel: agentLevel
+      }
+    };
+  } catch (error) {
+    console.error('Update user agent level error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
 module.exports = {
   getUsersAdmin,
   getUserDetailAdmin,
   getUserWalletAdmin,
   getPromotionPathAdmin,
   getUserOrdersAdmin,
-  getUserRewardsAdmin
+  getUserRewardsAdmin,
+  updateUserAgentLevel
 };

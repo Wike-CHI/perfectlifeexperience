@@ -15,11 +15,33 @@ async function getOrders(db, data) {
       if (startDate) query.createTime.$gte = new Date(startDate);
       if (endDate) query.createTime.$lte = new Date(endDate);
     }
-    const [orders, count] = await Promise.all([
+    const [ordersResult, countResult] = await Promise.all([
       db.collection('orders').where(query).orderBy('createTime', 'desc').skip(skip).limit(validLimit).get(),
       db.collection('orders').where(query).count()
     ]);
-    return { code: 0, data: { list: orders.data, total: count.total, page, limit: validLimit } };
+
+    const orders = ordersResult.data;
+
+    // 为每个订单获取用户信息
+    const openids = [...new Set(orders.map(o => o._openid).filter(Boolean))];
+    let userMap = {};
+    if (openids.length > 0) {
+      const usersResult = await db.collection('users').where({
+        _openid: db.command.in(openids)
+      }).get();
+      userMap = usersResult.data.reduce((map, user) => {
+        map[user._openid] = user;
+        return map;
+      }, {});
+    }
+
+    // 为每个订单添加用户名
+    const list = orders.map(order => ({
+      ...order,
+      userName: order.userName || userMap[order._openid]?.nickName || userMap[order._openid]?.name || '微信用户'
+    }));
+
+    return { code: 0, data: { list, total: countResult.total, page, limit: validLimit } };
   } catch (error) {
     console.error('Get orders error:', error);
     return { code: 500, msg: error.message };

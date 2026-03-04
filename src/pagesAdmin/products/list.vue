@@ -20,6 +20,13 @@
     <scroll-view class="category-scroll" scroll-x enhanced show-scrollbar="false">
       <view class="category-list">
         <view
+          class="category-item"
+          :class="{ active: !selectedCategory }"
+          @click="selectCategory('')"
+        >
+          <text class="category-text">全部</text>
+        </view>
+        <view
           v-for="cat in categories"
           :key="cat._id"
           class="category-item"
@@ -152,14 +159,21 @@ const loadProducts = async () => {
   try {
     loading.value = true
 
+    // 获取选中的分类名称（数据库中category存的是名称不是ID）
+    let categoryFilter = undefined
+    if (selectedCategory.value) {
+      const selectedCat = categories.value.find(c => c._id === selectedCategory.value)
+      categoryFilter = selectedCat?.name
+    }
+
     const res = await callFunction('admin-api', {
       action: 'getProducts',
       adminToken: AdminAuthManager.getToken(),
       data: {
         page: page.value,
         limit: 20,
-        category: selectedCategory.value || undefined,
-        status: selectedCategory.value === 'all' ? undefined : undefined
+        category: categoryFilter,
+        status: undefined
       }
     })
 

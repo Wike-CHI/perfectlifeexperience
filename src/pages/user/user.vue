@@ -182,7 +182,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getUserInfo, getOrders, getWalletBalance, getPromotionInfo, fullLogin, getCommissionWalletBalance } from '@/utils/api';
+import { getUserInfo, getUserInfoFromCloud, getOrders, getWalletBalance, getPromotionInfo, fullLogin, getCommissionWalletBalance } from '@/utils/api';
 import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
 import { getFavoriteCount } from '@/utils/favorite';
 
@@ -233,9 +233,17 @@ const favoriteCount = ref(0); // 收藏数量
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
-    const res = await getUserInfo();
+    // 先从本地缓存获取用户信息（用于快速显示）
+    let res = await getUserInfo();
+
+    // 如果用户已登录，从云函数获取最新数据（包括代理等级）
     if (res) {
-      userInfo.value = res;
+      const cloudInfo = await getUserInfoFromCloud();
+      if (cloudInfo) {
+        userInfo.value = cloudInfo;
+      } else {
+        userInfo.value = res;
+      }
       isLoggedIn.value = true;
       // 加载其他数据
       loadOrderCount();
@@ -255,7 +263,14 @@ const loadUserInfo = async () => {
     }
   } catch (error) {
     console.error('加载用户信息失败:', error);
-    isLoggedIn.value = false;
+    // 即使出错也尝试使用本地缓存
+    const res = await getUserInfo();
+    if (res) {
+      userInfo.value = res;
+      isLoggedIn.value = true;
+    } else {
+      isLoggedIn.value = false;
+    }
   }
 };
 

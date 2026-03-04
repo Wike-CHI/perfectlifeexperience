@@ -264,8 +264,9 @@ const loadMore = () => {
 
 // 跳转到订单详情
 const goToDetail = (order: any) => {
+  const orderId = order.id || order._id
   uni.navigateTo({
-    url: `/pagesAdmin/orders/detail?id=${order.id}`
+    url: `/pagesAdmin/orders/detail?id=${orderId}`
   })
 }
 
@@ -280,7 +281,7 @@ const handleScanOrder = async (order: any) => {
           action: 'updateOrderExpress',
           adminToken: AdminAuthManager.getToken(),
           data: {
-            orderId: order.id,
+            orderId: order.id || order._id,
             expressCode: res.result
           }
         })
@@ -336,7 +337,7 @@ const handleUpdateStatus = (order: any) => {
           action: 'updateOrderStatus',
           adminToken: AdminAuthManager.getToken(),
           data: {
-            orderId: order.id,
+            orderId: order.id || order._id,
             status: newStatus
           }
         })

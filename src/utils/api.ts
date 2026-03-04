@@ -463,6 +463,25 @@ export const getUserInfo = async (): Promise<UserInfo | null> => {
   return JSON.parse(userJson) as UserInfo;
 };
 
+// 从云函数获取最新用户信息（包含代理等级等最新数据）
+export const getUserInfoFromCloud = async (): Promise<UserInfo | null> => {
+  try {
+    const res = await callFunction('user', {
+      action: 'getMyInfo'
+    });
+    if (res.code === 0 && res.data) {
+      // 更新本地缓存
+      uni.setStorageSync(USER_KEY, JSON.stringify(res.data));
+      return res.data as UserInfo;
+    }
+    // 如果调用失败，返回本地缓存
+    return getUserInfo();
+  } catch (error) {
+    console.error('获取用户信息失败:', error);
+    return getUserInfo();
+  }
+};
+
 // 检查用户是否已登录（有用户信息）
 export const isUserLoggedIn = async (): Promise<boolean> => {
   const user = await getUserInfo();

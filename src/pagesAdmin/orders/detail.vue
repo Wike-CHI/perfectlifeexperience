@@ -26,7 +26,7 @@
         </view>
         <view class="info-item">
           <text class="info-label">订单金额</text>
-          <text class="info-value amount">¥{{ order.totalAmount }}</text>
+          <text class="info-value amount">¥{{ (order.totalAmount / 100).toFixed(2) }}</text>
         </view>
         <view v-if="order.payTime" class="info-item">
           <text class="info-label">支付时间</text>
@@ -208,7 +208,16 @@ const loadOrderDetail = async () => {
     uni.hideLoading()
 
     if (res.code === 0 && res.data) {
-      order.value = res.data.order
+      const orderData = res.data.order || res.data
+      // 合并用户信息到订单数据
+      const userInfo = res.data.user || {}
+      order.value = {
+        ...orderData,
+        // 兼容用户信息字段名
+        userName: orderData.userName || userInfo.nickName || userInfo.name || '未知用户',
+        userPhone: orderData.userPhone || userInfo.phone || userInfo.mobile || '',
+        userAvatar: userInfo.avatarUrl || userInfo.avatar || ''
+      }
     } else {
       throw new Error(res.msg || '加载失败')
     }

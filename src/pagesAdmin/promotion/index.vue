@@ -44,8 +44,8 @@
             <promotion-icon name="commission" />
           </view>
           <view class="stat-content">
-            <text class="stat-value">¥{{ formatMoney(stats.totalRewards) }}</text>
-            <text class="stat-label">总佣金</text>
+            <text class="stat-value">{{ stats.totalRewards }}</text>
+            <text class="stat-label">奖励记录</text>
           </view>
         </view>
 
@@ -54,8 +54,8 @@
             <promotion-icon name="rank" />
           </view>
           <view class="stat-content">
-            <text class="stat-value">{{ stats.totalRewards }}</text>
-            <text class="stat-label">奖励记录</text>
+            <text class="stat-value">{{ stats.totalTeams }}</text>
+            <text class="stat-label">团队关系</text>
           </view>
         </view>
       </view>
@@ -315,9 +315,10 @@ const updateStats = (data: any) => {
 // ==================== 工具函数 ====================
 
 /**
- * 格式化金额
+ * 格式化金额（从分转换为元）
  */
 const formatMoney = (amount: number): string => {
+  if (amount === undefined || amount === null) return '0.00'
   return (amount / 100).toFixed(2)
 }
 
@@ -337,11 +338,17 @@ const formatTime = (time: string | Date): string => {
 }
 
 /**
- * 获取代理等级名称
+ * 获取代理等级名称 - 使用统一常量
  */
 const getAgentLevelName = (level: number): string => {
-  const names = ['非代理', '一级代理', '二级代理', '三级代理', '四级代理']
-  return names[level] || '未知'
+  const names: Record<number, string> = {
+    0: '总公司',
+    1: '金牌推广员',
+    2: '银牌推广员',
+    3: '铜牌推广员',
+    4: '普通会员'
+  }
+  return names[level] || '普通会员'
 }
 
 /**

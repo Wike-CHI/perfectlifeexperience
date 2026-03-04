@@ -107,7 +107,8 @@
       "Bash(npx mocha:*)",
       "Bash(do echo:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npx -y tcb:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
