@@ -245,12 +245,15 @@ const loadUserInfo = async () => {
         userInfo.value = res;
       }
       isLoggedIn.value = true;
-      // 加载其他数据
-      loadOrderCount();
-      loadWalletBalance();
-      loadCommissionWalletBalance();
-      loadPromotionReward();
-      loadFavoriteCount();
+
+      // 并行加载其他数据（优化性能）
+      await Promise.all([
+        loadOrderCount(),
+        loadWalletBalance(),
+        loadCommissionWalletBalance(),
+        loadPromotionReward(),
+        loadFavoriteCount()
+      ]);
     } else {
       userInfo.value = {};
       isLoggedIn.value = false;

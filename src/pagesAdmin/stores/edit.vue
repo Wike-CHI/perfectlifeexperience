@@ -2,7 +2,7 @@
   <view class="store-edit-page">
     <!-- 页面头部 -->
     <view class="page-header">
-      <text class="page-title">门店管理</text>
+      <text class="page-title">{{ storeId ? '编辑门店' : '添加门店' }}</text>
     </view>
 
     <!-- 门店信息表单 -->
@@ -61,6 +61,17 @@
       </view>
 
       <view class="form-item">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          v-model.number="storeInfo.sort"
+          type="number"
+          placeholder="数字越小越靠前"
+          placeholder-class="input-placeholder"
+        />
+      </view>
+
+      <view class="form-item">
         <text class="form-label">经纬度坐标</text>
         <view class="coordinate-row">
           <view class="coordinate-input-wrapper">
@@ -84,25 +95,6 @@
             />
           </view>
         </view>
-        <view class="coordinate-tip">
-          <AdminIcon name="bulb" size="small" />
-          <text class="tip-text">可在地图应用中获取精确坐标</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 地图预览 -->
-    <view class="map-section" v-if="storeInfo.latitude && storeInfo.longitude">
-      <view class="section-title">地图预览</view>
-      <view class="map-preview">
-        <map
-          class="map"
-          :latitude="parseFloat(storeInfo.latitude)"
-          :longitude="parseFloat(storeInfo.longitude)"
-          :markers="mapMarkers"
-          :scale="15"
-          show-location
-        />
       </view>
     </view>
 
@@ -110,31 +102,19 @@
     <view class="status-section">
       <view class="section-title">营业状态</view>
       <view class="status-switch">
-        <text class="status-label">{{ storeInfo.isOpen ? '营业中' : '已打烊' }}</text>
+        <text class="status-label">{{ storeInfo.isActive ? '营业中' : '已停业' }}</text>
         <switch
-          :checked="storeInfo.isOpen"
+          :checked="storeInfo.isActive"
           @change="handleStatusChange"
           color="#C9A962"
         />
       </view>
     </view>
 
-    <!-- 门店描述 -->
-    <view class="form-section">
-      <view class="section-title">门店描述</view>
-      <textarea
-        class="form-textarea"
-        v-model="storeInfo.description"
-        placeholder="请输入门店描述、交通指南等信息"
-        placeholder-class="input-placeholder"
-        :maxlength="500"
-      />
-      <view class="char-count">{{ (storeInfo.description || '').length }}/500</view>
-    </view>
-
     <!-- 操作按钮 -->
     <view class="action-buttons">
-      <button class="action-btn primary" @click="handleSave">保存更改</button>
+      <button class="action-btn secondary" @click="handleCancel">取消</button>
+      <button class="action-btn primary" @click="handleSave">保存</button>
     </view>
   </view>
 </template>
@@ -145,22 +125,20 @@ import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
 import AdminIcon from '@/components/admin-icon.vue'
 
-/**
- * 门店管理页面
- * 功能：编辑门店基本信息、位置、营业状态
- */
+// 门店ID
+const storeId = ref('')
 
 // 门店信息
 const storeInfo = ref({
-  name: '大友元气精酿啤酒总店',
+  name: '',
   address: '',
   phone: '',
   latitude: '',
   longitude: '',
   openTime: '09:00',
   closeTime: '22:00',
-  isOpen: true,
-  description: ''
+  isActive: true,
+  sort: 0
 })
 
 // 地图标记
@@ -179,148 +157,110 @@ const mapMarkers = computed(() => {
 })
 
 onMounted(() => {
-  loadStoreInfo()
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1] as any
+  const options = currentPage?.options || {}
+
+  if (options.id) {
+    storeId.value = options.id
+    loadStoreDetail(options.id)
+  }
 })
 
-/**
- * 加载门店信息
- */
-const loadStoreInfo = async () => {
+const loadStoreDetail = async (id: string) => {
   try {
     uni.showLoading({ title: '加载中...' })
 
     const res = await callFunction('admin-api', {
-      action: 'getStoreInfo',
-      adminToken: AdminAuthManager.getToken()
+      action: 'getStoreDetail',
+      adminToken: AdminAuthManager.getToken(),
+      data: { id }
     })
 
     uni.hideLoading()
 
     if (res.code === 0 && res.data) {
+      const bh = res.data.businessHours || ''
       storeInfo.value = {
-        name: res.data.name || '大友元气精酿啤酒总店',
+        name: res.data.name || '',
         address: res.data.address || '',
         phone: res.data.phone || '',
         latitude: res.data.latitude || '',
         longitude: res.data.longitude || '',
-        openTime: res.data.openTime || '09:00',
-        closeTime: res.data.closeTime || '22:00',
-        isOpen: res.data.isOpen !== false,
-        description: res.data.description || ''
+        openTime: bh.split('-')[0] || '09:00',
+        closeTime: bh.split('-')[1] || '22:00',
+        isActive: res.data.isActive !== false,
+        sort: res.data.sort || 0
       }
     }
   } catch (error: any) {
     uni.hideLoading()
-    console.error('加载门店信息失败:', error)
+    console.error('加载失败:', error)
   }
 }
 
-/**
- * 切换营业状态
- */
 const handleStatusChange = (e: any) => {
-  storeInfo.value.isOpen = e.detail.value
+  storeInfo.value.isActive = e.detail.value
 }
 
-/**
- * 验证表单
- */
+const handleCancel = () => {
+  uni.navigateBack()
+}
+
 const validateForm = (): boolean => {
   if (!storeInfo.value.name?.trim()) {
-    uni.showToast({
-      title: '请输入门店名称',
-      icon: 'none'
-    })
+    uni.showToast({ title: '请输入门店名称', icon: 'none' })
     return false
   }
-
   if (!storeInfo.value.address?.trim()) {
-    uni.showToast({
-      title: '请输入门店地址',
-      icon: 'none'
-    })
+    uni.showToast({ title: '请输入门店地址', icon: 'none' })
     return false
   }
-
   if (!storeInfo.value.phone?.trim()) {
-    uni.showToast({
-      title: '请输入联系电话',
-      icon: 'none'
-    })
+    uni.showToast({ title: '请输入联系电话', icon: 'none' })
     return false
   }
-
-  // 验证手机号格式
-  const phoneReg = /^1[3-9]\d{9}$/
-  if (!phoneReg.test(storeInfo.value.phone)) {
-    uni.showToast({
-      title: '请输入正确的手机号',
-      icon: 'none'
-    })
-    return false
-  }
-
-  // 验证经纬度
-  if (storeInfo.value.latitude || storeInfo.value.longitude) {
-    const lat = parseFloat(storeInfo.value.latitude)
-    const lng = parseFloat(storeInfo.value.longitude)
-
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      uni.showToast({
-        title: '纬度范围应在-90到90之间',
-        icon: 'none'
-      })
-      return false
-    }
-
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-      uni.showToast({
-        title: '经度范围应在-180到180之间',
-        icon: 'none'
-      })
-      return false
-    }
-  }
-
   return true
 }
 
-/**
- * 保存门店信息
- */
 const handleSave = async () => {
   if (!validateForm()) return
 
   try {
     uni.showLoading({ title: '保存中...' })
 
+    const data = {
+      name: storeInfo.value.name,
+      address: storeInfo.value.address,
+      phone: storeInfo.value.phone,
+      businessHours: `${storeInfo.value.openTime}-${storeInfo.value.closeTime}`,
+      latitude: storeInfo.value.latitude ? parseFloat(storeInfo.value.latitude) : '',
+      longitude: storeInfo.value.longitude ? parseFloat(storeInfo.value.longitude) : '',
+      isActive: storeInfo.value.isActive,
+      sort: storeInfo.value.sort || 0
+    }
+
+    const action = storeId.value ? 'updateStore' : 'createStore'
+    const saveData = storeId.value ? { id: storeId.value, ...data } : data
+
     const res = await callFunction('admin-api', {
-      action: 'updateStoreInfo',
+      action,
       adminToken: AdminAuthManager.getToken(),
-      data: {
-        ...storeInfo.value,
-        latitude: storeInfo.value.latitude ? parseFloat(storeInfo.value.latitude) : null,
-        longitude: storeInfo.value.longitude ? parseFloat(storeInfo.value.longitude) : null
-      }
+      data: saveData
     })
 
     uni.hideLoading()
 
     if (res.code === 0) {
-      uni.showToast({
-        title: '保存成功',
-        icon: 'success'
-      })
+      uni.showToast({ title: '保存成功', icon: 'success' })
+      setTimeout(() => uni.navigateBack(), 1500)
     } else {
       throw new Error(res.msg || '保存失败')
     }
   } catch (error: any) {
     uni.hideLoading()
-    console.error('保存门店信息失败:', error)
-    uni.showToast({
-      title: error.message || '保存失败',
-      icon: 'none'
-    })
+    console.error('保存失败:', error)
+    uni.showToast({ title: error.message || '保存失败', icon: 'none' })
   }
 }
 </script>
@@ -333,7 +273,6 @@ const handleSave = async () => {
   padding-bottom: 120rpx;
 }
 
-/* 页面头部 */
 .page-header {
   margin-bottom: 32rpx;
 }
@@ -345,8 +284,7 @@ const handleSave = async () => {
   letter-spacing: 2rpx;
 }
 
-/* 表单区域 */
-.form-section {
+.form-section, .status-section {
   background: rgba(255, 255, 255, 0.03);
   border: 1rpx solid rgba(201, 169, 98, 0.1);
   border-radius: 16rpx;
@@ -355,7 +293,7 @@ const handleSave = async () => {
 }
 
 .section-title {
-  font-size: 32rpx;
+  font-size: 30rpx;
   font-weight: 600;
   color: #F5F5F0;
   margin-bottom: 24rpx;
@@ -365,51 +303,28 @@ const handleSave = async () => {
   margin-bottom: 24rpx;
 }
 
-.form-item:last-child {
-  margin-bottom: 0;
-}
-
 .form-label {
-  display: block;
   font-size: 26rpx;
   color: rgba(245, 245, 240, 0.6);
+  display: block;
   margin-bottom: 12rpx;
 }
 
-.form-input {
+.form-input, .form-textarea {
   width: 100%;
-  padding: 20rpx;
+  padding: 20rpx 24rpx;
   background: rgba(255, 255, 255, 0.03);
   border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 12rpx;
   font-size: 28rpx;
   color: #F5F5F0;
+  box-sizing: border-box;
 }
 
 .form-textarea {
-  width: 100%;
-  min-height: 160rpx;
-  padding: 20rpx;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1rpx solid rgba(201, 169, 98, 0.2);
-  border-radius: 12rpx;
-  font-size: 28rpx;
-  color: #F5F5F0;
-  line-height: 1.6;
+  min-height: 120rpx;
 }
 
-.input-placeholder {
-  color: rgba(245, 245, 240, 0.3);
-}
-
-.char-count {
-  text-align: right;
-  font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.3);
-  margin-top: 8rpx;
-}
-
-/* 时间选择 */
 .time-range {
   display: flex;
   align-items: center;
@@ -418,21 +333,18 @@ const handleSave = async () => {
 
 .time-input {
   flex: 1;
-  padding: 20rpx;
+  padding: 16rpx 20rpx;
   background: rgba(255, 255, 255, 0.03);
   border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 12rpx;
   font-size: 28rpx;
   color: #F5F5F0;
-  text-align: center;
 }
 
 .time-separator {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.5);
+  color: rgba(245, 245, 240, 0.4);
 }
 
-/* 坐标输入 */
 .coordinate-row {
   display: flex;
   gap: 16rpx;
@@ -440,73 +352,24 @@ const handleSave = async () => {
 
 .coordinate-input-wrapper {
   flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
+}
+
+.coordinate-label {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.coordinate-input {
+  width: 100%;
   padding: 16rpx 20rpx;
   background: rgba(255, 255, 255, 0.03);
   border: 1rpx solid rgba(201, 169, 98, 0.2);
   border-radius: 12rpx;
-}
-
-.coordinate-label {
-  font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.5);
-  flex-shrink: 0;
-}
-
-.coordinate-input {
-  flex: 1;
-  font-size: 26rpx;
+  font-size: 28rpx;
   color: #F5F5F0;
-}
-
-.coordinate-tip {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  margin-top: 12rpx;
-  padding: 12rpx 16rpx;
-  background: rgba(201, 169, 98, 0.05);
-  border-radius: 8rpx;
-}
-
-.tip-icon {
-  font-size: 24rpx;
-}
-
-.tip-text {
-  font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.4);
-}
-
-/* 地图预览 */
-.map-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1rpx solid rgba(201, 169, 98, 0.1);
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
-}
-
-.map-preview {
-  border-radius: 12rpx;
-  overflow: hidden;
-  background: rgba(201, 169, 98, 0.05);
-}
-
-.map {
-  width: 100%;
-  height: 400rpx;
-}
-
-/* 营业状态 */
-.status-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1rpx solid rgba(201, 169, 98, 0.1);
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
+  box-sizing: border-box;
 }
 
 .status-switch {
@@ -520,10 +383,10 @@ const handleSave = async () => {
   color: #F5F5F0;
 }
 
-/* 操作按钮 */
 .action-buttons {
   display: flex;
   gap: 16rpx;
+  margin-top: 48rpx;
 }
 
 .action-btn {
@@ -538,12 +401,14 @@ const handleSave = async () => {
   border: none;
 }
 
+.action-btn.secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
+  color: #C9A962;
+}
+
 .action-btn.primary {
   background: linear-gradient(145deg, #C8A464 0%, #A88B4A 100%);
   color: #0D0D0D;
-}
-
-.action-btn.primary:active {
-  opacity: 0.9;
 }
 </style>

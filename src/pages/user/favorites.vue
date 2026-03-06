@@ -11,7 +11,7 @@
     <!-- 收藏列表 -->
     <view class="list" v-else>
       <view class="item" v-for="item in favorites" :key="item.productId" @click="goDetail(item.productId)">
-        <image class="item-img" :src="item.image" mode="aspectFill" />
+        <image class="item-img" :src="getListThumbnail(item.image)" mode="aspectFill" lazy-load />
         <view class="item-info">
           <text class="item-name">{{ item.name }}</text>
           <view class="item-bottom">
@@ -40,6 +40,7 @@ import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getFavorites, removeFavorite, clearFavorites, type FavoriteItem } from '@/utils/favorite';
 import { addToCart as addToCartApi } from '@/utils/api';
+import { getListThumbnail } from '@/utils/image';
 
 const favorites = ref<FavoriteItem[]>([]);
 

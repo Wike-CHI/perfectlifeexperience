@@ -142,6 +142,53 @@
       </view>
     </view>
 
+    <!-- 充值配置 -->
+    <view class="setting-section">
+      <view class="section-header">
+        <text class="section-title">充值配置</text>
+        <text class="section-desc">设置充值档位及赠送金额</text>
+      </view>
+
+      <view class="recharge-options">
+        <view
+          class="recharge-option"
+          v-for="(opt, idx) in rechargeOptions"
+          :key="idx"
+        >
+          <view class="option-input">
+            <text class="option-label">充值</text>
+            <input
+              class="form-input small"
+              v-model="opt.amount"
+              type="number"
+              placeholder="金额"
+            />
+            <text class="option-unit">元</text>
+          </view>
+          <view class="option-input">
+            <text class="option-label">赠送</text>
+            <input
+              class="form-input small"
+              v-model="opt.gift"
+              type="number"
+              placeholder="金额"
+            />
+            <text class="option-unit">元</text>
+          </view>
+          <view class="option-actions">
+            <view class="delete-btn" @click="removeRechargeOption(idx)">
+              <AdminIcon name="delete" size="small" variant="danger" />
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="add-option-btn" @click="addRechargeOption">
+        <AdminIcon name="plus" size="small" />
+        <text>添加充值档位</text>
+      </view>
+    </view>
+
     <!-- 其他配置 -->
     <view class="setting-section">
       <view class="section-header">
@@ -218,8 +265,33 @@ const config = ref({
   withdrawFeeRate: '0'
 })
 
+// 充值配置
+const rechargeOptions = ref([
+  { amount: '200', gift: '10' },
+  { amount: '500', gift: '35' },
+  { amount: '1000', gift: '80' },
+  { amount: '2000', gift: '200' }
+])
+
 // 默认配置
 const defaultConfig = { ...config.value }
+
+// 添加充值档位
+const addRechargeOption = () => {
+  rechargeOptions.value.push({ amount: '', gift: '' })
+}
+
+// 删除充值档位
+const removeRechargeOption = (index: number) => {
+  if (rechargeOptions.value.length <= 1) {
+    uni.showToast({
+      title: '至少保留一个档位',
+      icon: 'none'
+    })
+    return
+  }
+  rechargeOptions.value.splice(index, 1)
+}
 
 onMounted(() => {
   loadConfig()
@@ -252,6 +324,14 @@ const loadConfig = async () => {
         goldMonthSales: String(res.data.goldMonthSales ?? 20000),
         minWithdrawAmount: String(res.data.minWithdrawAmount ?? 100),
         withdrawFeeRate: String(res.data.withdrawFeeRate ?? 0)
+      }
+
+      // 加载充值配置
+      if (res.data.rechargeOptions && Array.isArray(res.data.rechargeOptions) && res.data.rechargeOptions.length > 0) {
+        rechargeOptions.value = res.data.rechargeOptions.map((opt: any) => ({
+          amount: String(opt.amount ?? ''),
+          gift: String(opt.gift ?? '')
+        }))
       }
     }
   } catch (error: any) {
@@ -362,7 +442,14 @@ const handleSave = async () => {
             goldTeamCount: parseInt(config.value.goldTeamCount),
             goldMonthSales: parseInt(config.value.goldMonthSales),
             minWithdrawAmount: parseInt(config.value.minWithdrawAmount),
-            withdrawFeeRate: parseFloat(config.value.withdrawFeeRate)
+            withdrawFeeRate: parseFloat(config.value.withdrawFeeRate),
+            // 充值配置
+            rechargeOptions: rechargeOptions.value
+              .filter(opt => opt.amount && opt.gift)
+              .map(opt => ({
+                amount: parseInt(opt.amount),
+                gift: parseInt(opt.gift)
+              }))
           }
 
           const response = await callFunction('admin-api', {
@@ -555,5 +642,69 @@ const handleSave = async () => {
   font-size: 22rpx;
   color: rgba(245, 245, 240, 0.5);
   flex: 1;
+}
+
+/* 充值配置样式 */
+.recharge-options {
+  margin-bottom: 16rpx;
+}
+
+.recharge-option {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 16rpx;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
+  border-radius: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.option-input {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  flex: 1;
+}
+
+.option-label {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.5);
+  min-width: 40rpx;
+}
+
+.option-unit {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.5);
+}
+
+.form-input.small {
+  width: 120rpx;
+  padding: 12rpx 16rpx;
+}
+
+.option-actions {
+  display: flex;
+  align-items: center;
+}
+
+.delete-btn {
+  padding: 8rpx;
+}
+
+.add-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  padding: 20rpx;
+  border: 1rpx dashed rgba(201, 169, 98, 0.3);
+  border-radius: 12rpx;
+  color: #C9A962;
+  font-size: 26rpx;
+}
+
+.add-option-btn:active {
+  background: rgba(201, 169, 98, 0.1);
 }
 </style>

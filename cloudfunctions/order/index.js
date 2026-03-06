@@ -1114,7 +1114,7 @@ async function checkIsRepurchase(buyerId) {
       })
       .count();
 
-    const isRepurchase = count.total > 1; // 大于1单表示复购
+    const isRepurchase = count.total >= 2; // 订单数>=2表示复购
 
     logger.debug('Repurchase check', {
       buyerId,

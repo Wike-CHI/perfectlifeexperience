@@ -61,7 +61,7 @@
           :key="member._id || member.inviteCode"
           class="member-item"
         >
-          <image class="member-avatar" :src="member.avatarUrl || '/static/logo.png'" mode="aspectFill" />
+          <image class="member-avatar" :src="getAvatarThumbnail(member.avatarUrl) || '/static/logo.png'" mode="aspectFill" lazy-load />
           <view class="member-info">
             <view class="member-name-row">
               <text class="member-name">{{ member.nickName || '微信用户' }}</text>
@@ -94,6 +94,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { getTeamMembers, getPromotionInfo } from '@/utils/api';
 import { formatPrice, formatTime } from '@/utils/format';
+import { getAvatarThumbnail } from '@/utils/image';
 import {
   AGENT_LEVEL_ROMAN,
   AGENT_LEVEL_SHORT,

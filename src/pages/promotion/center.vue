@@ -180,7 +180,7 @@
             <image class="icon-svg" src="/static/icons/icon-level-star.svg" mode="aspectFit"/>
           </view>
           <view class="menu-info">
-            <text class="menu-title">晋升机制</text>
+            <text class="menu-title">升级规则</text>
             <text class="menu-subtitle">升级条件与权益</text>
           </view>
         </view>
@@ -237,15 +237,11 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getPromotionInfo } from '@/utils/api';
-import { usePromotion } from '@/composables/usePromotion';
 import PromotionBadge from '@/components/PromotionBadge.vue';
 import PromotionProgress from '@/components/PromotionProgress.vue';
 import type { PromotionProgress as PromotionProgressType, TeamStats, AgentLevel } from '@/types';
 
 const SETTLEMENT_DAYS = 7;
-
-// 使用 usePromotion composable
-const { myCommissionRatio, upstreamRatios } = usePromotion();
 
 // 默认晋升进度
 const defaultPromotionProgress: PromotionProgressType = {
@@ -261,6 +257,7 @@ interface PromotionInfoLocal {
   inviteCode: string;
   agentLevel: AgentLevel;
   agentLevelName: string;
+  promotionPath?: string;  // 推广路径
   totalReward: number;
   pendingReward: number;
   withdrawableReward: number;
@@ -281,6 +278,7 @@ const promotionInfo = ref<PromotionInfoLocal>({
   inviteCode: '',
   agentLevel: 4,
   agentLevelName: '普通会员',
+  promotionPath: '',
   totalReward: 0,
   pendingReward: 0,
   withdrawableReward: 0,
@@ -300,6 +298,39 @@ const promotionInfo = ref<PromotionInfoLocal>({
 
 const loading = ref(false);
 
+// 计算我的佣金比例
+const myCommissionRatio = computed(() => {
+  const ratios: Record<number, number> = {
+    1: 20,  // 一级代理（金牌）
+    2: 12,  // 二级代理（银牌）
+    3: 12,  // 三级代理（铜牌）
+    4: 8    // 四级代理（普通）
+  };
+  return ratios[promotionInfo.value.agentLevel] || 8;
+});
+
+// 计算上级佣金比例（根据实际推广路径）
+const upstreamRatios = computed(() => {
+  // 根据代理等级确定各上级应该拿的佣金比例模板
+  const upstreamRatioTemplates: Record<number, number[]> = {
+    1: [],                  // 一级无上级
+    2: [0.08],              // 二级：一级拿8%
+    3: [0.04, 0.04],        // 三级：二级4%，一级4%
+    4: [0.04, 0.04, 0.04]   // 四级：三级4%，二级4%，一级4%
+  };
+
+  const template = upstreamRatioTemplates[promotionInfo.value.agentLevel] || [];
+
+  // 根据实际推广路径截取上级数量
+  // promotionPath 格式: "parentId1/parentId2/parentId3"
+  // 实际上级数量 = min(模板定义的上级数, 实际推广路径长度)
+  const promotionPath = promotionInfo.value.promotionPath || '';
+  const actualParentCount = promotionPath ? promotionPath.split('/').filter(id => id).length : 0;
+
+  // 返回实际上级数量对应的佣金比例
+  return template.slice(0, actualParentCount);
+});
+
 const teamStats = computed(() => promotionInfo.value.teamStats);
 const teamTotal = computed(() => teamStats.value.total);
 
@@ -311,6 +342,7 @@ const loadData = async () => {
       inviteCode: data.inviteCode || '',
       agentLevel: data.agentLevel,
       agentLevelName: data.agentLevelName || '普通会员',
+      promotionPath: data.promotionPath || '',
       totalReward: data.totalReward || 0,
       pendingReward: data.pendingReward || 0,
       withdrawableReward: data.withdrawableReward || 0,
@@ -382,7 +414,7 @@ const goToRewardRules = () => {
 
 const goToPromotionRules = () => {
   uni.navigateTo({
-    url: '/pages/promotion/promotion-rules'
+    url: '/pages/promotion/star-rules'
   });
 };
 
@@ -551,7 +583,7 @@ onShow(() => {
   margin-top: 8rpx;
 }
 
-.commission-desc text {
+.commission-desc text{
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.75);
   font-weight: 500;
@@ -593,7 +625,7 @@ onShow(() => {
   border: 1rpx solid rgba(201, 169, 98, 0.15);
 }
 
-.commission-tip text {
+.commission-tip text{
   font-size: 24rpx;
   color: #6B5B4F;
   line-height: 1.6;
@@ -628,7 +660,7 @@ onShow(() => {
   margin-right: 20rpx;
 }
 
-.bind-icon text {
+.bind-icon text{
   font-size: 36rpx;
 }
 
@@ -771,7 +803,7 @@ onShow(() => {
   text-align: center;
 }
 
-.invite-desc text {
+.invite-desc text{
   font-size: 26rpx;
   color: #6B5B4F;
 }
@@ -903,7 +935,7 @@ onShow(() => {
   margin-bottom: 30rpx;
 }
 
-.rules-title text {
+.rules-title text{
   font-size: 32rpx;
   font-weight: 600;
   color: #1A1A1A;

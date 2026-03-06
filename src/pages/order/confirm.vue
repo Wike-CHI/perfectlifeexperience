@@ -797,14 +797,17 @@ const payWithWechatProcess = async (orderId: string) => {
 };
 
 // 生命周期
-onLoad((options) => {
+onLoad(async (options) => {
   if (options?.mode === 'direct') {
     isDirectBuy.value = true;
   }
-  loadCartData();
-  loadDefaultAddress();
-  loadWalletBalance();
-  loadDistance();
+  // 并行加载所有数据（优化性能）
+  await Promise.all([
+    loadCartData(),
+    loadDefaultAddress(),
+    loadWalletBalance(),
+    loadDistance()
+  ]);
 });
 
 // 监听地址选择

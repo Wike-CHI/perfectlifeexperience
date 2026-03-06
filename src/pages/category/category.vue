@@ -48,13 +48,13 @@
       </view>
       <scroll-view class="recommend-scroll" scroll-x enhanced show-scrollbar="false">
         <view class="recommend-list">
-          <view 
-            class="recommend-card" 
-            v-for="(product, index) in recommendProducts" 
-            :key="index"
+          <view
+            class="recommend-card"
+            v-for="(product, index) in recommendProducts"
+            :key="product._id || index"
             @click="goToDetail(product)"
           >
-            <image class="recommend-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
+            <image class="recommend-image" :src="getProductImage(product)" mode="aspectFill" lazy-load />
             <view class="recommend-info">
               <text class="recommend-name">{{ product.name }}</text>
               <view class="recommend-bottom">
@@ -128,13 +128,13 @@
 
         <!-- 商品列表 -->
         <view class="product-list">
-          <view 
-            class="product-item" 
-            v-for="(product, index) in products" 
-            :key="index"
+          <view
+            class="product-item"
+            v-for="(product, index) in products"
+            :key="product._id || index"
             @click="goToDetail(product)"
           >
-            <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
+            <image class="product-image" :src="getProductImage(product)" mode="aspectFill" lazy-load />
             <view class="product-info">
               <text class="product-name">{{ product.name }}</text>
               <text class="product-desc" v-if="product.description">{{ product.description }}</text>
@@ -194,6 +194,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getProducts, getCategories, addToCart as addToCartApi, formatPrice } from '@/utils/api';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
+import { getListThumbnail } from '@/utils/image';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import CategoryIcon from '@/components/CategoryIcon.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
@@ -271,6 +272,12 @@ const deliveryType = ref<'pickup' | 'delivery'>('pickup');
 // 弹窗状态
 const skuPopupVisible = ref(false);
 const currentProduct = ref<Product | null>(null);
+
+// 获取商品图片（使用缩略图优化）
+const getProductImage = (product: any): string => {
+  const imageUrl = product.images?.[0] || product.image || '/static/images/default.png';
+  return getListThumbnail(imageUrl);
+};
 
 // 计算当前分类名称
 const currentCategoryName = computed(() => {
@@ -406,9 +413,12 @@ const goToDetail = (product: Product) => {
 
 // 生命周期
 onLoad(() => {
-  loadCategories();
-  loadRecommendProducts();
-  loadDistance();
+  // 并行加载独立数据（优化性能）
+  Promise.all([
+    loadCategories(),
+    loadRecommendProducts(),
+    loadDistance()
+  ]);
 
   // 检查是否有选中的分类或排序
   const selected = uni.getStorageSync('selectedCategory');

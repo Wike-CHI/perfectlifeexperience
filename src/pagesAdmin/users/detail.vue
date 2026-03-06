@@ -32,6 +32,29 @@
       </view>
     </view>
 
+    <!-- 推广关系信息 -->
+    <view class="info-section">
+      <text class="section-title">推广关系</text>
+      <view class="info-item">
+        <text class="label">邀请码</text>
+        <text class="value">{{ userInfo.inviteCode || '无' }}</text>
+      </view>
+      <view class="info-item">
+        <text class="label">上级推广人</text>
+        <view class="value-with-btn">
+          <text class="value">{{ userInfo.parentId ? '已绑定' : '未绑定' }}</text>
+          <view class="btn-group">
+            <button class="edit-btn" @click="showBindDialog">绑定</button>
+            <button class="edit-btn danger" @click="handleUnbind" v-if="userInfo.parentId">解绑</button>
+          </view>
+        </view>
+      </view>
+      <view class="info-item" v-if="userInfo.promotionPath">
+        <text class="label">推广路径</text>
+        <text class="value">{{ userInfo.promotionPath }}</text>
+      </view>
+    </view>
+
     <!-- 业绩信息 -->
     <view class="info-section" v-if="userInfo.performance">
       <text class="section-title">业绩信息</text>
@@ -78,6 +101,32 @@
         </view>
       </view>
     </view>
+
+    <!-- 绑定推广人弹窗 -->
+    <view class="level-picker-mask" v-if="showBindDialog" @click="showBindDialog = false">
+      <view class="level-picker" @click.stop>
+        <view class="picker-header">
+          <text class="picker-title">绑定上级推广人</text>
+          <text class="picker-close" @click="showBindDialog = false">×</text>
+        </view>
+        <view class="picker-content">
+          <view class="bind-input-item">
+            <text class="input-label">上级邀请码</text>
+            <input
+              class="bind-input"
+              v-model="bindInviteCode"
+              placeholder="请输入上级用户的邀请码"
+            />
+          </view>
+        </view>
+        <view class="picker-footer">
+          <button class="cancel-btn" @click="showBindDialog = false">取消</button>
+          <button class="confirm-btn" @click="confirmBind" :disabled="!bindInviteCode">
+            确认绑定
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -89,6 +138,8 @@ import AdminAuthManager from '@/utils/admin-auth'
 const userInfo = ref<any>({})
 const showPicker = ref(false)
 const selectedLevel = ref(4)
+const showBindDialog = ref(false)
+const bindInviteCode = ref('')
 
 // 代理等级选项
 const levels = [
@@ -192,6 +243,89 @@ const confirmLevelChange = async () => {
     console.error('修改等级失败', e)
     uni.showToast({ title: '网络错误', icon: 'none' })
   }
+}
+
+// 显示绑定弹窗
+const showBindDialog = () => {
+  bindInviteCode.value = ''
+  showBindDialog.value = true
+}
+
+// 确认绑定
+const confirmBind = async () => {
+  if (!bindInviteCode.value) {
+    uni.showToast({ title: '请输入邀请码', icon: 'none' })
+    return
+  }
+
+  try {
+    uni.showLoading({ title: '绑定中...' })
+
+    const res = await callFunction('admin-api', {
+      action: 'bindUserRelation',
+      adminToken: AdminAuthManager.getToken(),
+      data: {
+        userId: userInfo.value._id,
+        parentInviteCode: bindInviteCode.value
+      }
+    })
+
+    uni.hideLoading()
+
+    if (res.code === 0) {
+      uni.showToast({ title: '绑定成功', icon: 'success' })
+      // 更新本地数据
+      userInfo.value.parentId = res.data.parentId
+      userInfo.value.promotionPath = res.data.promotionPath
+      userInfo.value.agentLevel = res.data.agentLevel
+      showBindDialog.value = false
+    } else {
+      uni.showToast({ title: res.msg || '绑定失败', icon: 'none' })
+    }
+  } catch (e) {
+    uni.hideLoading()
+    console.error('绑定失败', e)
+    uni.showToast({ title: '网络错误', icon: 'none' })
+  }
+}
+
+// 解绑
+const handleUnbind = () => {
+  uni.showModal({
+    title: '确认解绑',
+    content: '确定要解绑该用户的推广关系吗？',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          uni.showLoading({ title: '解绑中...' })
+
+          const response = await callFunction('admin-api', {
+            action: 'unbindUserRelation',
+            adminToken: AdminAuthManager.getToken(),
+            data: {
+              userId: userInfo.value._id
+            }
+          })
+
+          uni.hideLoading()
+
+          if (response.code === 0) {
+            uni.showToast({ title: '解绑成功', icon: 'success' })
+            // 更新本地数据
+            userInfo.value.parentId = null
+            userInfo.value.promotionPath = null
+            userInfo.value.agentLevel = 4
+          } else {
+            uni.showToast({ title: response.msg || '解绑失败', icon: 'none' })
+          }
+        } catch (e) {
+          uni.hideLoading()
+          console.error('解绑失败', e)
+          uni.showToast({ title: '网络错误', icon: 'none' })
+        }
+      }
+    }
+  })
 }
 </script>
 
@@ -301,6 +435,39 @@ const confirmLevelChange = async () => {
   padding: 8rpx 16rpx;
   border-radius: 6rpx;
   line-height: 1.5;
+}
+
+.btn-group {
+  display: flex;
+  gap: 12rpx;
+}
+
+.edit-btn.danger {
+  color: #ff4d4f;
+  background: #fff1f0;
+  border-color: #ff4d4f;
+}
+
+.bind-input-item {
+  padding: 20rpx;
+}
+
+.bind-input-item .input-label {
+  display: block;
+  font-size: 28rpx;
+  color: #F5F5F0;
+  margin-bottom: 16rpx;
+}
+
+.bind-input {
+  width: 100%;
+  height: 80rpx;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1rpx solid rgba(201, 169, 98, 0.3);
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  color: #F5F5F0;
 }
 
 /* 修改等级弹窗 */

@@ -299,6 +299,7 @@ export interface PromotionInfo {
   agentLevel: AgentLevel;
   agentLevelName: string;      // 对外名称（金牌/银牌/铜牌/普通）
   agentLevelInternalName: string; // 内部名称（一级/二级/三级/四级代理）
+  promotionPath?: string;  // 推广路径，格式: "parentId1/parentId2/..."
   // === 奖励统计 ===
   totalReward: number;
   pendingReward: number;

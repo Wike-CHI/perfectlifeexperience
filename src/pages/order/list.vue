@@ -62,8 +62,8 @@
 
         <!-- 商品列表 -->
         <view class="order-goods" @click="goToDetail(order)">
-          <view class="goods-item" v-for="(item, idx) in order.products" :key="idx">
-            <image class="goods-image" :src="item.image" mode="aspectFill" />
+          <view class="goods-item" v-for="(item, idx) in order.products" :key="item._id || idx">
+            <image class="goods-image" :src="getListThumbnail(item.image)" mode="aspectFill" lazy-load />
             <view class="goods-info">
               <text class="goods-name">{{ item.name }}</text>
               <view class="goods-bottom">
@@ -123,6 +123,7 @@ import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice } from '@/utils/api';
 import { formatPrice as fp } from '@/utils/format';
+import { getListThumbnail } from '@/utils/image';
 import { ORDER_STATUS_TEXTS, ORDER_STATUS_COLORS, PAGINATION_CONFIG } from '@/constants/order';
 import type { OrderDB, OrderStatus } from '@/types/database';
 

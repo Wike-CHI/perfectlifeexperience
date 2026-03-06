@@ -192,13 +192,14 @@ describe('usePromotion', () => {
       expect(upstreamRatios.value).toEqual([])
     })
 
-    it('二级代理上级佣金应为[8%]', async () => {
+    it('二级代理上级佣金应为[0.08]', async () => {
       const { getPromotionInfo } = await import('@/utils/api')
       vi.mocked(getPromotionInfo).mockResolvedValueOnce({
         inviteCode: 'DEF456',
         agentLevel: 2,
         agentLevelName: '银牌推广员',
         agentLevelInternalName: '二级代理',
+        promotionPath: 'parent1', // 二级代理有1个上级
         totalReward: 50000,
         pendingReward: 10000,
         withdrawableReward: 40000,
@@ -215,16 +216,17 @@ describe('usePromotion', () => {
       await fetchPromotionInfo()
       await nextTick()
 
-      expect(upstreamRatios.value).toEqual([8])
+      expect(upstreamRatios.value).toEqual([0.08])
     })
 
-    it('三级代理上级佣金应为[4%, 4%]', async () => {
+    it('三级代理上级佣金应为[0.04, 0.04]', async () => {
       const { getPromotionInfo } = await import('@/utils/api')
       vi.mocked(getPromotionInfo).mockResolvedValueOnce({
         inviteCode: 'GHI789',
         agentLevel: 3,
         agentLevelName: '铜牌推广员',
         agentLevelInternalName: '三级代理',
+        promotionPath: 'parent1/parent2', // 三级代理有2个上级
         totalReward: 30000,
         pendingReward: 5000,
         withdrawableReward: 25000,
@@ -241,15 +243,44 @@ describe('usePromotion', () => {
       await fetchPromotionInfo()
       await nextTick()
 
-      expect(upstreamRatios.value).toEqual([4, 4])
+      expect(upstreamRatios.value).toEqual([0.04, 0.04])
     })
 
-    it('四级代理上级佣金应为[4%, 4%, 4%]', async () => {
+    it('四级代理上级佣金应为[0.04, 0.04, 0.04]', async () => {
+      const { getPromotionInfo } = await import('@/utils/api')
+      // Mock 返回四级代理，有3个上级
+      vi.mocked(getPromotionInfo).mockResolvedValueOnce({
+        inviteCode: 'GHI789',
+        agentLevel: 4,
+        agentLevelName: '普通会员',
+        agentLevelInternalName: '四级代理',
+        promotionPath: 'parent1/parent2/parent3',
+        totalReward: 10000,
+        pendingReward: 5000,
+        withdrawableReward: 5000,
+        todayReward: 100,
+        monthReward: 500,
+        performance: { totalSales: 10000, monthSales: 3000, monthTag: '2026-03', teamCount: 3 },
+        promotionProgress: null,
+        teamStats: { total: 3, level1: 1, level2: 1, level3: 1, level4: 0 }
+      })
+
+      const { usePromotion } = await import('./usePromotion')
+      const { upstreamRatios, fetchPromotionInfo } = usePromotion()
+
+      await fetchPromotionInfo()
+      await nextTick()
+
+      // 四级代理有3个上级时，应返回 [0.04, 0.04, 0.04]
+      expect(upstreamRatios.value).toEqual([0.04, 0.04, 0.04])
+    })
+
+    it('四级代理无上级时应返回空数组', async () => {
       const { usePromotion } = await import('./usePromotion')
       const { upstreamRatios } = usePromotion()
 
-      // 默认为四级代理
-      expect(upstreamRatios.value).toEqual([4, 4, 4])
+      // 默认为四级代理，没有 promotionPath
+      expect(upstreamRatios.value).toEqual([])
     })
   })
 

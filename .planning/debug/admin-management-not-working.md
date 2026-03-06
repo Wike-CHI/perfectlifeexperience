@@ -1,130 +1,260 @@
 ---
-status: investigating
-trigger: "管理端小程序（pagesAdmin）无法管理小程序，商品信息无法管理，其他所有功能只是空壳"
+status: completed
+trigger: "管理端无法修改数据：除了佣金分成和分类图标外，还有更多硬编码问题"
 created: "2026-03-04"
-updated: "2026-03-04"
+updated: "2026-03-05"
 ---
 
-## Current Focus
+## 修复总结
 
-**问题确认**：登录成功，商品数据也能返回，但前端不显示
+### ✅ 已完成的修复
 
-**根因**：前后端数据格式不一致 - callFunction将云函数返回值嵌套在data里，导致 `res.data.list` 实际变成了 `res.data.data.list`
+1. **首页轮播图硬编码** - 已修复
+   - 修改 `cloudfunctions/product/index.js` - getHomePageData 添加 banners 查询
+   - 修改 `src/pages/index/index.vue` - 使用接口返回的 banners 数据
 
-**修复方案**：
-1. 修改 callFunction 函数，检测云函数返回值是否已包含code，如果是就直接返回
-2. 在 api.ts 中添加 extractData 辅助函数，兼容两种返回格式
+2. **充值配置硬编码** - 已修复
+   - 修改 `src/utils/api.ts` - 添加 getSystemConfig/updateSystemConfig 接口
+   - 修改 `src/config/recharge.ts` - 支持从数据库读取配置
+   - 修改 `src/pages/index/index.vue` - 加载充值配置
+   - 修改 `src/pages/wallet/recharge.vue` - 加载充值配置
+   - 修改 `src/pagesAdmin/settings/config.vue` - 添加充值档位配置管理
 
-## Symptoms
+3. **推广升级条件硬编码** - 已修复
+   - 修改 `cloudfunctions/promotion/index.js` - 添加 getPromotionThresholdWithConfig 函数
+   - 修改晋升检查逻辑使用动态配置
 
-expected: 可以完整管理小程序
-actual: 点击编辑无反应、页面数据为空、云函数调用失败
-errors: 无提示但不生效
-reproduction: 在微信开发者工具和真机上测试都失败
-timeline: 从一开始就不行
-features: 全部功能都不行
-account: 管理员账号 (admin)
+### 🔲 需要部署的云函数
 
-## Investigation Progress
+- **product 云函数** - 重新部署以支持 banners 数据返回
+- **promotion 云函数** - 重新部署以支持动态升级条件
 
-### 已检查项目
+### 📝 使用说明
 
-1. **admin-api云函数入口 (index.js)**
-   - 状态: 已检查
-   - 发现: 第89-93行检查JWT_SECRET环境变量
-   - 代码:
-     ```javascript
-     const JWT_SECRET = process.env.JWT_SECRET
-     if (!JWT_SECRET) {
-       throw new Error('JWT_SECRET environment variable is required')
-     }
-     ```
+1. 登录管理端，进入"系统设置"页面
+2. 可以配置：
+   - 佣金比例
+   - 晋升阈值
+   - 充值档位（新增）
+   - 提现设置
+3. 保存后，小程序将使用新配置
 
-2. **前端调用方式**
-   - 状态: 已检查
-   - 发现: AdminAuthManager正确传递adminToken
-   - 代码: `adminToken: AdminAuthManager.getToken()`
-   - 结果: 前端调用正确
+### 向后兼容性
 
-3. **权限验证逻辑**
-   - 状态: 已检查
-   - 发现: 公开action列表正确(adminLogin, checkAuth, checkAdminStatus)
-   - 结果: 权限系统设计正确
+所有修改都保持了向后兼容：
+- 如果数据库中没有配置，将使用硬编码默认值
+- 已有的配置不会因为升级而丢失
 
-4. **auth.js认证逻辑**
-   - 状态: 已检查
-   - 发现: 验证逻辑完整，支持bcrypt密码验证
-   - 结果: 认证功能实现正确
+---
+
+## 新发现的硬编码问题汇总
+
+### 问题1: 首页轮播图硬编码 [高优先级]
+
+**文件**: `src/pages/index/index.vue`
+**位置**: 第321-346行
+
+```javascript
+const banners = ref<Banner[]>([
+  {
+    image: CDN_IMAGES.gallery02,
+    title: '精酿啤酒节',
+    subtitle: '限时特惠 全场8折起',
+    link: '/pages/promo/promo',
+    sort: 1,
+    isActive: true
+  },
+  // ... 共3个硬编码banner
+]);
+```
+
+**问题说明**:
+- product 云函数的 getHomePageData 不返回 banners 数据
+- 前端完全使用硬编码的 banners，不从数据库读取
+
+**数据库对应**:
+- 集合: `banners`
+- 管理端已有 banner 管理页面 (pagesAdmin/banners/)
+
+**修复方案**:
+1. 修改 product 云函数 getHomePageData 添加 banners 查询
+2. 修改首页 index.vue 从 API 获取 banners 而非硬编码
+
+---
+
+### 问题2: 充值配置硬编码 [高优先级]
+
+**文件**: `src/config/recharge.ts`
+**位置**: 第16-21行
+
+```javascript
+export const rechargeOptions: RechargeOption[] = [
+  { amount: 200, gift: 10 },
+  { amount: 500, gift: 35 },
+  { amount: 1000, gift: 80 },
+  { amount: 2000, gift: 200 }
+];
+```
+
+**问题说明**:
+- 充值档位在前端代码中完全硬编码
+- 管理端无充值配置管理页面
+
+**数据库对应**:
+- 无对应集合（需要新建 `recharge_config` 或使用 `system_config`）
+
+**修复方案**:
+1. 在 system_config 集合添加充值配置项
+2. 修改前端从 API 获取充值配置
+3. 或创建充值配置管理页面
+
+---
+
+### 问题3: 推广升级条件硬编码 [中优先级]
+
+**文件**: `cloudfunctions/promotion/common/constants.js`
+**位置**: 第153-170行
+
+```javascript
+const PromotionThreshold = {
+  LEVEL_4_TO_3: {
+    totalSales: 200000      // 累计销售额 >= 2万元（分）
+  },
+  LEVEL_3_TO_2: {
+    monthSales: 500000,     // 本月销售额 >= 5万元（分）
+    teamCount: 50            // 或团队人数 >= 50人
+  },
+  LEVEL_2_TO_1: {
+    monthSales: 1000000,    // 本月销售额 >= 10万元（分）
+    teamCount: 200           // 或团队人数 >= 200人
+  }
+};
+```
+
+**问题说明**:
+- 升级门槛在云函数中硬编码
+- 管理端无升级条件配置页面
+
+**数据库对应**:
+- 可使用 `system_config` 集合
+
+**修复方案**:
+1. 修改 promotion 云函数从数据库读取升级条件
+2. 使用默认值保持向后兼容
+3. 或创建推广配置管理页面
+
+---
+
+### 问题4: 分类图标映射硬编码 [低优先级]
+
+**文件**: `src/components/CategoryIcon.vue`
+**位置**: 约第30-45行
+
+```javascript
+const iconMap: Record<string, 'beer' | 'cocktail'> = {
+  '鲜啤外带': 'beer',
+  '增味啤': 'cocktail'
+};
+```
+
+**问题说明**:
+- 分类数据从数据库动态获取
+- 但图标类型是硬编码映射
+
+**修复方案**:
+- 在 categories 集合添加 icon 字段存储图标类型
+
+---
+
+### 问题5: 佣金分成比例 [已修复]
+
+**文件**: `cloudfunctions/promotion/index.js`
+**状态**: ✅ 已修复，从数据库读取配置
+
+---
 
 ## Evidence
 
-- timestamp: "2026-03-04"
-  checked: "cloudfunctions/admin-api/index.js 第89-93行"
-  found: "JWT_SECRET环境变量未配置时抛出错误"
-  implication: "这是导致整个云函数无法启动的根本原因"
+- timestamp: "2026-03-05"
+  checked: "src/pages/index/index.vue"
+  found: "banners 数组硬编码在第321-346行，共3个固定banner"
+  implication: "首页轮播图无法通过管理端修改"
 
-- timestamp: "2026-03-04"
-  checked: "src/pagesAdmin/products/list.vue"
-  found: "前端正确传递adminToken: AdminAuthManager.getToken()"
-  implication: "前端代码调用方式正确"
+- timestamp: "2026-03-05"
+  checked: "cloudfunctions/product/index.js getHomePageData函数"
+  found: "返回数据只有 hotProducts, newProducts, topSalesProducts，不包含banners"
+  implication: "product云函数没有查询banners数据"
 
-- timestamp: "2026-03-04"
-  checked: "cloudfunctions/admin-api/permissions.js"
-  found: "公开action列表正确: adminLogin, checkAuth, checkAdminStatus"
-  implication: "权限验证设计正确"
+- timestamp: "2026-03-05"
+  checked: "src/config/recharge.ts"
+  found: "rechargeOptions 数组硬编码4个充值档位"
+  implication: "充值档位无法通过管理端修改"
 
-## Eliminated
-
-- hypothesis: "前端API调用路径错误"
-  evidence: "前端正确调用callFunction('admin-api', {action, adminToken})"
-  timestamp: "2026-03-04"
-
-- hypothesis: "权限验证逻辑错误"
-  evidence: "permissions.js中PUBLIC_ACTIONS配置正确"
-  timestamp: "2026-03-04"
-
-## Resolution (已修复)
-
-root_cause: "callFunction将云函数返回值（已包含code字段）嵌套在data里，导致数据路径错误"
-
-fix: "修改 src/utils/cloudbase.ts 中的 callFunction 函数，让它检测云函数返回值是否已包含code，如果是就直接返回"
-
-files_changed:
-  - src/utils/cloudbase.ts (修改callFunction函数)
-  - src/pagesAdmin/products/list.vue (恢复简洁代码)
-
-verification: "重新编译后测试商品列表页面是否正常显示"
+- timestamp: "2026-03-05"
+  checked: "cloudfunctions/promotion/common/constants.js"
+  found: "PromotionThreshold 对象硬编码升级条件"
+  implication: "推广升级条件无法通过管理端修改"
 
 ---
 
-## 修复指导
+## 待调查
 
-### 问题根因
+- [x] 检查 system_config 集合的字段结构 - 可以存储任意配置字段
+- [ ] 检查是否有其他业务配置硬编码
+- [x] 确认哪些修复优先级最高
 
-admin-api云函数在启动时需要JWT_SECRET环境变量来生成和验证JWT token。该变量未配置会导致云函数抛出错误:
+---
 
-```
-Error: JWT_SECRET environment variable is required
-```
+## 修复优先级建议
 
-这解释了为什么:
-1. 登录可能失败（如果JWT_SECRET检查发生在任何代码之前）
-2. 所有管理功能都无法工作（云函数无法正常启动）
+### 第一优先级（用户最常修改）
 
-### 修复步骤
+| 序号 | 问题 | 修复难度 | 用户影响 |
+|------|------|----------|----------|
+| 1 | 首页轮播图硬编码 | 低 | 高 - 无法做营销活动 |
+| 2 | 充值配置硬编码 | 中 | 高 - 无法调整活动力度 |
 
-1. 登录腾讯云CloudBase控制台
-2. 找到环境: cloud1-6gmp2q0y3171c353
-3. 进入云函数管理，找到admin-api云函数
-4. 在"函数配置"中添加环境变量:
-   - 变量名: JWT_SECRET
-   - 变量值: 一个强随机字符串（建议使用32位以上的随机字符串）
-5. 重新部署云函数
+### 第二优先级（业务配置）
 
-### 建议
+| 序号 | 问题 | 修复难度 | 用户影响 |
+|------|------|----------|----------|
+| 3 | 推广升级条件硬编码 | 中 | 中 - 调整业务策略 |
+| 4 | 分类图标映射 | 低 | 低 - 美观问题 |
 
-1. **生产环境**: 使用安全的密钥管理服务存储JWT_SECRET
-2. **开发环境**: 可以使用简单的随机字符串进行测试
-3. **建议的JWT_SECRET生成方式**:
-   - 使用Node.js: `require('crypto').randomBytes(32).toString('hex')`
-   - 或使用在线随机字符串生成器生成32位以上的随机字符串
+---
+
+## 修复方案概要
+
+### 修复1: 首页轮播图动态化
+
+1. **修改 product 云函数** (`cloudfunctions/product/index.js`)
+   - 在 getHomePageData 中添加 banners 查询
+   ```javascript
+   const bannersResult = await db.collection('banners')
+     .where({ isActive: true })
+     .orderBy('sort', 'asc')
+     .get();
+   ```
+
+2. **修改首页** (`src/pages/index/index.vue`)
+   - 删除硬编码的 banners 数组
+   - 从 homeData.banners 获取数据
+
+### 修复2: 充值配置动态化
+
+1. **方案A**: 在 system_config 集合添加 rechargeOptions 字段
+2. **创建前端 API**: 添加 getRechargeConfig 接口
+3. **修改前端**: 从 API 读取配置
+
+### 修复3: 推广升级条件动态化
+
+1. **修改 promotion 云函数**
+   - 在 constants.js 添加 getPromotionThreshold 函数
+   - 从 system_config 读取配置，无则使用默认值
+
+---
+
+## 当前状态
+
+**状态**: 调查完成，待用户确认修复优先级
+

@@ -7,7 +7,7 @@ const db = cloud.database();
 const _ = db.command;
 
 // ✅ 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('product');
 
 // ✅ 引入缓存模块
@@ -492,7 +492,7 @@ async function getHomePageData(data) {
 
   try {
     // 并行获取所有首页数据
-    const [hotResult, newResult, allProducts] = await Promise.all([
+    const [hotResult, newResult, allProducts, bannersResult] = await Promise.all([
       // 热门商品
       db.collection('products')
         .where({ isHot: true })
@@ -522,6 +522,12 @@ async function getHomePageData(data) {
           priceList: true, volume: true, sales: true
         })
         .limit(20)
+        .get(),
+
+      // 轮播图 - 获取激活的banner
+      db.collection('banners')
+        .where({ isActive: true })
+        .orderBy('sort', 'asc')
         .get()
     ]);
 
@@ -530,13 +536,24 @@ async function getHomePageData(data) {
       .sort((a, b) => (b.sales || 0) - (a.sales || 0))
       .slice(0, 4);
 
+    // 处理banners数据，转换为前端需要的格式
+    const banners = (bannersResult.data || []).map(banner => ({
+      image: banner.image,
+      title: banner.title,
+      subtitle: banner.subtitle,
+      link: banner.link || '',
+      sort: banner.sort,
+      isActive: banner.isActive
+    }));
+
     const response = {
       code: 0,
       msg: 'success',
       data: {
         hotProducts: hotResult.data || [],
         newProducts: newResult.data || [],
-        topSalesProducts: sortedBySales
+        topSalesProducts: sortedBySales,
+        banners: banners
       }
     };
 

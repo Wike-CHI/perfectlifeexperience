@@ -20,8 +20,8 @@
 
     <!-- 轮播图 - 沉浸式 -->
     <swiper class="banner-swiper" indicator-dots autoplay circular indicator-active-color="#C8A464" indicator-color="rgba(200,164,100,0.3)">
-      <swiper-item v-for="(banner, index) in banners" :key="index" @click="onBannerClick(banner)">
-        <image class="banner-image" :src="banner.image" mode="aspectFill" />
+      <swiper-item v-for="(banner, index) in banners" :key="banner._id || index" @click="onBannerClick(banner)">
+        <image class="banner-image" :src="banner.image" mode="aspectFill" lazy-load />
         <view class="banner-gradient"></view>
         <view class="banner-content">
           <text class="banner-tag">LIMITED</text>
@@ -189,12 +189,12 @@
         <view
           class="product-card"
           v-for="(product, index) in hotProducts"
-          :key="index"
+          :key="product._id || index"
           :class="{ 'card-offset': index % 2 === 1 }"
           @click="goToProduct(product)"
         >
           <view class="product-image-wrap">
-            <image class="product-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
+            <image class="product-image" :src="getProductImage(product)" mode="aspectFill" lazy-load />
             <view v-if="product.isNew" class="product-tag">NEW</view>
           </view>
           <view class="product-tags" v-if="product.tags && product.tags.length">
@@ -247,14 +247,14 @@
       
       <scroll-view class="new-scroll" scroll-x enhanced show-scrollbar="false">
         <view class="new-list">
-          <view 
-            class="new-card" 
-            v-for="(product, index) in newProducts" 
-            :key="index"
+          <view
+            class="new-card"
+            v-for="(product, index) in newProducts"
+            :key="product._id || index"
             @click="goToProduct(product)"
           >
             <view class="new-image-wrap">
-              <image class="new-image" :src="product.images?.[0] || product.image || '/static/images/default.png'" mode="aspectFill" />
+              <image class="new-image" :src="getProductImage(product)" mode="aspectFill" lazy-load />
               <view class="new-overlay"></view>
             </view>
             <view class="new-info">
@@ -286,8 +286,9 @@
 import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import { getHomePageData, addToCart as addToCartApi, formatPrice } from '@/utils/api';
-import { rechargeOptions } from '@/config/recharge';
+import { loadRechargeConfig, getRechargeOptions } from '@/config/recharge';
 import { CDN_IMAGES } from '@/config/cdn';
+import { getListThumbnail } from '@/utils/image';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
 
@@ -317,8 +318,11 @@ interface Banner {
   link?: string
 }
 
-// 轮播图数据
-const banners = ref<Banner[]>([
+// 轮播图数据 - 从接口获取
+const banners = ref<Banner[]>([]);
+
+// 默认轮播图（当接口无数据时使用）
+const defaultBanners: Banner[] = [
   {
     image: CDN_IMAGES.gallery02,
     title: '精酿啤酒节',
@@ -343,10 +347,10 @@ const banners = ref<Banner[]>([
     sort: 3,
     isActive: true
   }
-]);
+];
 
-// 充值选项 - 使用共享配置
-const rechargeOptionsList = ref(rechargeOptions);
+// 充值选项 - 在 loadData 中异步加载
+const rechargeOptionsList = ref<any[]>([]);
 
 // 商品数据
 const hotProducts = ref<Product[]>([]);
@@ -357,28 +361,62 @@ const loading = ref(false);
 const skuPopupVisible = ref(false);
 const currentProduct = ref<Product | null>(null);
 
+// 获取产品图片（使用缩略图优化）
+const getProductImage = (product: any): string => {
+  const imageUrl = product.images?.[0] || product.image || '/static/images/default.png';
+  // 首页产品列表使用小尺寸缩略图
+  return getListThumbnail(imageUrl);
+};
+
+// 带超时的 Promise.race 包装
+const withTimeout = (promise, ms, fallback) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]).catch(() => fallback);
+};
+
 // 获取首页数据（最终优化版 - 使用聚合查询）
 const loadData = async () => {
   try {
     loading.value = true;
 
-    // 使用聚合查询接口，一次性获取所有首页数据
-    const homeData = await getHomePageData();
+    // 并行加载首页数据和充值配置，带10秒超时
+    const [homeData, rechargeOpts] = await Promise.all([
+      withTimeout(getHomePageData(), 10000, { topSalesProducts: [], newProducts: [], banners: [] }),
+      withTimeout(loadRechargeConfig().catch(() => []), 10000, [])
+    ]);
 
-    // 热销商品（已按销量排序）
-    hotProducts.value = homeData.topSalesProducts.map((p: any) => ({
+    // 热销商品（已按销量排序）- 限制数量
+    hotProducts.value = (homeData.topSalesProducts || []).slice(0, 6).map((p: any) => ({
       ...p,
       spec: p.volume ? `${p.volume}ml` : ''
     }));
 
-    // 新品商品
-    newProducts.value = homeData.newProducts.map((p: any) => ({
+    // 新品商品 - 限制数量
+    newProducts.value = (homeData.newProducts || []).slice(0, 6).map((p: any) => ({
       ...p,
       spec: p.volume ? `${p.volume}ml` : ''
     }));
+
+    // 轮播图
+    if (homeData.banners && homeData.banners.length > 0) {
+      banners.value = homeData.banners;
+    } else {
+      banners.value = [];
+    }
+
+    // 充值选项
+    if (rechargeOpts && rechargeOpts.length > 0) {
+      rechargeOptionsList.value = rechargeOpts;
+    }
 
   } catch (error) {
     console.error('加载数据失败:', error);
+    // 使用空数据，避免卡死
+    banners.value = [];
+    hotProducts.value = [];
+    newProducts.value = [];
   } finally {
     loading.value = false;
   }

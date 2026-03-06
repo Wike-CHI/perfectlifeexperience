@@ -9,6 +9,16 @@
       </view>
 
       <view class="form-item">
+        <text class="label">商品分类</text>
+        <picker class="picker" :range="categories" range-key="name" :value="selectedCategoryIndex" @change="onCategoryChange">
+          <view class="picker-display">
+            <text v-if="selectedCategoryIndex >= 0">{{ categories[selectedCategoryIndex].name }}</text>
+            <text v-else class="placeholder">请选择分类</text>
+          </view>
+        </picker>
+      </view>
+
+      <view class="form-item">
         <text class="label">价格（元）</text>
         <input class="input" type="digit" v-model="formData.price" placeholder="请输入价格" />
       </view>
@@ -29,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
 
@@ -40,17 +50,57 @@ import AdminAuthManager from '@/utils/admin-auth'
 
 const isEdit = ref(false)
 const productId = ref('')
+const categories = ref<any[]>([])
+const selectedCategoryIndex = ref(-1)
 
 const formData = ref({
   name: '',
+  category: '',
   price: '',
   stock: '',
   description: ''
 })
 
+// 计算选中分类的索引
+const onCategoryChange = (e: any) => {
+  const index = parseInt(e.detail.value)
+  selectedCategoryIndex.value = index
+  if (categories.value[index]) {
+    formData.value.category = categories.value[index].name
+  }
+}
+
+// 加载分类列表
+const loadCategories = async () => {
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'getCategories',
+      adminToken: AdminAuthManager.getToken()
+    })
+    console.log('分类数据:', JSON.stringify(res))
+    if (res.code === 0 && res.data) {
+      // 兼容不同的返回格式: {list: [...]} 或 {[...]} 直接是数组
+      let list: any[] = []
+      if (Array.isArray(res.data)) {
+        list = res.data
+      } else if (res.data.list) {
+        list = res.data.list
+      } else if (res.data.categories) {
+        list = res.data.categories
+      }
+      categories.value = list
+    }
+  } catch (error) {
+    console.error('加载分类失败', error)
+  }
+}
+
 // 权限检查
-onMounted(() => {
+onMounted(async () => {
   if (!AdminAuthManager.checkAuth()) return
+
+  // 加载分类列表
+  await loadCategories()
 
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1] as any
@@ -73,8 +123,14 @@ const loadProduct = async () => {
     // 使用 extractData 兼容返回格式
     const data = res.data?.data || res.data
     if (res.code === 0 && data) {
+      // 设置分类
+      const categoryName = data.category || ''
+      const catIndex = categories.value.findIndex(c => c.name === categoryName)
+      selectedCategoryIndex.value = catIndex >= 0 ? catIndex : -1
+
       formData.value = {
         name: data.name || '',
+        category: categoryName,
         price: (data.price / 100).toFixed(2),
         stock: String(data.stock || 0),
         description: data.description || ''
@@ -87,9 +143,20 @@ const loadProduct = async () => {
 
 const handleSubmit = async () => {
   try {
+    // 验证必填字段
+    if (!formData.value.name) {
+      uni.showToast({ title: '请输入商品名称', icon: 'none' })
+      return
+    }
+    if (!formData.value.category) {
+      uni.showToast({ title: '请选择商品分类', icon: 'none' })
+      return
+    }
+
     const data = {
       name: formData.value.name,
-      price: Math.round(parseFloat(formData.value.price) * 100),
+      category: formData.value.category,
+      price: Math.round(parseFloat(formData.value.price || '0') * 100),
       stock: parseInt(formData.value.stock) || 0,
       description: formData.value.description
     }
@@ -97,11 +164,15 @@ const handleSubmit = async () => {
     const action = isEdit.value ? 'updateProduct' : 'createProduct'
     const params = isEdit.value ? { id: productId.value, ...data } : data
 
+    console.log('提交数据:', JSON.stringify(params))
+
     const res = await callFunction('admin-api', {
       action,
       adminToken: AdminAuthManager.getToken(),
       data: params
     })
+
+    console.log('响应结果:', JSON.stringify(res))
 
     if (res.code === 0) {
       uni.showToast({ title: '保存成功', icon: 'success' })
@@ -109,9 +180,9 @@ const handleSubmit = async () => {
     } else {
       uni.showToast({ title: res.msg || '保存失败', icon: 'none' })
     }
-  } catch (e) {
+  } catch (e: any) {
     console.error('保存失败', e)
-    uni.showToast({ title: '保存失败', icon: 'none' })
+    uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   }
 }
 </script>
@@ -152,6 +223,26 @@ const handleSubmit = async () => {
   border: 1rpx solid #ddd;
   border-radius: 8rpx;
   box-sizing: border-box;
+}
+
+.picker {
+  width: 100%;
+}
+
+.picker-display {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 20rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  background: #fff;
+}
+
+.picker-display .placeholder {
+  color: #999;
 }
 
 .textarea {

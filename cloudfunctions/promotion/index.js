@@ -9,14 +9,14 @@ const db = cloud.database();
 const _ = db.command;
 
 // 引入安全日志工具
-const { createLogger } = require('../common/logger');
+const { createLogger } = require('./common/logger');
 const logger = createLogger('promotion');
 
 // 引入统一响应格式
-const { success, error, ErrorCodes } = require('../common/response');
+const { success, error, ErrorCodes } = require('./common/response');
 
 // 引入共享工具函数
-const { getDefaultPerformance, getCurrentMonthTag } = require('../common/utils');
+const { getDefaultPerformance, getCurrentMonthTag } = require('./common/utils');
 
 // 引入通知模块
 const { sendPromotionNotification } = require('./common/notification');
@@ -57,6 +57,61 @@ const INVITE_CODE_MAX_RETRY = AntiFraud.INVITE_CODE_MAX_RETRY;
 const INVITE_CODE_LENGTH = AntiFraud.INVITE_CODE_LENGTH;
 const REGISTRATION_ATTEMPT_TTL = AntiFraud.REGISTRATION_ATTEMPT_TTL_DAYS * Time.DAY_MS;
 
+// 系统配置缓存
+let systemConfigCache = null;
+
+/**
+ * 获取系统配置（从数据库或缓存）
+ */
+async function getSystemConfigCached() {
+  if (systemConfigCache) {
+    return systemConfigCache;
+  }
+
+  try {
+    const result = await db.collection('system_config').limit(1).get();
+    if (result.data && result.data.length > 0) {
+      systemConfigCache = result.data[0];
+    } else {
+      systemConfigCache = {};
+    }
+  } catch (error) {
+    logger.warn('获取系统配置失败，使用默认配置:', error.message);
+    systemConfigCache = {};
+  }
+
+  return systemConfigCache;
+}
+
+/**
+ * 获取晋升门槛配置（强制从数据库读取）
+ */
+async function getPromotionThresholdWithConfig(currentLevel) {
+  const config = await getSystemConfigCached();
+
+  // 强制从数据库配置中获取
+  if (config.promotionThreshold) {
+    const thresholdMap = {
+      [AgentLevel.LEVEL_4]: config.promotionThreshold.LEVEL_4_TO_3,
+      [AgentLevel.LEVEL_3]: config.promotionThreshold.LEVEL_3_TO_2,
+      [AgentLevel.LEVEL_2]: config.promotionThreshold.LEVEL_2_TO_1
+    };
+    const threshold = thresholdMap[currentLevel];
+    if (threshold) {
+      return threshold;
+    }
+  }
+
+  // 没有配置时返回默认晋升门槛
+  const defaultThresholds = {
+    [AgentLevel.LEVEL_4]: { totalSales: 20000 },  // 铜牌：累计2万
+    [AgentLevel.LEVEL_3]: { monthSales: 50000, teamCount: 50 },  // 银牌：月销5万或团队50人
+    [AgentLevel.LEVEL_2]: { monthSales: 100000, teamCount: 200 }  // 金牌：月销10万或团队200人
+  };
+
+  return defaultThresholds[currentLevel] || null;
+}
+
 // 解析 HTTP 触发器的请求体
 function parseEvent(event) {
   if (event.body) {
@@ -67,6 +122,78 @@ function parseEvent(event) {
     }
   }
   return event;
+}
+
+// ==================== 动态配置读取 ====================
+
+/**
+ * 从数据库获取佣金配置
+ * @returns {Promise<Object>} 佣金配置对象
+ */
+async function getCommissionConfig() {
+  try {
+    const configRes = await db.collection('system_config')
+      .where({ type: 'commission_config' })
+      .limit(1)
+      .get();
+
+    if (configRes.data && configRes.data.length > 0) {
+      const config = configRes.data[0].config;
+      logger.info('Loaded commission config from database', config);
+      return config;
+    }
+
+    logger.info('No commission config in database, using defaults');
+    return null;
+  } catch (error) {
+    logger.warn('Failed to load commission config, using defaults', error.message);
+    return null;
+  }
+}
+
+/**
+ * 获取佣金规则（优先从数据库读取配置）
+ * @param {number} level - 代理等级
+ * @returns {Object} 佣金规则
+ */
+async function getCommissionRuleWithConfig(level) {
+  // 尝试从数据库读取配置
+  const dbConfig = await getCommissionConfig();
+
+  if (dbConfig) {
+    // 使用数据库配置构建佣金规则
+    const levelMap = {
+      1: { own: 'level1Commission', upstream: [] },
+      2: { own: 'level2Commission', upstream: ['level1Commission'] },
+      3: { own: 'level3Commission', upstream: ['level2Commission', 'level1Commission'] },
+      4: { own: 'level4Commission', upstream: ['level3Commission', 'level2Commission', 'level1Commission'] }
+    };
+
+    const mapping = levelMap[level] || levelMap[4];
+    const ownKey = mapping.own;
+
+    // 构建上游分配规则
+    const upstream = mapping.upstream.map(key => {
+      const value = dbConfig[key];
+      return typeof value === 'number' ? value / 100 : 0.04; // 转换为小数
+    });
+
+    const rule = {
+      own: typeof dbConfig[ownKey] === 'number' ? dbConfig[ownKey] / 100 : 0.20,
+      upstream: upstream
+    };
+
+    logger.info('Using database commission config', {
+      level,
+      ownRatio: rule.own,
+      upstreamRatios: rule.upstream
+    });
+
+    return rule;
+  }
+
+  // 使用硬编码默认值
+  return getCommissionRule(level);
 }
 
 /**
@@ -144,14 +271,6 @@ function generateInviteCodes(count) {
     codes.add(generateInviteCode());
   }
   return Array.from(codes);
-}
-
-/**
- * 获取当前月份标识
- */
-function getCurrentMonthTag() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
@@ -327,8 +446,8 @@ async function checkAgentLevelPromotion(openid) {
     // 检查并重置跨月数据
     const performance = await checkAndResetMonthlyPerformance(user);
 
-    // 获取晋升门槛
-    const threshold = getPromotionThreshold(currentLevel);
+    // 获取晋升门槛（优先从数据库读取）
+    const threshold = await getPromotionThresholdWithConfig(currentLevel);
     if (!threshold) {
       return { promoted: false, reason: '无法晋升' };
     }
@@ -584,7 +703,8 @@ async function calculatePromotionReward(event, context) {
     });
 
     // 4. 根据推广人的等级，获取佣金分配规则
-    const commissionRule = getCommissionRule(promoterAgentLevel);
+    // 4. 根据推广人的等级，获取佣金分配规则（优先从数据库读取配置）
+    const commissionRule = await getCommissionRuleWithConfig(promoterAgentLevel);
 
     logger.info('Commission rule applied', {
       promoterLevel: promoterAgentLevel,
@@ -1086,6 +1206,12 @@ async function bindPromotionRelation(event, context) {
         parentId,
         agentLevel: parentAgentLevel
       });
+
+      // 检查推荐人等级：4级（普通会员）不能发展下线团队
+      if (parentAgentLevel === AgentLevel.LEVEL_4) {
+        logger.warn('Level 4 user cannot develop team', { parentId });
+        return { code: -1, msg: '该用户暂无发展团队资格' };
+      }
 
       // 不能绑定自己
       if (parentId === OPENID) {
@@ -1893,24 +2019,37 @@ async function getPromotionDashboard(requestData, context) {
     // 计算时间范围
     const { startTime, endTime } = getTimeRange(timeRange);
 
-    // 并行查询各项数据
-    const [rewardRecords, teamStats, recentOrders] = await Promise.all([
-      // 查询奖励记录
-      db.collection('reward_records')
-        .where({
-          _openid: OPENID,
-          createTime: db.command.gte(startTime)
-        })
-        .orderBy('createTime', 'desc')
-        .limit(100)
-        .get(),
+    // 并行查询各项数据，添加容错处理
+    let rewardRecords = { data: [] };
+    let teamStats = [0, 0, 0, 0];
+    let recentOrders = [];
 
-      // 查询团队统计
-      getTeamStatsByLevel(OPENID),
+    try {
+      const results = await Promise.all([
+        // 查询奖励记录
+        db.collection('reward_records')
+          .where({
+            _openid: OPENID,
+            createTime: db.command.gte(startTime)
+          })
+          .orderBy('createTime', 'desc')
+          .limit(100)
+          .get(),
 
-      // 查询最近推广订单
-      getRecentPromotionOrders(OPENID, 5)
-    ]);
+        // 查询团队统计
+        getTeamStatsByLevel(OPENID).catch(() => [0, 0, 0, 0]),
+
+        // 查询最近推广订单
+        getRecentPromotionOrders(OPENID, 5).catch(() => [])
+      ]);
+
+      rewardRecords = results[0] || { data: [] };
+      teamStats = results[1] || [0, 0, 0, 0];
+      recentOrders = results[2] || [];
+    } catch (error) {
+      console.error('查询数据看板数据失败:', error);
+      // 继续返回空数据
+    }
 
     // 计算汇总数据
     const records = rewardRecords.data || [];
@@ -1986,7 +2125,12 @@ async function getPromotionDashboard(requestData, context) {
       }
     };
   } catch (err) {
-    logger.error('Failed to get dashboard data', err);
+    logger.error('Failed to get dashboard data', {
+      error: err.message,
+      stack: err.stack,
+      timeRange,
+      hasOpenid: !!OPENID
+    });
     return { code: -1, msg: '获取数据失败' };
   }
 }
@@ -1999,20 +2143,24 @@ function getTimeRange(range) {
   let startTime;
 
   switch (range) {
-    case 'today':
+    case 'today': {
       startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       break;
-    case 'week':
+    }
+    case 'week': {
       const dayOfWeek = now.getDay() || 7;
       startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
       break;
-    case 'month':
+    }
+    case 'month': {
       startTime = new Date(now.getFullYear(), now.getMonth(), 1);
       break;
+    }
     case 'all':
-    default:
+    default: {
       startTime = new Date(2020, 0, 1); // 很早的时间
       break;
+    }
   }
 
   return { startTime, endTime: now };
@@ -2026,23 +2174,27 @@ function getPrevPeriodStart(range) {
   let startTime;
 
   switch (range) {
-    case 'today':
+    case 'today': {
       // 昨天
       startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
       break;
-    case 'week':
+    }
+    case 'week': {
       // 上周
       const dayOfWeek = now.getDay() || 7;
       startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1 - 7);
       break;
-    case 'month':
+    }
+    case 'month': {
       // 上月
       startTime = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       break;
+    }
     case 'all':
-    default:
+    default: {
       startTime = new Date(2020, 0, 1);
       break;
+    }
   }
 
   return startTime;

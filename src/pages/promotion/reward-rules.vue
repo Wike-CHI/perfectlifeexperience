@@ -2,21 +2,21 @@
   <view class="page-container">
     <!-- 顶部标题 -->
     <view class="header">
-      <text class="header-title">佣金分配规则 V2</text>
-      <text class="header-desc">简化佣金制度，公平透明，奖励丰厚</text>
+      <text class="header-title">佣金分配规则</text>
+      <text class="header-desc">公平透明，奖励丰厚</text>
     </view>
 
     <!-- 佣金分配表 -->
     <view class="section">
       <view class="section-header">
-        <view class="section-icon">💰</view>
+        <view class="section-icon"></view>
         <text class="section-title">佣金分配表</text>
       </view>
       <view class="level-table">
         <view class="table-header">
           <text class="col col-level">推广人等级</text>
           <text class="col col-own">推广人拿</text>
-          <text class="col col-up">上级分配</text>
+          <text class="col col-up">上级推广人分配</text>
           <text class="col col-total">总计</text>
         </view>
         <view class="table-row" v-for="(item, index) in agentLevels" :key="index">
@@ -32,73 +32,89 @@
       </view>
     </view>
 
-    <!-- 计算示例 -->
-    <view class="section">
-      <view class="section-header">
-        <view class="section-icon">📊</view>
-        <text class="section-title">计算示例</text>
-      </view>
-      <view class="example-box">
-        <view class="example-title">
-          <text>假设订单金额：<text class="highlight">¥100</text></text>
-        </view>
-        <view class="example-scenario">
-          <text class="scenario-title">场景：四级代理推广订单</text>
-          <view class="breakdown">
-            <view class="breakdown-item">
-              <text class="breakdown-label">四级代理（推广人）</text>
-              <text class="breakdown-value">¥8 (8%)</text>
-            </view>
-            <view class="breakdown-item">
-              <text class="breakdown-label">三级代理（上级1）</text>
-              <text class="breakdown-value">¥4 (4%)</text>
-            </view>
-            <view class="breakdown-item">
-              <text class="breakdown-label">二级代理（上级2）</text>
-              <text class="breakdown-value">¥4 (4%)</text>
-            </view>
-            <view class="breakdown-item">
-              <text class="breakdown-label">一级代理（上级3）</text>
-              <text class="breakdown-value">¥4 (4%)</text>
-            </view>
-            <view class="breakdown-item highlight-row">
-              <text class="breakdown-label">佣金总计</text>
-              <text class="breakdown-value">¥20 (20%)</text>
-            </view>
-            <view class="breakdown-item">
-              <text class="breakdown-label">公司收益</text>
-              <text class="breakdown-value">¥80 (80%)</text>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
+    
 
     <!-- 注意事项 -->
     <view class="section tips-section">
       <view class="section-header">
-        <view class="section-icon">💡</view>
+        <view class="section-icon"></view>
         <text class="section-title">温馨提示</text>
       </view>
       <view class="tips-list">
-        <text class="tip-item">• 每笔订单的佣金总额固定为订单金额的20%</text>
-        <text class="tip-item">• 佣金根据推广人的代理等级和上级关系自动分配</text>
-        <text class="tip-item">• 所有代理的佣金总计不超过订单金额的20%</text>
-        <text class="tip-item">• 佣金在订单完成后自动结算到各代理账户</text>
-        <text class="tip-item">• 晋升更高级别代理可获得更高的推广佣金比例</text>
+        <text class="tip-item">每笔订单的佣金总额固定为订单金额的20%</text>
+        <text class="tip-item">佣金根据推广人的等级和上级推广人关系自动分配</text>
+        <text class="tip-item">所有推广人的佣金总计不超过订单金额的20%</text>
+        <text class="tip-item">佣金在订单完成后自动结算到各推广人账户</text>
+        <text class="tip-item">升级更高级别可获得更高的推广佣金比例</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-// V2佣金分配规则
-const agentLevels = [
-  { level: 1, name: '一级代理', own: '20%', up: '无', total: '20%' },
-  { level: 2, name: '二级代理', own: '12%', up: '一级8%', total: '20%' },
-  { level: 3, name: '三级代理', own: '12%', up: '二级4% + 一级4%', total: '20%' },
-  { level: 4, name: '四级代理', own: '8%', up: '三级4% + 二级4% + 一级4%', total: '20%' }
-];
+import { computed, onMounted } from 'vue';
+import { usePromotionConfig } from '@/composables/usePromotionConfig';
+import { AGENT_LEVEL_NAMES } from '@/constants/promotion';
+
+const { config, loading, loadConfig, getCommissionRule } = usePromotionConfig();
+
+// 佣金分配表 - 从配置生成
+const agentLevels = computed(() => {
+  const levels = [
+    { level: 1, name: '金牌推广员', key: 1 },
+    { level: 2, name: '银牌', key: 2 },
+    { level: 3, name: '铜牌', key: 3 },
+    { level: 4, name: '普通会员', key: 4 }
+  ];
+
+  return levels.map(l => {
+    const rule = getCommissionRule(l.key);
+    const ownPercent = rule ? (rule.own * 100).toFixed(0) : '0';
+
+    let upText = '无';
+    if (rule && rule.upstream && rule.upstream.length > 0) {
+      const upPercent = rule.upstream.map((u: number) => (u * 100).toFixed(0)).join(' + ');
+      upText = upPercent + '%';
+    }
+
+    return {
+      level: l.level,
+      name: l.name,
+      own: ownPercent + '%',
+      up: upText,
+      total: '20%'
+    };
+  });
+});
+
+// 计算示例数据 - 从配置生成
+const exampleData = computed(() => {
+  const rule = getCommissionRule(4); // 普通会员
+  const ownAmount = 100 * rule.own;
+  const upstreamTotal = rule.upstream.reduce((sum, u) => sum + u, 0) * 100;
+  const commissionTotal = 20;
+  const companyTotal = 100 - commissionTotal;
+
+  // 计算各上级金额
+  const upstreamAmounts = rule.upstream.map((u: number) => ({
+    name: `铜牌/银牌/金牌`,
+    amount: (u * 100).toFixed(0),
+    percent: (u * 100).toFixed(0)
+  }));
+
+  return {
+    ownAmount: ownAmount.toFixed(0),
+    upstreamAmounts,
+    upstreamTotal: upstreamTotal.toFixed(0),
+    commissionTotal: commissionTotal.toString(),
+    companyTotal: companyTotal.toString()
+  };
+});
+
+// 加载配置
+onMounted(() => {
+  loadConfig();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -141,7 +157,10 @@ const agentLevels = [
 }
 
 .section-icon {
-  font-size: 36rpx;
+  width: 12rpx;
+  height: 12rpx;
+  background: #C9A962;
+  border-radius: 50%;
   margin-right: 16rpx;
 }
 
@@ -149,63 +168,6 @@ const agentLevels = [
   font-size: 34rpx;
   font-weight: 600;
   color: #3D2914;
-}
-
-/* 四重分润卡片 */
-.reward-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20rpx;
-}
-
-.reward-card {
-  width: calc(50% - 10rpx);
-  display: flex;
-  align-items: flex-start;
-  padding: 24rpx;
-  background: #FAFAFA;
-  border-radius: 16rpx;
-}
-
-.reward-icon {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 16rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16rpx;
-}
-
-.reward-icon text {
-  font-size: 28rpx;
-  color: #FFFFFF;
-  font-weight: 700;
-}
-
-.reward-info {
-  flex: 1;
-}
-
-.reward-name {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #3D2914;
-  margin-bottom: 8rpx;
-}
-
-.reward-ratio {
-  display: block;
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #D4A574;
-  margin-bottom: 4rpx;
-}
-
-.reward-desc {
-  font-size: 22rpx;
-  color: #9B8B7F;
 }
 
 /* 等级表格 */
@@ -243,42 +205,32 @@ const agentLevels = [
 }
 
 .col-level {
-  width: 160rpx;
+  width: 180rpx;
 }
 
-.col-ratio {
-  width: 160rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #D4A574;
-}
-
-.col-condition {
+.col-own, .col-up, .col-total {
   flex: 1;
   font-size: 26rpx;
-  color: #6B5B4F;
+  color: #3D2914;
 }
 
 .level-badge {
-  padding: 8rpx 20rpx;
+  padding: 8rpx 16rpx;
   border-radius: 8rpx;
 }
 
 .level-badge text {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #FFFFFF;
   font-weight: 600;
 }
 
-.level-badge.level-0 { background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); }
 .level-badge.level-1 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
 .level-badge.level-2 { background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); }
 .level-badge.level-3 { background: linear-gradient(135deg, #CD7F32 0%, #B8860B 100%); }
 .level-badge.level-4 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
-/* 星级卡片样式已删除（当前系统无星级概念） */
-
-/* 分润示例 */
+/* 计算示例 */
 .example-box {
   background: #FAFAFA;
   border-radius: 16rpx;

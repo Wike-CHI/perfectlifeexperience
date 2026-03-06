@@ -18,6 +18,12 @@ const PERMISSIONS = {
   PRODUCT_UPDATE: 'product.update',
   PRODUCT_DELETE: 'product.delete',
 
+  // 分类管理
+  CATEGORY_VIEW: 'category.view',
+  CATEGORY_CREATE: 'category.create',
+  CATEGORY_UPDATE: 'category.update',
+  CATEGORY_DELETE: 'category.delete',
+
   // 数据统计
   STATISTICS_VIEW: 'statistics.view',
 
@@ -72,7 +78,9 @@ const PERMISSIONS = {
 
   // 门店管理
   STORE_VIEW: 'store.view',
+  STORE_CREATE: 'store.create',
   STORE_UPDATE: 'store.update',
+  STORE_DELETE: 'store.delete',
 
   // 钱包管理
   WALLET_VIEW: 'wallet.view',
@@ -137,6 +145,7 @@ const ACTION_PERMISSIONS = {
   'getUsers': PERMISSIONS.USER_VIEW,
   'getUserDetail': PERMISSIONS.USER_VIEW,
   'updateUserStatus': PERMISSIONS.USER_MANAGE,
+  'updateUserAgentLevel': PERMISSIONS.USER_MANAGE,
 
   // 财务管理
   'getWithdrawList': PERMISSIONS.FINANCE_VIEW,
@@ -185,7 +194,12 @@ const ACTION_PERMISSIONS = {
 
   // 门店管理
   'getStoreInfo': PERMISSIONS.STORE_VIEW,
+  'getStoreDetail': PERMISSIONS.STORE_VIEW,
+  'createStore': PERMISSIONS.STORE_CREATE,
+  'updateStore': PERMISSIONS.STORE_UPDATE,
   'updateStoreInfo': PERMISSIONS.STORE_UPDATE,
+  'deleteStore': PERMISSIONS.STORE_DELETE,
+  'setDefaultStore': PERMISSIONS.STORE_UPDATE,
 
   // 钱包管理
   'getWalletTransactions': PERMISSIONS.WALLET_VIEW,
@@ -193,8 +207,7 @@ const ACTION_PERMISSIONS = {
   // 佣金钱包
   'getCommissionWallets': PERMISSIONS.COMMISSION_WALLET_VIEW,
 
-  // 系统配置
-  'getSystemConfig': PERMISSIONS.SYSTEM_CONFIG_VIEW,
+  // 系统配置（getSystemConfig 公开，updateSystemConfig 需要权限）
   'updateSystemConfig': PERMISSIONS.SYSTEM_CONFIG_UPDATE,
 
   // 用户详情相关（需要 USER_VIEW 权限）
@@ -209,9 +222,14 @@ const ACTION_PERMISSIONS = {
   'getCommissions': PERMISSIONS.PROMOTION_VIEW,
 
   // 分类管理（需要 PRODUCT_VIEW 权限）
-  'getCategories': PERMISSIONS.PRODUCT_VIEW,
+  'getCategories': PERMISSIONS.CATEGORY_VIEW,
+  'getCategoryDetail': PERMISSIONS.CATEGORY_VIEW,
+  'createCategory': PERMISSIONS.CATEGORY_CREATE,
+  'updateCategory': PERMISSIONS.CATEGORY_UPDATE,
+  'deleteCategory': PERMISSIONS.CATEGORY_DELETE,
 
-  // 提现拒绝（需要 FINANCE_APPROVE 权限）
+  // 提现审批（需要 FINANCE_APPROVE 权限）
+  'approveWithdrawal': PERMISSIONS.FINANCE_APPROVE,
   'rejectWithdrawal': PERMISSIONS.FINANCE_APPROVE,
 
   // 财务提现列表（兼容不同的 action 命名）

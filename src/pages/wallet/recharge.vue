@@ -80,15 +80,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { createRechargePayment, confirmRecharge } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
-import { rechargeOptions, getGiftAmount, type RechargeOption } from '@/config/recharge';
+import { loadRechargeConfig, getRechargeOptions, getGiftAmount, type RechargeOption } from '@/config/recharge';
 
 const selectedOption = ref<RechargeOption | null>(null);
 const isCustomAmount = ref(false);
 const customAmount = ref('');
 const loading = ref(false);
+const rechargeOptions = ref<RechargeOption[]>(getRechargeOptions());
+
+// 页面加载时获取最新配置（强制使用数据库配置）
+onMounted(async () => {
+  const opts = await loadRechargeConfig();
+  if (opts && opts.length > 0) {
+    rechargeOptions.value = opts;
+  } else {
+    uni.showToast({
+      title: '请在管理端配置充值档位',
+      icon: 'none',
+      duration: 5000
+    });
+  }
+});
 
 // 当前充值金额
 const currentAmount = computed(() => {

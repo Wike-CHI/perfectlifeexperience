@@ -38,6 +38,7 @@ const promotionModule = require('./modules/promotion')
 const promoterModule = require('./modules/promoter')
 const inventoryModule = require('./modules/inventory')
 const categoryModule = require('./modules/category')
+const storeModule = require('./modules/store')
 const orderAdminModule = require('./modules/order-admin')
 const dashboardModule = require('./modules/dashboard')
 const refundModule = require('./modules/refund')
@@ -163,6 +164,14 @@ exports.main = async (event, context) => {
         return await inventoryModule.adjustProductStock(db, logOperation, data, wxContext)
       case 'getCategories':
         return await categoryModule.getCategories(db, data)
+      case 'getCategoryDetail':
+        return await categoryModule.getCategoryDetail(db, data)
+      case 'createCategory':
+        return await categoryModule.createCategory(db, logOperation, data, wxContext)
+      case 'updateCategory':
+        return await categoryModule.updateCategory(db, logOperation, data, wxContext)
+      case 'deleteCategory':
+        return await categoryModule.deleteCategory(db, logOperation, data, wxContext)
       case 'getOrders':
         return await orderAdminModule.getOrders(db, data)
       case 'getOrderDetail':
@@ -197,6 +206,10 @@ exports.main = async (event, context) => {
         return await userModule.getUserRewardsAdmin(db, data)
       case 'updateUserAgentLevel':
         return await userModule.updateUserAgentLevel(db, data)
+      case 'bindUserRelation':
+        return await userModule.bindUserRelation(db, logOperation, data)
+      case 'unbindUserRelation':
+        return await userModule.unbindUserRelation(db, logOperation, data)
       case 'getWithdrawals':
         return await withdrawalModule.getWithdrawalsAdmin(db, data)
       case 'approveWithdrawal':
@@ -268,9 +281,19 @@ exports.main = async (event, context) => {
         return await miscModule.deleteAddress(db, logOperation, data, wxContext)
       // Store Management APIs
       case 'getStoreInfo':
-        return await miscModule.getStoreInfo(db)
+        return await storeModule.getStores(db, data)
+      case 'getStoreDetail':
+        return await storeModule.getStoreDetail(db, data)
+      case 'createStore':
+        return await storeModule.createStore(db, logOperation, data, wxContext)
+      case 'updateStore':
+        return await storeModule.updateStore(db, logOperation, data, wxContext)
+      case 'deleteStore':
+        return await storeModule.deleteStore(db, logOperation, data, wxContext)
+      case 'setDefaultStore':
+        return await storeModule.setDefaultStore(db, logOperation, data, wxContext)
       case 'updateStoreInfo':
-        return await miscModule.updateStoreInfo(db, logOperation, data, wxContext)
+        return await storeModule.updateStore(db, logOperation, data, wxContext)
       // Wallet Management APIs
       case 'getWalletTransactions':
         return await miscModule.getWalletTransactions(db, data)
@@ -705,7 +728,10 @@ async function getCategoriesAdmin() {
 // Order functions
 async function getOrdersAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { status, keyword, startDate, endDate } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -899,7 +925,10 @@ async function updateOrderExpressAdmin(data, wxContext) {
 // Financial Management functions
 async function getWithdrawalsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { status } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1162,7 +1191,10 @@ async function rejectWithdrawalAdmin(data, wxContext) {
 // Promoter Management functions
 async function getPromotersAdmin(data) {
   try {
-    const { page = 1, pageSize = 20, agentLevel, keyword } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit: pageSize } = validated;
+    const { agentLevel, keyword } = data || {};
     const skip = (page - 1) * pageSize;
 
     // 推广员：代理等级1-4（金牌、银牌、铜牌、普通会员）
@@ -1229,7 +1261,10 @@ async function getPromotersAdmin(data) {
 
 async function getCommissionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, type, dateRange } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { type, dateRange } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1457,7 +1492,10 @@ async function getMembersAtLevel(parentUserId, level) {
  */
 async function getPromotionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, type } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { status, type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -1780,7 +1818,10 @@ async function getPromotionActivityStatsAdmin(data) {
  */
 async function getRefundListAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, keyword, startDate, endDate } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { status, keyword, startDate, endDate } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2425,7 +2466,10 @@ async function triggerRewardDeduction(orderId, refundAmount, totalOrderAmount) {
  */
 async function getAddressesAdmin(data) {
   try {
-    const { page = 1, limit = 20, keyword } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { keyword } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2639,7 +2683,10 @@ async function updateStoreInfoAdmin(data, wxContext) {
  */
 async function getWalletTransactionsAdmin(data) {
   try {
-    const { page = 1, limit = 20, type } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2711,7 +2758,10 @@ async function getWalletTransactionsAdmin(data) {
  */
 async function getCommissionWalletsAdmin(data) {
   try {
-    const { page = 1, limit = 20, status, type } = data || {};
+    // 验证分页参数
+    const validated = validatePaginationParams(data || {});
+    const { page, limit } = validated;
+    const { status, type } = data || {};
     const skip = (page - 1) * limit;
 
     let query = {};

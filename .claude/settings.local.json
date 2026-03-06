@@ -108,7 +108,14 @@
       "Bash(do echo:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
-      "Bash(npx -y tcb:*)"
+      "Bash(npx -y tcb:*)",
+      "Bash(yes:*)",
+      "WebFetch(domain:blog.csdn.net)",
+      "mcp__cloudbase__queryStorage",
+      "Bash(python -c:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(npx vue-tsc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

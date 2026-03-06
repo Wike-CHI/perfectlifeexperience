@@ -228,4 +228,122 @@ describe('User模块 - 业务逻辑验证', () => {
   });
 });
 
+// ==================== 绑定/解绑功能测试 ====================
+describe('User模块 - 绑定/解绑功能', () => {
+  // Mock 数据库
+  const mockDb = {
+    collection: (name) => {
+      if (name === 'users') {
+        return {
+          doc: (id) => ({
+            get: async () => {
+              if (id === 'user1') {
+                return { data: { _id: 'user1', _openid: 'o1', agentLevel: 4 } };
+              }
+              if (id === 'user2') {
+                return { data: null };
+              }
+              if (id === 'user3') {
+                return { data: { _id: 'user3', _openid: 'o3', agentLevel: 2, inviteCode: 'PARENT001' } };
+              }
+              return { data: null };
+            },
+            update: async (data) => ({ stats: { updated: 1 } })
+          }),
+          where: () => ({
+            get: async () => ({ data: [] })
+          })
+        };
+      }
+      return {};
+    },
+    serverDate: () => new Date(),
+    command: {
+      remove: () => 'REMOVE'
+    }
+  };
+
+  // Mock logOperation
+  const mockLogOperation = async () => {};
+
+  // 加载需要测试的模块函数
+  const { bindUserRelation, unbindUserRelation } = require('./user.js');
+
+  it('bindUserRelation - 应该返回错误当缺少userId', async () => {
+    const result = await bindUserRelation(mockDb, mockLogOperation, { parentInviteCode: 'TEST001' });
+    assert.strictEqual(result.code, -2);
+    assert.ok(result.msg.includes('用户ID'));
+  });
+
+  it('bindUserRelation - 应该返回错误当缺少邀请码', async () => {
+    const result = await bindUserRelation(mockDb, mockLogOperation, { userId: 'user1' });
+    assert.strictEqual(result.code, -2);
+    assert.ok(result.msg.includes('邀请码'));
+  });
+
+  it('bindUserRelation - 应该返回错误当用户不存在', async () => {
+    const result = await bindUserRelation(mockDb, mockLogOperation, { userId: 'user2', parentInviteCode: 'TEST001' });
+    assert.strictEqual(result.code, 404);
+    assert.ok(result.msg.includes('不存在'));
+  });
+
+  it('unbindUserRelation - 应该返回错误当缺少userId', async () => {
+    const result = await unbindUserRelation(mockDb, mockLogOperation, {});
+    assert.strictEqual(result.code, -2);
+    assert.ok(result.msg.includes('用户ID'));
+  });
+
+  it('unbindUserRelation - 应该返回错误当用户不存在', async () => {
+    const result = await unbindUserRelation(mockDb, mockLogOperation, { userId: 'user2' });
+    assert.strictEqual(result.code, 404);
+  });
+
+  it('unbindUserRelation - 当用户无推广关系时应返回成功', async () => {
+    const mockDbNoRelation = {
+      collection: (name) => {
+        if (name === 'users') {
+          return {
+            doc: (id) => ({
+              get: async () => ({ data: { _id: 'user1', _openid: 'o1', agentLevel: 4 } }),
+              update: async () => ({ stats: { updated: 1 } })
+            })
+          };
+        }
+        return {};
+      },
+      serverDate: () => new Date(),
+      command: { remove: () => 'REMOVE' }
+    };
+
+    const result = await unbindUserRelation(mockDbNoRelation, mockLogOperation, { userId: 'user1' });
+    assert.strictEqual(result.code, 0);
+  });
+
+  it('bindUserRelation - 不能绑定自己', async () => {
+    // 这个测试需要模拟用户查找返回自己
+    const mockDbSelf = {
+      collection: (name) => {
+        if (name === 'users') {
+          return {
+            doc: (id) => ({
+              get: async () => ({ data: { _id: 'user1', _openid: 'o1', agentLevel: 4 } }),
+              update: async () => ({ stats: { updated: 1 } })
+            }),
+            where: () => ({
+              get: async () => ({ data: [{ _id: 'o1', _openid: 'o1', agentLevel: 4, inviteCode: 'TEST001' }] })
+            })
+          };
+        }
+        return {};
+      },
+      serverDate: () => new Date(),
+      command: { remove: () => 'REMOVE' }
+    };
+
+    const result = await bindUserRelation(mockDbSelf, mockLogOperation, { userId: 'user1', parentInviteCode: 'TEST001' });
+    assert.strictEqual(result.code, -1);
+    assert.ok(result.msg.includes('自己'));
+  });
+});
+
 console.log('\n✅ All tests passed!');

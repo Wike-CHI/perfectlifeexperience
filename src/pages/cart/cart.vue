@@ -17,7 +17,7 @@
         </view>
         
         <!-- 商品图片 -->
-        <image class="item-image" :src="item.image" mode="aspectFill" @click="goToProduct(item)" />
+        <image class="item-image" :src="getListThumbnail(item.image)" mode="aspectFill" lazy-load @click="goToProduct(item)" />
         
         <!-- 商品信息 -->
         <view class="item-info">
@@ -89,14 +89,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { 
-  getCartItems, 
-  updateCartQuantity, 
+import {
+  getCartItems,
+  updateCartQuantity,
   updateCartSelected,
   removeFromCart,
   calculateCartTotal,
   formatPrice
 } from '@/utils/api';
+import { getListThumbnail } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 interface CartItem {

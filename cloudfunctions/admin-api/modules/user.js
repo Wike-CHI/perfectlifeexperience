@@ -317,6 +317,153 @@ async function updateUserAgentLevel(db, data) {
   }
 }
 
+/**
+ * 绑定用户的上级推广人
+ * @param {Object} db - 数据库实例
+ * @param {Object} logOperation - 日志记录函数
+ * @param {Object} data - 请求数据
+ * @returns {Promise<Object>} 操作结果
+ */
+async function bindUserRelation(db, logOperation, data) {
+  try {
+    const { userId, parentInviteCode } = data || {};
+
+    if (!userId) {
+      return { code: -2, msg: '缺少用户ID' };
+    }
+
+    if (!parentInviteCode) {
+      return { code: -2, msg: '缺少上级邀请码' };
+    }
+
+    // 获取用户信息
+    const userRes = await db.collection('users').doc(userId).get();
+    if (!userRes.data) {
+      return { code: 404, msg: '用户不存在' };
+    }
+
+    const user = userRes.data;
+
+    // 查找上级用户
+    const parentRes = await db.collection('users')
+      .where({ inviteCode: parentInviteCode })
+      .get();
+
+    if (parentRes.data.length === 0) {
+      return { code: -1, msg: '上级邀请码无效' };
+    }
+
+    const parent = parentRes.data[0];
+    const parentId = parent._openid;
+    const parentAgentLevel = parent.agentLevel || 4;
+    const parentPath = parent.promotionPath || '';
+
+    // 不能绑定自己
+    if (parentId === user._openid) {
+      return { code: -1, msg: '不能绑定自己' };
+    }
+
+    // 检查循环引用
+    if (parentId && parentPath) {
+      const currentPath = `${parentPath}/${parentId}`;
+      const ancestors = currentPath.split('/').filter(id => id);
+      if (ancestors.includes(parentId)) {
+        return { code: -1, msg: '不能绑定下级用户作为上级' };
+      }
+    }
+
+    // 计算当前用户的代理层级
+    const MAX_LEVEL = 4;
+    const currentAgentLevel = Math.min(MAX_LEVEL, parentAgentLevel + 1);
+    const currentPath = parentPath ? `${parentPath}/${parentId}` : parentId;
+
+    // 更新用户推广关系
+    await db.collection('users').doc(userId).update({
+      data: {
+        parentId: parentId,
+        promotionPath: currentPath,
+        agentLevel: currentAgentLevel,
+        updateTime: db.serverDate()
+      }
+    });
+
+    // 记录日志
+    await logOperation(userId, 'bindUserRelation', {
+      parentId,
+      parentInviteCode,
+      previousPath: user.promotionPath || ''
+    });
+
+    return {
+      code: 0,
+      msg: '绑定成功',
+      data: {
+        parentId,
+        promotionPath: currentPath,
+        agentLevel: currentAgentLevel
+      }
+    };
+  } catch (error) {
+    console.error('Bind user relation error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 解绑用户的推广关系
+ * @param {Object} db - 数据库实例
+ * @param {Object} logOperation - 日志记录函数
+ * @param {Object} data - 请求数据
+ * @returns {Promise<Object>} 操作结果
+ */
+async function unbindUserRelation(db, logOperation, data) {
+  try {
+    const { userId } = data || {};
+
+    if (!userId) {
+      return { code: -2, msg: '缺少用户ID' };
+    }
+
+    // 获取用户信息
+    const userRes = await db.collection('users').doc(userId).get();
+    if (!userRes.data) {
+      return { code: 404, msg: '用户不存在' };
+    }
+
+    const user = userRes.data;
+    const previousPath = user.promotionPath || '';
+
+    // 如果没有推广关系，直接返回
+    if (!user.parentId && !previousPath) {
+      return { code: 0, msg: '用户暂无推广关系' };
+    }
+
+    // 清除推广关系
+    await db.collection('users').doc(userId).update({
+      data: {
+        parentId: db.command.remove(),
+        promotionPath: db.command.remove(),
+        agentLevel: 4, // 重置为普通会员
+        updateTime: db.serverDate()
+      }
+    });
+
+    // 记录日志
+    await logOperation(userId, 'unbindUserRelation', {
+      previousPath,
+      previousParentId: user.parentId || ''
+    });
+
+    return {
+      code: 0,
+      msg: '解绑成功'
+    };
+  } catch (error) {
+    console.error('Unbind user relation error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
 module.exports = {
   getUsersAdmin,
   getUserDetailAdmin,
@@ -324,5 +471,7 @@ module.exports = {
   getPromotionPathAdmin,
   getUserOrdersAdmin,
   getUserRewardsAdmin,
-  updateUserAgentLevel
+  updateUserAgentLevel,
+  bindUserRelation,
+  unbindUserRelation
 };

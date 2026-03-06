@@ -2,8 +2,8 @@
   <view class="container">
     <!-- 商品图片 -->
     <swiper class="product-swiper" indicator-dots circular indicator-active-color="#D4A574">
-      <swiper-item v-for="(image, index) in product.images" :key="index">
-        <image class="product-image" :src="image" mode="aspectFit" @click="previewImage(index)" />
+      <swiper-item v-for="(image, index) in getProductImages" :key="image">
+        <image class="product-image" :src="image" mode="aspectFit" @click="previewImage(index)" lazy-load />
       </swiper-item>
     </swiper>
 
@@ -183,6 +183,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getProductDetail, addToCart as apiAddToCart, getCartItems, formatPrice } from '@/utils/api';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, getDistanceLevel, STORE_LOCATION } from '@/utils/distance';
+import { getDetailThumbnail } from '@/utils/image';
 import { CDN_IMAGES } from '@/config/cdn';
 import { isFavorite, toggleFavorite } from '@/utils/favorite';
 
@@ -215,6 +216,14 @@ const currentSpec = ref('');
 const quantity = ref(1);
 const loading = ref(false);
 const isFavorited = ref(false); // 收藏状态
+
+// 获取商品图片列表（使用缩略图优化）
+const getProductImages = computed(() => {
+  if (!product.value.images || product.value.images.length === 0) {
+    return ['/static/images/default.png'];
+  }
+  return product.value.images.map((img: string) => getDetailThumbnail(img));
+});
 
 // 距离相关
 const distance = ref<number | null>(null);

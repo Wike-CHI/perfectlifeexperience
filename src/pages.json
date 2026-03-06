@@ -250,7 +250,7 @@
 				{
 					"path": "reward-rules",
 					"style": {
-						"navigationBarTitleText": "分销机制",
+						"navigationBarTitleText": "佣金机制",
 						"navigationBarBackgroundColor": "#F5F0E8",
 						"navigationBarTextStyle": "black"
 					}
@@ -258,7 +258,7 @@
 				{
 					"path": "star-rules",
 					"style": {
-						"navigationBarTitleText": "晋升机制",
+						"navigationBarTitleText": "升级规则",
 						"navigationBarBackgroundColor": "#F5F0E8",
 						"navigationBarTextStyle": "black"
 					}
@@ -382,6 +382,23 @@
 					"path": "products/edit",
 					"style": {
 						"navigationBarTitleText": "编辑商品",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "categories/list",
+					"style": {
+						"navigationBarTitleText": "分类管理",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
+					"path": "categories/edit",
+					"style": {
+						"navigationBarTitleText": "编辑分类",
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white"
 					}
@@ -560,9 +577,18 @@
 					}
 				},
 				{
+					"path": "stores/list",
+					"style": {
+						"navigationBarTitleText": "门店列表",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white",
+						"enablePullDownRefresh": true
+					}
+				},
+				{
 					"path": "stores/edit",
 					"style": {
-						"navigationBarTitleText": "门店管理",
+						"navigationBarTitleText": "编辑门店",
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white"
 					}
@@ -593,7 +619,7 @@
 						"navigationBarTextStyle": "white"
 					}
 				},
-				// ========== ERP 页面 ==========
+				
 				{
 					"path": "erp/index",
 					"style": {

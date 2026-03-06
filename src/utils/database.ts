@@ -204,13 +204,16 @@ export async function queryTeamMembers(params: {
   page?: number
   pageSize?: number
 }) {
-  // 注意：这个查询比较复杂，建议使用云函数
-  // 这里仅作为示例
+  // 团队查询需要复杂业务逻辑：
+  // 1. 需要先获取用户的 promotionPath
+  // 2. 根据 level 构建查询条件（path 包含特定前缀）
+  // 3. 需要递归查询所有下级成员
+  //
+  // 建议使用 promotion 云函数的 getTeamMembers 方法：
+  // import { getTeamMembers } from '@/utils/api'
+  // const result = await getTeamMembers(level, page, limit)
 
-  // TODO: 需要先获取用户的 promotionPath
-  // 然后根据 level 构建查询条件
-
-  throw new Error('团队查询建议使用云函数，因为需要复杂业务逻辑')
+  throw new Error('团队查询请使用云函数 promotion 的 getTeamMembers 方法')
 }
 
 // ============================================================================

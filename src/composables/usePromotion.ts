@@ -12,6 +12,7 @@ export function usePromotion() {
     agentLevel: 4,
     agentLevelName: '普通会员',
     agentLevelInternalName: '四级代理',
+    promotionPath: '',
     totalReward: 0,
     pendingReward: 0,
     withdrawableReward: 0,
@@ -60,15 +61,27 @@ export function usePromotion() {
     return ratios[user.value.agentLevel] || 8;
   });
 
-  // 计算上级佣金比例
+  // 计算上级佣金比例（根据实际推广路径）
   const upstreamRatios = computed(() => {
-    const ratios: Record<number, number[]> = {
+    // 根据代理等级确定各上级应该拿的佣金比例
+    // 注意：这里返回的是比例数组，实际显示的上级数量取决于 promotionPath
+    const upstreamRatioTemplates: Record<number, number[]> = {
       1: [],                  // 一级无上级
-      2: [8],                // 二级：一级拿8%
-      3: [4, 4],             // 三级：二级4%，一级4%
-      4: [4, 4, 4]           // 四级：三级4%，二级4%，一级4%
+      2: [0.08],              // 二级：一级拿8%
+      3: [0.04, 0.04],        // 三级：二级4%，一级4%
+      4: [0.04, 0.04, 0.04]   // 四级：三级4%，二级4%，一级4%
     };
-    return ratios[user.value.agentLevel] || [];
+
+    const template = upstreamRatioTemplates[user.value.agentLevel] || [];
+
+    // 根据实际推广路径截取上级数量
+    // promotionPath 格式: "parentId1/parentId2/parentId3"
+    // 实际上级数量 = min(模板定义的上级数, 实际推广路径长度)
+    const promotionPath = user.value.promotionPath || '';
+    const actualParentCount = promotionPath ? promotionPath.split('/').filter(id => id).length : 0;
+
+    // 返回实际上级数量对应的佣金比例
+    return template.slice(0, actualParentCount);
   });
 
   // 升级代理等级

@@ -172,9 +172,14 @@ const CART_KEY = 'local_cart';
 
 // 获取购物车列表
 export const getCartItems = async () => {
-  const cartJson = uni.getStorageSync(CART_KEY);
-  const cart: CartItem[] = cartJson ? JSON.parse(cartJson) : [];
-  return cart.sort((a, b) => new Date(b.updateTime!).getTime() - new Date(a.updateTime!).getTime());
+  try {
+    const cartJson = uni.getStorageSync(CART_KEY);
+    const cart: CartItem[] = cartJson ? JSON.parse(cartJson) : [];
+    return cart.sort((a, b) => new Date(b.updateTime!).getTime() - new Date(a.updateTime!).getTime());
+  } catch (error) {
+    console.error('获取购物车数据失败:', error);
+    return [];
+  }
 };
 
 // 添加商品到购物车
@@ -306,12 +311,17 @@ export const getOrders = async (status?: string) => {
   } catch (error) {
     console.error('获取订单列表失败:', error);
     // 降级：从本地缓存读取
-    const ordersJson = uni.getStorageSync(ORDER_KEY);
-    let orders: Order[] = ordersJson ? JSON.parse(ordersJson) : [];
-    if (status && status !== 'all') {
-      orders = orders.filter(o => o.status === status);
+    try {
+      const ordersJson = uni.getStorageSync(ORDER_KEY);
+      let orders: Order[] = ordersJson ? JSON.parse(ordersJson) : [];
+      if (status && status !== 'all') {
+        orders = orders.filter(o => o.status === status);
+      }
+      return orders;
+    } catch (error) {
+      console.error('读取本地订单缓存失败:', error);
+      return [];
     }
-    return orders;
   }
 };
 
@@ -456,11 +466,16 @@ export const getUserPhoneNumber = (e: any): Promise<string> => {
 
 // 获取用户信息（从本地存储读取，如果没有则返回 null）
 export const getUserInfo = async (): Promise<UserInfo | null> => {
-  const userJson = uni.getStorageSync(USER_KEY);
-  if (!userJson) {
+  try {
+    const userJson = uni.getStorageSync(USER_KEY);
+    if (!userJson) {
+      return null;
+    }
+    return JSON.parse(userJson) as UserInfo;
+  } catch (error) {
+    console.error('解析用户信息失败:', error);
     return null;
   }
-  return JSON.parse(userJson) as UserInfo;
 };
 
 // 从云函数获取最新用户信息（包含代理等级等最新数据）
@@ -1652,6 +1667,56 @@ export const adminRetryRefund = async (params: {
     throw new Error(res.msg || '重试退款失败');
   } catch (error) {
     console.error('重试退款失败:', error);
+    throw error;
+  }
+};
+
+// ==================== 系统配置 API ====================
+
+/**
+ * 获取系统配置
+ */
+export const getSystemConfig = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'getSystemConfig',
+      data: {}
+    });
+
+    if (res.code === 0) {
+      return res.data || {};
+    }
+    throw new Error(res.msg || '获取系统配置失败');
+  } catch (error) {
+    console.error('获取系统配置失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 更新系统配置
+ */
+export const updateSystemConfig = async (data: any) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('admin-api', {
+      action: 'updateSystemConfig',
+      data
+    });
+
+    if (res.code === 0) {
+      return res.data;
+    }
+    throw new Error(res.msg || '更新系统配置失败');
+  } catch (error) {
+    console.error('更新系统配置失败:', error);
     throw error;
   }
 };

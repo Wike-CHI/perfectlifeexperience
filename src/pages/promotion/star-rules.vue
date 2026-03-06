@@ -2,17 +2,17 @@
   <view class="page-container">
     <!-- 顶部标题 -->
     <view class="header">
-      <text class="header-title">晋升机制详解</text>
-      <text class="header-desc">从普通到金牌，开启您的晋升之路</text>
+      <text class="header-title">升级规则详解</text>
+      <text class="header-desc">从普通到金牌，开启您的升级之路</text>
     </view>
 
-    <!-- 晋升路径图 -->
+    <!-- 升级路径图 -->
     <view class="section">
       <view class="section-header">
         <view class="section-icon">
           <image class="icon-svg" src="/static/icons/icon-path.svg" mode="aspectFit"/>
         </view>
-        <text class="section-title">晋升路径</text>
+        <text class="section-title">升级路径</text>
       </view>
       <view class="path-flow">
         <view class="path-node" v-for="(item, index) in pathNodes" :key="index">
@@ -27,13 +27,13 @@
       </view>
     </view>
 
-    <!-- 晋升条件详情 -->
+    <!-- 升级条件详情 -->
     <view class="section">
       <view class="section-header">
         <view class="section-icon">
           <image class="icon-svg" src="/static/icons/icon-condition.svg" mode="aspectFit"/>
         </view>
-        <text class="section-title">晋升条件</text>
+        <text class="section-title">升级条件</text>
       </view>
       <view class="condition-cards">
         <view class="condition-card" v-for="(item, index) in conditions" :key="index">
@@ -49,8 +49,8 @@
               </view>
               <text class="condition-value">{{ item.salesReq }}</text>
             </view>
-            <view class="condition-divider"></view>
-            <view class="condition-row">
+            <view class="condition-divider" v-if="item.countReq"></view>
+            <view class="condition-row" v-if="item.countReq">
               <view class="condition-label">
                 <image class="label-icon" src="/static/icons/icon-users.svg" mode="aspectFit"/>
                 <text class="label-text">人数要求</text>
@@ -76,10 +76,9 @@
       <view class="compare-table">
         <view class="compare-header">
           <text class="compare-col col-name">权益项目</text>
-          <text class="compare-col col-level">普通</text>
-          <text class="compare-col col-level">铜牌</text>
-          <text class="compare-col col-level">银牌</text>
-          <text class="compare-col col-level">金牌</text>
+          <text class="compare-col col-level" v-for="level in [4, 3, 2, 1]" :key="level">
+            {{ getLevelShortName(level) }}
+          </text>
         </view>
         <view class="compare-row" v-for="(item, index) in compareItems" :key="index">
           <text class="compare-col col-name">{{ item.name }}</text>
@@ -90,162 +89,143 @@
       </view>
     </view>
 
-    <!-- 晋升FAQ -->
-    <view class="section">
-      <view class="section-header">
-        <view class="section-icon">
-          <image class="icon-svg" src="/static/icons/icon-faq.svg" mode="aspectFit"/>
-        </view>
-        <text class="section-title">常见问题</text>
-      </view>
-      <view class="faq-list">
-        <view class="faq-item" v-for="(item, index) in faqList" :key="index">
-          <view class="faq-question" @click="toggleFaq(index)">
-            <text class="faq-q">{{ item.question }}</text>
-            <text class="faq-arrow" :class="{ expanded: item.expanded }">▼</text>
-          </view>
-          <view class="faq-answer" v-if="item.expanded">
-            <text>{{ item.answer }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
     <!-- 底部提示 -->
     <view class="bottom-tips">
-      <text class="tips-text">晋升后权益立即生效，祝您早日晋升金牌！</text>
+      <text class="tips-text">升级后权益立即生效，祝您早日升级金牌！</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { COMMISSION_RULES, AGENT_LEVEL_NAMES } from '@/constants/promotion';
+import { computed, onMounted } from 'vue';
+import { usePromotionConfig } from '@/composables/usePromotionConfig';
+import { AGENT_LEVEL_NAMES } from '@/constants/promotion';
 
-// 晋升路径节点
-const pathNodes = [
-  { name: '普通', icon: '普', bgColor: '#9E9E9E' },
-  { name: '铜牌', icon: '铜', bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)' },
-  { name: '银牌', icon: '银', bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)' },
-  { name: '金牌', icon: '金', bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }
-];
+const { config, loadConfig, getCommissionRule, getPromotionThreshold } = usePromotionConfig();
 
-// 晋升条件（与后端 PromotionThreshold 配置保持一致）
-// 四级→三级: 累计销售额 >= 20,000元
-// 三级→二级: 本月销售额 >= 50,000元 或 团队 >= 50人
-// 二级→一级: 本月销售额 >= 100,000元 或 团队 >= 200人
-const conditions = [
-  {
-    name: '铜牌会员',
-    icon: '铜',
-    bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)',
-    salesReq: '累计 ≥ ¥20,000',
-    countReq: '无人数要求',
-    tip: '完成累计销售额即可自动晋升'
-  },
-  {
-    name: '银牌会员',
-    icon: '银',
-    bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    salesReq: '本月 ≥ ¥50,000',
-    countReq: '或团队 ≥ 50人',
-    tip: '满足任一条件即可晋升'
-  },
-  {
-    name: '金牌会员',
-    icon: '金',
-    bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    salesReq: '本月 ≥ ¥100,000',
-    countReq: '或团队 ≥ 200人',
-    tip: '最高等级，享受全部权益'
+// 格式化金额（带千分位）
+const formatMoneyYuan = (yuan: number): string => {
+  if (yuan >= 10000) {
+    return `${(yuan / 10000).toFixed(0)}万`;
   }
-];
+  return yuan.toLocaleString();
+};
 
-// 权益对比 - 根据常量动态生成
+// 升级路径节点 - 从常量生成
+const pathNodes = computed(() => {
+  const nodes = [
+    { level: 4, icon: '普', bgColor: '#9E9E9E' },
+    { level: 3, icon: '铜', bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)' },
+    { level: 2, icon: '银', bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)' },
+    { level: 1, icon: '金', bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }
+  ];
+  return nodes.map(node => ({
+    ...node,
+    name: AGENT_LEVEL_NAMES[node.level as keyof typeof AGENT_LEVEL_NAMES]
+  }));
+});
+
+// 获取等级简称
+const getLevelShortName = (level: number): string => {
+  const shortNames: Record<number, string> = {
+    1: '金牌',
+    2: '银牌',
+    3: '铜牌',
+    4: '普通'
+  };
+  return shortNames[level] || '普通';
+};
+
+// 升级条件 - 从配置生成
+const conditions = computed(() => {
+  const levelConfigs = [
+    {
+      level: 3,
+      icon: '铜',
+      bgColor: 'linear-gradient(135deg, #CD7F32 0%, #B8860B 100%)'
+    },
+    {
+      level: 2,
+      icon: '银',
+      bgColor: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)'
+    },
+    {
+      level: 1,
+      icon: '金',
+      bgColor: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)'
+    }
+  ];
+
+  return levelConfigs.map(config => {
+    const threshold = getPromotionThreshold(config.level);
+    const levelName = AGENT_LEVEL_NAMES[config.level as keyof typeof AGENT_LEVEL_NAMES];
+
+    let salesReq = '';
+    let countReq = '';
+    let tip = '';
+
+    if (config.level === 3) {
+      // 普通→铜牌：累计销售额
+      salesReq = `累计 ≥ ¥${formatMoneyYuan(threshold?.totalSales || config.value.bronzeTotalSales)}`;
+      countReq = '';
+      tip = '完成累计销售额即可自动升级';
+    } else if (config.level === 2) {
+      // 铜牌→银牌：本月销售额 或 团队人数
+      salesReq = `本月 ≥ ¥${formatMoneyYuan(threshold?.monthSales || config.value.silverMonthSales)}`;
+      countReq = `或团队 ≥ ${threshold?.teamCount || config.value.silverTeamCount}人`;
+      tip = '满足任一条件即可升级';
+    } else if (config.level === 1) {
+      // 银牌→金牌：本月销售额 或 团队人数
+      salesReq = `本月 ≥ ¥${formatMoneyYuan(threshold?.monthSales || config.value.goldMonthSales)}`;
+      countReq = `或团队 ≥ ${threshold?.teamCount || config.value.goldTeamCount}人`;
+      tip = '最高等级，享受全部权益';
+    }
+
+    return {
+      name: levelName,
+      icon: config.icon,
+      bgColor: config.bgColor,
+      salesReq,
+      countReq,
+      tip
+    };
+  });
+});
+
+// 权益对比 - 从配置生成
 const compareItems = computed(() => {
   // 1. 推广佣金比例
   const commissionRow = {
     name: '推广佣金比例',
     values: [4, 3, 2, 1].map(level => {
-      const ratio = COMMISSION_RULES[level as keyof typeof COMMISSION_RULES]?.own || 0;
+      const rule = getCommissionRule(level);
       return {
-        text: `${(ratio * 100).toFixed(0)}%`,
+        text: `${(rule.own * 100).toFixed(0)}%`,
         type: level === 1 ? 'highlight' : 'normal'
       };
     })
   };
 
-  // 2. 身份标识
-  const levelRow = {
-    name: '身份标识',
-    values: [4, 3, 2, 1].map(level => ({
-      text: AGENT_LEVEL_NAMES[level as keyof typeof AGENT_LEVEL_NAMES],
-      type: 'normal'
-    }))
+  // 2. 上级推广人分成（仅展示是否有上级）
+  const upstreamRow = {
+    name: '上级推广人分成',
+    values: [4, 3, 2, 1].map(level => {
+      const rule = getCommissionRule(level);
+      const hasUpstream = rule && rule.upstream && rule.upstream.length > 0;
+      return {
+        text: hasUpstream ? `${(rule.upstream.reduce((a: number, b: number) => a + b, 0) * 100).toFixed(0)}%` : '无',
+        type: hasUpstream ? 'normal' : 'no'
+      };
+    })
   };
 
-  // 3. 推广权限
-  const permissionRow = {
-    name: '推广权限',
-    values: [
-      { text: '✓', type: 'yes' },
-      { text: '✓', type: 'yes' },
-      { text: '✓', type: 'yes' },
-      { text: '✓', type: 'yes' }
-    ]
-  };
-
-  // 4. 优先客服
-  const serviceRow = {
-    name: '优先客服',
-    values: [
-      { text: '✗', type: 'no' },
-      { text: '✗', type: 'no' },
-      { text: '✗', type: 'no' },
-      { text: '✓', type: 'yes' }
-    ]
-  };
-
-  return [commissionRow, levelRow, permissionRow, serviceRow];
+  return [commissionRow, upstreamRow];
 });
 
-// FAQ列表
-const faqList = ref([
-  {
-    question: '佣金比例如何计算？',
-    answer: '不同等级享受不同佣金比例：金牌20%，银牌12%，铜牌12%，普通8%。推广好友下单时，您将获得对应比例的佣金。',
-    expanded: false
-  },
-  {
-    question: '晋升条件是累计还是按月？',
-    answer: '铜牌晋升为累计条件（累计销售额≥2万元）；银牌和金牌为月度条件（本月销售额或当前团队人数），每月销售额会重置。',
-    expanded: false
-  },
-  {
-    question: '晋升后等级会降级吗？',
-    answer: '代理等级是永久性的，一旦晋升不会降级。但月度销售额会影响您当前的晋升进度显示。',
-    expanded: false
-  },
-  {
-    question: '团队人数如何计算？',
-    answer: '团队人数包括您的所有下级成员（一级至四级），只要是通过您的推广链接注册的用户都计入团队。',
-    expanded: false
-  },
-  {
-    question: '如何查看当前晋升进度？',
-    answer: '在推广中心首页可以看到当前的晋升进度条，显示距离下一等级的完成百分比。',
-    expanded: false
-  },
-  {
-    question: '晋升后奖励何时生效？',
-    answer: '晋升立即生效，下次订单结算时即可享受新的权益比例。',
-    expanded: false
-  }
-]);
-
-const toggleFaq = (index: number) => {
-  faqList.value[index].expanded = !faqList.value[index].expanded;
-};
+// 加载配置
+onMounted(() => {
+  loadConfig();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -496,54 +476,6 @@ const toggleFaq = (index: number) => {
 
 .val-normal {
   color: #6B5B4F;
-}
-
-/* FAQ列表 */
-.faq-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.faq-item {
-  background: #FAFAFA;
-  border-radius: 12rpx;
-  overflow: hidden;
-}
-
-.faq-question {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24rpx;
-  cursor: pointer;
-}
-
-.faq-q {
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #3D2914;
-  flex: 1;
-}
-
-.faq-arrow {
-  font-size: 20rpx;
-  color: #9B8B7F;
-  transition: transform 0.3s;
-}
-
-.faq-arrow.expanded {
-  transform: rotate(180deg);
-}
-
-.faq-answer {
-  padding: 0 24rpx 24rpx;
-}
-
-.faq-answer text {
-  font-size: 26rpx;
-  color: #6B5B4F;
-  line-height: 1.6;
 }
 
 /* 底部提示 */

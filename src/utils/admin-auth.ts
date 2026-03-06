@@ -28,7 +28,8 @@ class AdminAuthManager {
 
       // callFunction 返回格式: {code: 0, msg: 'success', data: 云函数返回值}
       // 云函数返回格式: {code: 0/401/..., msg: '...', data: {...}}
-      const cloudFunctionResult = res.data
+      // 注意: 当云函数返回包含code字段时，callFunction直接返回该结果
+      const cloudFunctionResult = res
 
       // 检查云函数返回的状态码
       if (cloudFunctionResult && cloudFunctionResult.code === 0 && cloudFunctionResult.data) {
@@ -113,30 +114,19 @@ class AdminAuthManager {
     try {
       const adminStr = uni.getStorageSync(this.STORAGE_KEY)
 
-      // 🔍 调试：打印原始存储数据
-      console.log('📦 getAdminInfo - 原始存储字符串:', adminStr)
-      console.log('📦 getAdminInfo - STORAGE_KEY:', this.STORAGE_KEY)
-
       if (!adminStr) return null
 
       const adminInfo: AdminInfo = JSON.parse(adminStr)
 
-      // 🔍 调试：打印解析后的数据
-      console.log('📦 getAdminInfo - 解析后的 adminInfo:', adminInfo)
-      console.log('📦 getAdminInfo - adminInfo.status:', adminInfo.status)
-      console.log('📦 getAdminInfo - status 类型:', typeof adminInfo.status)
-
       // 检查账号状态
       if (adminInfo.status !== 'active') {
-        console.error('❌ 账号状态不是 active，执行 logout')
         this.logout()
         return null
       }
 
-      console.log('✅ getAdminInfo - 验证通过，返回 adminInfo')
       return adminInfo
     } catch (error) {
-      console.error('❌ 获取管理员信息失败:', error)
+      console.error('获取管理员信息失败:', error)
       return null
     }
   }
