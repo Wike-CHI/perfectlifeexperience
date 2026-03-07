@@ -90,7 +90,9 @@ const isImageUrl = (url: string): boolean => {
 const validIconNames = [
   'user', 'search', 'eye', 'eye-off', 'location', 'package', 'money', 'cart',
   'users', 'chart', 'plus', 'list', 'refund', 'refresh', 'check', 'close',
-  'alert', 'bulb', 'trophy', 'image', 'coupon', 'lock', 'box', 'card', 'truck', 'clock'
+  'alert', 'bulb', 'trophy', 'image', 'coupon', 'lock', 'box', 'card', 'truck', 'clock',
+  'ticket', 'gift', 'notice', 'coin', 'wallet', 'shop', 'settings', 'camera', 'calendar',
+  'celebration', 'document'
 ]
 
 const isIconName = (name: string): boolean => {

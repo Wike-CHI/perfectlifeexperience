@@ -297,8 +297,8 @@ export enum OrderStatus {
   PENDING = 'pending',
   /** 已支付 */
   PAID = 'paid',
-  /** 已发货 */
-  SHIPPED = 'shipped',
+  /** 配送中 */
+  SHIPPING = 'shipping',
   /** 已完成 */
   COMPLETED = 'completed',
   /** 退款中 */

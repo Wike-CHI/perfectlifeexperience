@@ -23,9 +23,6 @@ const {
   sanitizeUpdateData
 } = require('./validator')
 
-// ERP 模块
-const erpModule = require('./modules/erp')
-
 // 业务模块
 const orderModule = require('./modules/order')
 const bannerModule = require('./modules/banner')
@@ -236,6 +233,10 @@ exports.main = async (event, context) => {
         return await bannerModule.updateBannerAdmin(db, logOperation, data, wxContext)
       case 'deleteBanner':
         return await bannerModule.deleteBannerAdmin(db, logOperation, data, wxContext)
+      case 'uploadBannerImage':
+        return await bannerModule.uploadBannerImage(db, data, wxContext)
+      case 'uploadProductImage':
+        return await bannerModule.uploadProductImage(db, data, wxContext)
       case 'getCouponDetail':
         return await couponModule.getCouponDetailAdmin(db, data)
       case 'getBannerDetail':
@@ -305,63 +306,6 @@ exports.main = async (event, context) => {
         return await miscModule.getSystemConfig(db)
       case 'updateSystemConfig':
         return await miscModule.updateSystemConfig(db, data, wxContext)
-
-      // ========== ERP APIs ==========
-      // 供应商管理
-      case 'getSuppliers':
-        return await miscModule.getSuppliers(db, data)
-      case 'getSupplierDetail':
-        return await miscModule.getSupplierDetail(db, data)
-      case 'createSupplier':
-        return await miscModule.createSupplier(db, logOperation, data, wxContext)
-      case 'updateSupplier':
-        return await miscModule.updateSupplier(db, logOperation, data, wxContext)
-      case 'deleteSupplier':
-        return await miscModule.deleteSupplier(db, logOperation, data, wxContext)
-
-      // 采购管理
-      case 'getPurchaseOrders':
-        return await erpModule.getPurchaseOrders(db, data)
-      case 'getPurchaseOrderDetail':
-        return await erpModule.getPurchaseOrderDetail(db, data)
-      case 'createPurchaseOrder':
-        return await erpModule.createPurchaseOrder(db, logOperation, data, wxContext)
-      case 'updatePurchaseOrder':
-        return await erpModule.updatePurchaseOrder(db, logOperation, data, wxContext)
-      case 'submitPurchaseOrder':
-        return await erpModule.submitPurchaseOrder(db, logOperation, data, wxContext)
-      case 'receivePurchaseOrder':
-        return await erpModule.receivePurchaseOrder(db, logOperation, data, wxContext)
-      case 'cancelPurchaseOrder':
-        return await erpModule.cancelPurchaseOrder(db, logOperation, data, wxContext)
-
-      // 库存管理
-      case 'getInventoryOverview':
-        return await erpModule.getInventoryOverview(db)
-      case 'getInventoryBatches':
-        return await erpModule.getInventoryBatches(db, data)
-      case 'getInventoryTransactions':
-        return await erpModule.getInventoryTransactions(db, data)
-      case 'adjustInventory':
-        return await erpModule.adjustInventory(db, logOperation, data, wxContext)
-      case 'getExpiringBatches':
-        return await erpModule.getExpiringBatches(db, data)
-      case 'getExpiredBatches':
-        return await erpModule.getExpiredBatches(db)
-
-      // 盘点管理
-      case 'getInventoryChecks':
-        return await erpModule.getInventoryChecks(db, data)
-      case 'getInventoryCheckDetail':
-        return await erpModule.getInventoryCheckDetail(db, data)
-      case 'createInventoryCheck':
-        return await erpModule.createInventoryCheck(db, logOperation, data, wxContext)
-      case 'updateInventoryCheckItem':
-        return await erpModule.updateInventoryCheckItem(db, data)
-      case 'completeInventoryCheck':
-        return await erpModule.completeInventoryCheck(db, logOperation, data, wxContext)
-      case 'cancelInventoryCheck':
-        return await erpModule.cancelInventoryCheck(db, logOperation, data, wxContext)
 
       default:
         return {

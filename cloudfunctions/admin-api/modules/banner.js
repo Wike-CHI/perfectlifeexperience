@@ -215,10 +215,195 @@ async function getBannerDetailAdmin(db, data) {
   }
 }
 
+/**
+ * 上传Banner图片（服务端上传）
+ * @param {Object} db - 数据库实例
+ * @param {Object} data - 请求数据 {base64Data, fileName}
+ * @param {Object} wxContext - 微信上下文
+ * @returns {Promise<Object>} 上传结果
+ */
+async function uploadBannerImage(db, data, wxContext) {
+  const cloud = require('wx-server-sdk');
+  cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+
+  try {
+    const { base64Data, fileName } = data;
+
+    if (!base64Data) {
+      return { code: -1, msg: '缺少图片数据' };
+    }
+
+    // 验证 base64 数据大小
+    const estimatedSize = (base64Data.length * 3) / 4;
+    if (estimatedSize > 5 * 1024 * 1024) {
+      return { code: -1, msg: '图片大小不能超过5MB' };
+    }
+
+    // 解码 base64
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // 如果超过 2MB，进行压缩
+    let processedBuffer = buffer;
+    const maxSize = 2 * 1024 * 1024;
+
+    if (buffer.length > maxSize) {
+      try {
+        const sharp = require('sharp');
+        processedBuffer = await sharp(buffer)
+          .jpeg({ quality: 80 })
+          .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer();
+
+        if (processedBuffer.length > maxSize) {
+          processedBuffer = await sharp(processedBuffer)
+            .jpeg({ quality: 70 })
+            .resize(1280, 720, { fit: 'inside', withoutEnlargement: true })
+            .toBuffer();
+        }
+        console.log(`图片压缩: ${buffer.length} -> ${processedBuffer.length}`);
+      } catch (e) {
+        console.error('图片压缩失败，使用原图', e);
+        processedBuffer = buffer;
+      }
+    }
+
+    // 生成云存储路径
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const ext = fileName ? fileName.split('.').pop() : 'jpg';
+    const cloudPath = `banners/${timestamp}_${random}.${ext}`;
+
+    // 上传到云存储
+    const result = await cloud.uploadFile({
+      cloudPath,
+      fileContent: processedBuffer
+    });
+
+    // 获取临时访问URL
+    let tempFileURL = '';
+    try {
+      const urlResult = await cloud.getTempFileURL({
+        fileList: [result.fileID]
+      });
+      if (urlResult.fileList && urlResult.fileList[0] && urlResult.fileList[0].tempFileURL) {
+        tempFileURL = urlResult.fileList[0].tempFileURL;
+      }
+    } catch (e) {
+      console.error('获取临时URL失败', e);
+    }
+
+    return {
+      code: 0,
+      msg: '上传成功',
+      data: {
+        fileID: result.fileID,
+        tempFileURL: tempFileURL || result.fileID,
+        originalSize: buffer.length,
+        compressedSize: processedBuffer.length
+      }
+    };
+  } catch (error) {
+    console.error('上传Banner图片失败:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 上传商品图片
+ * @param {Object} db - 数据库实例
+ * @param {Object} data - 请求数据
+ * @returns {Promise<Object>} 上传结果
+ */
+async function uploadProductImage(db, data, wxContext) {
+  const cloud = require('wx-server-sdk');
+  cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+
+  try {
+    const { base64Data, fileName } = data;
+
+    if (!base64Data) {
+      return { code: -1, msg: '缺少图片数据' };
+    }
+
+    // 验证 base64 数据大小
+    const estimatedSize = (base64Data.length * 3) / 4;
+    if (estimatedSize > 5 * 1024 * 1024) {
+      return { code: -1, msg: '图片大小不能超过5MB' };
+    }
+
+    // 解码 base64
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // 如果超过 2MB，进行压缩
+    let processedBuffer = buffer;
+    const maxSize = 2 * 1024 * 1024;
+
+    if (buffer.length > maxSize) {
+      try {
+        const sharp = require('sharp');
+        processedBuffer = await sharp(buffer)
+          .jpeg({ quality: 80 })
+          .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer();
+
+        if (processedBuffer.length > maxSize) {
+          processedBuffer = await sharp(processedBuffer)
+            .jpeg({ quality: 70 })
+            .resize(1280, 720, { fit: 'inside', withoutEnlargement: true })
+            .toBuffer();
+        }
+        console.log(`图片压缩: ${buffer.length} -> ${processedBuffer.length}`);
+      } catch (e) {
+        console.error('图片压缩失败，使用原图', e);
+        processedBuffer = buffer;
+      }
+    }
+
+    // 生成云存储路径 - 使用 products 目录
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const ext = fileName ? fileName.split('.').pop() : 'jpg';
+    const cloudPath = `products/${timestamp}_${random}.${ext}`;
+
+    // 上传到云存储
+    const result = await cloud.uploadFile({
+      cloudPath,
+      fileContent: processedBuffer
+    });
+
+    // 获取临时访问URL
+    let tempFileURL = '';
+    try {
+      const urlResult = await cloud.getTempFileURL({
+        fileList: [result.fileID]
+      });
+      if (urlResult.fileList && urlResult.fileList[0] && urlResult.fileList[0].tempFileURL) {
+        tempFileURL = urlResult.fileList[0].tempFileURL;
+      }
+    } catch (e) {
+      console.error('获取临时URL失败', e);
+    }
+
+    return {
+      code: 0,
+      data: {
+        fileID: result.fileID,
+        url: tempFileURL || result.fileID
+      },
+      msg: '上传成功'
+    };
+  } catch (error) {
+    console.error('上传商品图片失败:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
 module.exports = {
   getBannersAdmin,
   createBannerAdmin,
   updateBannerAdmin,
   deleteBannerAdmin,
-  getBannerDetailAdmin
+  getBannerDetailAdmin,
+  uploadBannerImage,
+  uploadProductImage
 };

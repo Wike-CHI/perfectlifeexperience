@@ -214,8 +214,6 @@ function getDefaultPermissions(role) {
       'user.view', 'user.manage',
       // 财务管理
       'finance.view', 'finance.approve',
-      // 库存管理
-      'inventory.view',
       // 退款管理
       'refund.view', 'refund.approve',
       // 地址管理
@@ -244,8 +242,6 @@ function getDefaultPermissions(role) {
       'announcement.view',
       // 用户管理
       'user.view',
-      // 库存管理
-      'inventory.view',
       // 退款管理
       'refund.view',
       // 地址管理

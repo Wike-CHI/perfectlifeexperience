@@ -66,6 +66,7 @@
 import { ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
+import { initCloudBase } from '@/utils/cloudbase'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
@@ -83,7 +84,10 @@ const showPassword = ref(false)
 const isLoading = ref(false)
 
 // 页面加载
-onLoad(() => {
+onLoad(async () => {
+  // 初始化云开发
+  await initCloudBase()
+
   // 如果已登录，直接跳转到管理后台
   if (AdminAuthManager.isLoggedIn()) {
     uni.redirectTo({

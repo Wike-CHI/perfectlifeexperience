@@ -244,6 +244,117 @@ exports.main = async (event, context) => {
     }
   }
 
+  // Banner 图片上传（支持压缩）
+  if (action === 'uploadBanner') {
+    const { base64Data, fileName } = event;
+
+    // 1. 验证文件名
+    const fileNameValidation = validateFileName(fileName || 'banner.jpg');
+    if (!fileNameValidation.valid) {
+      return {
+        code: -1,
+        msg: fileNameValidation.error
+      };
+    }
+
+    // 2. 验证 base64 数据
+    const base64Validation = validateBase64Data(base64Data);
+    if (!base64Validation.valid) {
+      return {
+        code: -1,
+        msg: base64Validation.error
+      };
+    }
+
+    // 3. 验证文件内容
+    const contentValidation = validateFileContent(base64Validation.buffer, fileNameValidation.ext);
+    if (!contentValidation.valid) {
+      return {
+        code: -1,
+        msg: contentValidation.error
+      };
+    }
+
+    try {
+      // 4. 使用 sharp 进行图片压缩（目标 < 2MB）
+      const imageBuffer = base64Validation.buffer;
+      let processedBuffer = imageBuffer;
+
+      // 检查文件大小，如果超过 2MB 则压缩
+      const maxSize = 2 * 1024 * 1024; // 2MB
+
+      if (imageBuffer.length > maxSize) {
+        console.log(`图片大小 ${imageBuffer.length} bytes > 2MB，进行压缩...`);
+
+        // 使用 sharp 压缩图片
+        const sharp = require('sharp');
+        processedBuffer = await sharp(imageBuffer)
+          .jpeg({ quality: 85 }) // JPEG 质量 85%
+          .resize(1920, 1080, { // 最大尺寸限制
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .toBuffer();
+
+        // 如果还是超过 2MB，进一步压缩
+        if (processedBuffer.length > maxSize) {
+          console.log(`压缩后仍超过 2MB，继续压缩...`);
+          processedBuffer = await sharp(processedBuffer)
+            .jpeg({ quality: 70 })
+            .resize(1280, 720, {
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .toBuffer();
+        }
+
+        console.log(`压缩完成: ${imageBuffer.length} -> ${processedBuffer.length} bytes`);
+      }
+
+      // 5. 生成云存储路径
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 8);
+      const cloudPath = `banners/${timestamp}_${random}.jpg`;
+
+      // 6. 上传到云存储
+      const result = await cloud.uploadFile({
+        cloudPath,
+        fileContent: processedBuffer
+      });
+
+      // 7. 获取临时访问 URL
+      let tempFileURL = '';
+      try {
+        const urlResult = await cloud.getTempFileURL({
+          fileList: [result.fileID]
+        });
+        if (urlResult.fileList && urlResult.fileList[0] && urlResult.fileList[0].tempFileURL) {
+          tempFileURL = urlResult.fileList[0].tempFileURL;
+        }
+      } catch (urlError) {
+        console.error('获取临时URL失败:', urlError);
+      }
+
+      return {
+        code: 0,
+        msg: '上传成功',
+        data: {
+          fileID: result.fileID,
+          cloudPath: result.cloudPath,
+          tempFileURL: tempFileURL || result.fileID,
+          originalSize: imageBuffer.length,
+          compressedSize: processedBuffer.length
+        }
+      };
+    } catch (error) {
+      console.error('上传失败:', error);
+      return {
+        code: -1,
+        msg: error.message || '上传失败'
+      };
+    }
+  }
+
   return {
     code: -2,
     msg: '未知操作'

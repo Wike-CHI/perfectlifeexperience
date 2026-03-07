@@ -115,7 +115,12 @@
       "Bash(python -c:*)",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(npx vue-tsc:*)"
+      "Bash(npx vue-tsc:*)",
+      "Bash(npx:*)",
+      "Bash(zip -r upload.zip upload/)",
+      "Bash(powershell:*)",
+      "Bash(do node -c:*)",
+      "Bash(echo:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

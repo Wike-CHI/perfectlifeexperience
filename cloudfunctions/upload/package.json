@@ -4,6 +4,7 @@
   "description": "文件上传云函数",
   "main": "index.js",
   "dependencies": {
-    "wx-server-sdk": "~2.6.3"
+    "wx-server-sdk": "~2.6.3",
+    "sharp": "^0.33.0"
   }
 }

@@ -135,7 +135,7 @@ export async function queryRewardRecords(params: {
  * 查询用户的订单
  */
 export async function queryOrders(params: {
-  status?: 'pending' | 'paid' | 'shipped' | 'completed' | 'refunding' | 'refunded' | 'cancelled'
+  status?: 'pending' | 'paid' | 'shipping' | 'completed' | 'refunding' | 'refunded' | 'cancelled'
   page?: number
   pageSize?: number
 }) {

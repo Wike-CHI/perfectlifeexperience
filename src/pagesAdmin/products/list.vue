@@ -138,9 +138,11 @@ const loadCategories = async () => {
     })
 
     if (res.code === 0 && res.data) {
-      // 兼容返回格式：可能是数组或 {categories: [...]} 对象
+      // 兼容返回格式：可能是数组或 {list: [...]} 或 {categories: [...]} 对象
       if (Array.isArray(res.data)) {
         categories.value = res.data
+      } else if (res.data.list) {
+        categories.value = res.data.list
       } else if (res.data.categories) {
         categories.value = res.data.categories
       } else {

@@ -10,7 +10,7 @@ import { OrderStatus, RefundStatus } from '@/types/database'
 export const ORDER_STATUS_TEXTS: Record<OrderStatus, string> = {
   pending: '待支付',
   paid: '已支付',
-  shipped: '已发货',
+  shipping: '配送中',
   completed: '已完成',
   refunding: '退款中',
   refunded: '已退款',
@@ -23,7 +23,7 @@ export const ORDER_STATUS_TEXTS: Record<OrderStatus, string> = {
 export const ORDER_STATUS_ICONS: Record<OrderStatus, string> = {
   pending: 'wallet-filled',
   paid: 'checkmarkempty',
-  shipped: 'paperplane-filled',
+  shipping: 'paperplane-filled',
   completed: 'checkbox-filled',
   refunding: 'refreshempty',
   refunded: 'reload-filled',
@@ -36,8 +36,8 @@ export const ORDER_STATUS_ICONS: Record<OrderStatus, string> = {
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#FFB085',     // 橙色
   paid: '#06D6A0',        // 绿色
-  shipped: '#7A9A8E',     // 鼠尾草绿
-  completed: '#C9A962',   // 琥珀金
+  shipping: '#7A9A8E',    // 鼠尾草绿
+  completed: '#C9A962',    // 琥珀金
   refunding: '#FFB085',   // 橙色
   refunded: '#9B8B7F',    // 棕灰色
   cancelled: '#C44536'    // 红色

@@ -1,8 +1,25 @@
 <template>
   <view class="dashboard-container">
-    <!-- 数据概览区域 -->
+    <!-- 顶部欢迎区 -->
+    <view class="welcome-section">
+      <view class="welcome-left">
+        <text class="welcome-title">{{ welcomeMessage }}</text>
+        <text class="welcome-subtitle">{{ currentDate }}</text>
+      </view>
+      <view class="welcome-actions">
+        <view class="action-btn" @click="scanExpressCode">
+          <AdminIcon name="camera" size="small" variant="default" />
+          <text class="action-text">扫快递</text>
+        </view>
+        <view class="action-btn" @click="goToProductAdd">
+          <AdminIcon name="plus" size="small" variant="default" />
+          <text class="action-text">添加商品</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 核心数据卡片 -->
     <view class="stats-section">
-      <view class="section-title">数据概览</view>
       <view class="stats-grid">
         <admin-data-card
           v-for="stat in stats"
@@ -19,49 +36,37 @@
       </view>
     </view>
 
-    <!-- 待办事项区域 -->
-    <admin-card title="待办事项" class="todo-section">
-      <view class="todo-list">
+    <!-- 常用功能入口 -->
+    <view class="features-section">
+      <view class="section-title">常用功能</view>
+      <view class="features-grid">
         <view
-          v-for="todo in todos"
-          :key="todo.id"
-          class="todo-item"
-          @click="handleTodo(todo)"
+          v-for="feature in coreFeatures"
+          :key="feature.id"
+          class="feature-item"
+          @click="goToPage(feature.link)"
         >
-          <view class="todo-badge" :class="todo.type">
-            <text class="badge-count">{{ todo.count }}</text>
+          <view class="feature-icon-wrapper" :class="feature.color">
+            <AdminIcon :name="feature.icon" size="medium" variant="gold" />
           </view>
-          <view class="todo-content">
-            <text class="todo-label">{{ todo.label }}</text>
-            <text v-if="todo.desc" class="todo-desc">{{ todo.desc }}</text>
-          </view>
-          <text class="todo-arrow">›</text>
+          <text class="feature-label">{{ feature.label }}</text>
+          <text v-if="feature.badge && feature.badge > 0" class="feature-badge">{{ feature.badge }}</text>
         </view>
       </view>
-    </admin-card>
+    </view>
 
-    <!-- 快捷操作区域 -->
-    <admin-card title="快捷操作" class="actions-section">
-      <view class="quick-actions">
-        <view
-          v-for="action in quickActions"
-          :key="action.id"
-          class="action-item"
-          @click="handleQuickAction(action)"
-        >
-          <view class="action-icon-wrapper">
-            <AdminIcon :name="action.icon" size="medium" variant="gold" />
-          </view>
-          <text class="action-label">{{ action.label }}</text>
+    <!-- 更多功能入口 -->
+    <view class="more-section">
+      <view class="section-header" @click="toggleMoreFeatures">
+        <view class="section-title">更多功能</view>
+        <view class="expand-icon" :class="{ expanded: showMoreFeatures }">
+          <text class="expand-arrow">›</text>
         </view>
       </view>
-    </admin-card>
 
-    <!-- 功能管理区域 -->
-    <admin-card title="功能管理" class="menu-section">
-      <view class="menu-grid">
+      <view v-if="showMoreFeatures" class="more-grid">
         <view
-          v-for="menu in menuItems"
+          v-for="menu in moreFeatures"
           :key="menu.id"
           class="menu-item"
           @click="goToPage(menu.link)"
@@ -72,39 +77,7 @@
           <text class="menu-label">{{ menu.label }}</text>
         </view>
       </view>
-    </admin-card>
-
-    <!-- 最近订单区域 -->
-    <admin-card
-      title="最近订单"
-      extra="查看全部 ›"
-      class="orders-section"
-      @click-extra="goToOrders"
-    >
-      <view class="recent-orders">
-        <view
-          v-for="order in recentOrders"
-          :key="order._id"
-          class="order-item"
-          @click="goToOrderDetail(order._id)"
-        >
-          <view class="order-info">
-            <text class="order-no">{{ order.orderNo }}</text>
-            <text class="order-user">{{ order.userName }}</text>
-          </view>
-          <view class="order-right">
-            <text class="order-amount">¥{{ (order.totalAmount / 100).toFixed(2) }}</text>
-            <view :class="['order-status', order.status]">
-              {{ statusMap[order.status] }}
-            </view>
-          </view>
-        </view>
-
-        <view v-if="recentOrders.length === 0" class="empty-state">
-          <text class="empty-text">暂无订单</text>
-        </view>
-      </view>
-    </admin-card>
+    </view>
 
     <!-- 安全区域 -->
     <view class="safe-area"></view>
@@ -112,19 +85,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { onPullDownRefresh } from '@dcloudio/uni-app'
 import AdminAuthManager from '@/utils/admin-auth'
 import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
-import AdminCard from '@/components/admin-card.vue'
 import AdminDataCard from '@/components/admin-data-card.vue'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
- * 管理后台仪表盘
+ * 管理后台仪表盘 - 精简版
  */
+
+// 当前日期
+const currentDate = computed(() => {
+  const now = new Date()
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  }
+  return now.toLocaleDateString('zh-CN', options)
+})
+
+// 欢迎信息
+const welcomeMessage = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return '早上好'
+  if (hour < 14) return '中午好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+})
+
+// 是否展开更多功能
+const showMoreFeatures = ref(false)
+
+// 切换更多功能展开状态
+const toggleMoreFeatures = () => {
+  showMoreFeatures.value = !showMoreFeatures.value
+}
 
 // 权限检查
 onMounted(() => {
@@ -140,27 +141,27 @@ onPullDownRefresh(async () => {
   uni.stopPullDownRefresh()
 })
 
-// 数据概览
+// 核心数据卡片
 const stats = ref([
-  {
-    id: 'today-sales',
-    label: '今日销售额',
-    value: 0,
-    unit: '元',
-    icon: 'money',
-    trend: '+12%',
-    trendType: 'up',
-    link: '/pagesAdmin/statistics/index'
-  },
   {
     id: 'today-orders',
     label: '今日订单',
     value: 0,
     unit: '单',
     icon: 'package',
-    trend: '+8%',
-    trendType: 'up',
+    trend: '',
+    trendType: 'neutral',
     link: '/pagesAdmin/orders/list'
+  },
+  {
+    id: 'today-sales',
+    label: '今日销售额',
+    value: 0,
+    unit: '元',
+    icon: 'money',
+    trend: '',
+    trendType: 'neutral',
+    link: '/pagesAdmin/statistics/index'
   },
   {
     id: 'pending-ship',
@@ -173,85 +174,40 @@ const stats = ref([
     link: '/pagesAdmin/orders/list?status=paid'
   },
   {
-    id: 'total-users',
-    label: '总用户数',
+    id: 'pending-refund',
+    label: '待审核退款',
     value: 0,
-    unit: '人',
-    icon: 'users',
-    trend: '+5%',
-    trendType: 'up',
-    link: '/pagesAdmin/users/list'
+    unit: '单',
+    icon: 'refund',
+    trend: '',
+    trendType: 'neutral',
+    link: '/pagesAdmin/refunds/index'
   }
 ])
 
-// 待办事项
-const todos = ref([
-  {
-    id: 'pending-ship',
-    label: '待发货订单',
-    desc: '需要及时处理',
-    count: 0,
-    type: 'warning',
-    link: '/pagesAdmin/orders/list?status=paid'
-  },
-  {
-    id: 'low-stock',
-    label: '库存预警',
-    desc: '商品库存不足',
-    count: 0,
-    type: 'danger',
-    link: '/pagesAdmin/inventory/list'
-  },
-  {
-    id: 'pending-withdraw',
-    label: '待审核提现',
-    desc: '需要财务审核',
-    count: 0,
-    type: 'info',
-    link: '/pagesAdmin/finance/index'
-  }
+// 核心功能（6个常用功能）
+const coreFeatures = ref<any[]>([
+  { id: 'orders', icon: 'list', label: '订单管理', link: '/pagesAdmin/orders/list', color: 'gold', badge: 0 },
+  { id: 'products', icon: 'box', label: '商品管理', link: '/pagesAdmin/products/list', color: 'gold', badge: 0 },
+  { id: 'users', icon: 'users', label: '用户管理', link: '/pagesAdmin/users/list', color: 'bronze', badge: 0 },
+  { id: 'refunds', icon: 'refund', label: '退款管理', link: '/pagesAdmin/refunds/index', color: 'danger', badge: 0 },
+  { id: 'finance', icon: 'money', label: '财务管理', link: '/pagesAdmin/finance/index', color: 'sage', badge: 0 },
+  { id: 'promotion', icon: 'chart', label: '推广管理', link: '/pagesAdmin/promotion/index', color: 'gold', badge: 0 }
 ])
 
-// 快捷操作
-const quickActions = ref([
-  { id: 'scan-order', icon: 'search', label: '扫快递单', handler: scanExpressCode },
-  { id: 'add-product', icon: 'plus', label: '添加商品', handler: goToProductAdd },
-  { id: 'new-order', icon: 'list', label: '订单管理', handler: goToOrders },
-  { id: 'promotion', icon: 'chart', label: '推广数据', handler: goToPromotion }
-])
-
-// 功能菜单（完整的管理入口）
-const menuItems = ref([
-  { id: 'products', icon: 'box', label: '商品管理', link: '/pagesAdmin/products/list', color: 'gold' },
-  { id: 'orders', icon: 'list', label: '订单管理', link: '/pagesAdmin/orders/list', color: 'gold' },
-  { id: 'users', icon: 'users', label: '用户管理', link: '/pagesAdmin/users/list', color: 'bronze' },
-  { id: 'finance', icon: 'money', label: '财务管理', link: '/pagesAdmin/finance/index', color: 'sage' },
-  { id: 'refunds', icon: 'refund', label: '退款管理', link: '/pagesAdmin/refunds/index', color: 'danger' },
-  { id: 'promotion', icon: 'chart', label: '推广管理', link: '/pagesAdmin/promotion/index', color: 'gold' },
-  { id: 'commissions', icon: 'coin', label: '佣金明细', link: '/pagesAdmin/commissions/list', color: 'gold' },
-  { id: 'commission-wallets', icon: 'wallet', label: '佣金钱包', link: '/pagesAdmin/commission-wallets/list', color: 'gold' },
+// 更多功能
+const moreFeatures = ref([
   { id: 'coupons', icon: 'ticket', label: '优惠券', link: '/pagesAdmin/coupons/list', color: 'bronze' },
   { id: 'banners', icon: 'image', label: 'Banner', link: '/pagesAdmin/banners/list', color: 'bronze' },
   { id: 'promotions', icon: 'gift', label: '活动管理', link: '/pagesAdmin/promotions/list', color: 'bronze' },
   { id: 'announcements', icon: 'notice', label: '公告管理', link: '/pagesAdmin/announcements/list', color: 'sage' },
-  { id: 'inventory', icon: 'alert', label: '库存预警', link: '/pagesAdmin/inventory/list', color: 'danger' },
-  { id: 'addresses', icon: 'location', label: '地址管理', link: '/pagesAdmin/addresses/list', color: 'sage' },
-  { id: 'wallets', icon: 'wallet', label: '钱包管理', link: '/pagesAdmin/wallets/list', color: 'sage' },
+  { id: 'commissions', icon: 'coin', label: '佣金明细', link: '/pagesAdmin/commissions/list', color: 'gold' },
+  { id: 'commission-wallets', icon: 'wallet', label: '佣金钱包', link: '/pagesAdmin/commission-wallets/list', color: 'gold' },
+  { id: 'categories', icon: 'list', label: '分类管理', link: '/pagesAdmin/categories/list', color: 'sage' },
   { id: 'stores', icon: 'shop', label: '门店管理', link: '/pagesAdmin/stores/edit', color: 'bronze' },
   { id: 'statistics', icon: 'chart', label: '数据统计', link: '/pagesAdmin/statistics/index', color: 'gold' },
   { id: 'settings', icon: 'settings', label: '系统设置', link: '/pagesAdmin/settings/config', color: 'sage' }
 ])
-
-// 最近订单
-const recentOrders = ref<any[]>([])
-
-// 订单状态映射
-const statusMap: Record<string, string> = {
-  pending: '待付款',
-  paid: '待发货',
-  shipping: '待收货',
-  completed: '已完成'
-}
 
 // 加载仪表盘数据
 const loadDashboard = async (forceRefresh: boolean = false) => {
@@ -275,14 +231,22 @@ const loadDashboard = async (forceRefresh: boolean = false) => {
 
     uni.hideLoading()
 
+    // 检查 token 是否过期
+    if (res.code === 401 || res.msg?.includes('登录已过期') || res.msg?.includes('登录') || res.code === 'TOKEN_EXPIRED') {
+      AdminAuthManager.logout()
+      uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+      setTimeout(() => {
+        uni.redirectTo({ url: '/pagesAdmin/login/index' })
+      }, 1500)
+      return
+    }
+
     if (res.code === 0 && res.data) {
-      // 缓存数据
       AdminCacheManager.set(
         cacheKey,
         res.data,
         CACHE_CONFIG.dashboard.expire
       )
-
       updateDashboard(res.data)
     } else {
       throw new Error(res.msg || '加载数据失败')
@@ -299,19 +263,18 @@ const loadDashboard = async (forceRefresh: boolean = false) => {
 
 // 更新仪表盘数据
 const updateDashboard = (data: any) => {
-  // 更新数据概览（金额从分转换为元）
-  stats.value[0].value = Math.round((data.todaySales || 0) / 100)
-  stats.value[1].value = data.todayOrders || 0
+  // 更新核心数据卡片
+  stats.value[0].value = data.todayOrders || 0
+  stats.value[1].value = Math.round((data.todaySales || 0) / 100)
   stats.value[2].value = data.pendingTasks?.find((t: any) => t.type === 'shipment')?.count || 0
-  stats.value[3].value = data.totalUsers || 0
+  stats.value[3].value = data.pendingTasks?.find((t: any) => t.type === 'refund')?.count || 0
 
-  // 更新待办事项
-  todos.value[0].count = data.pendingTasks?.find((t: any) => t.type === 'shipment')?.count || 0
-  todos.value[1].count = data.lowStockCount || 0
-  todos.value[2].count = data.pendingTasks?.find((t: any) => t.type === 'withdrawal')?.count || 0
+  // 更新核心功能角标
+  const pendingRefund = data.pendingTasks?.find((t: any) => t.type === 'refund')?.count || 0
+  const pendingShip = data.pendingTasks?.find((t: any) => t.type === 'shipment')?.count || 0
 
-  // 更新最近订单
-  recentOrders.value = data.recentOrders || []
+  coreFeatures.value[0].badge = pendingShip  // 订单待发货
+  coreFeatures.value[3].badge = pendingRefund // 退款待审核
 }
 
 // 跳转到统计详情
@@ -320,17 +283,10 @@ const goToStatDetail = (link: string) => {
   uni.navigateTo({ url: link })
 }
 
-// 处理待办事项点击
-const handleTodo = (todo: any) => {
-  if (!todo.link) return
-  uni.navigateTo({ url: todo.link })
-}
-
-// 处理快捷操作
-const handleQuickAction = (action: any) => {
-  if (action.handler) {
-    action.handler()
-  }
+// 通用页面跳转
+const goToPage = (link: string) => {
+  if (!link) return
+  uni.navigateTo({ url: link })
 }
 
 // 扫快递单
@@ -381,33 +337,6 @@ const goToProductAdd = () => {
     url: '/pagesAdmin/products/edit'
   })
 }
-
-// 订单管理
-const goToOrders = () => {
-  uni.navigateTo({
-    url: '/pagesAdmin/orders/list'
-  })
-}
-
-// 推广数据
-const goToPromotion = () => {
-  uni.navigateTo({
-    url: '/pagesAdmin/promotion/index'
-  })
-}
-
-// 跳转到订单详情
-const goToOrderDetail = (orderId: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/orders/detail?id=${orderId}`
-  })
-}
-
-// 通用页面跳转
-const goToPage = (link: string) => {
-  if (!link) return
-  uni.navigateTo({ url: link })
-}
 </script>
 
 <style scoped>
@@ -418,14 +347,61 @@ const goToPage = (link: string) => {
   padding-bottom: 120rpx;
 }
 
-.section-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #F5F5F0;
-  margin-bottom: 24rpx;
+/* 顶部欢迎区 */
+.welcome-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32rpx;
+  padding: 24rpx;
+  background: linear-gradient(135deg, rgba(61, 41, 20, 0.8) 0%, rgba(61, 41, 20, 0.6) 100%);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(201, 169, 98, 0.2);
 }
 
-/* 数据概览 */
+.welcome-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.welcome-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #F5F5F0;
+}
+
+.welcome-subtitle {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.6);
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 16rpx 20rpx;
+  background: rgba(201, 169, 98, 0.15);
+  border-radius: 12rpx;
+  transition: all 0.3s;
+}
+
+.action-btn:active {
+  background: rgba(201, 169, 98, 0.25);
+  transform: scale(0.95);
+}
+
+.action-text {
+  font-size: 24rpx;
+  color: #C9A962;
+}
+
+/* 核心数据卡片 */
 .stats-section {
   margin-bottom: 32rpx;
 }
@@ -433,166 +409,150 @@ const goToPage = (link: string) => {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24rpx;
-}
-
-/* 待办事项 */
-.todo-section {
-  margin-bottom: 32rpx;
-}
-
-.todo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
-.todo-item {
-  display: flex;
-  align-items: center;
-  gap: 24rpx;
-  padding: 24rpx;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12rpx;
-  transition: all 0.3s;
-}
-
-.todo-item:active {
-  background: rgba(255, 255, 255, 0.05);
-  transform: scale(0.98);
-}
-
-.todo-badge {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 12rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.todo-badge.warning {
-  background: rgba(212, 165, 116, 0.2);
-}
-
-.todo-badge.danger {
-  background: rgba(184, 92, 92, 0.2);
-}
-
-.todo-badge.info {
-  background: rgba(122, 154, 142, 0.2);
-}
-
-.badge-count {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #F5F5F0;
-}
-
-.todo-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.todo-label {
-  font-size: 28rpx;
-  color: #F5F5F0;
-  font-weight: 500;
-}
-
-.todo-desc {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.5);
-}
-
-.todo-arrow {
-  font-size: 40rpx;
-  color: rgba(245, 245, 240, 0.3);
-}
-
-/* 快捷操作 */
-.actions-section {
-  margin-bottom: 32rpx;
-}
-
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24rpx;
-}
-
-.action-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16rpx;
-  padding: 32rpx 16rpx;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 16rpx;
-  transition: all 0.3s;
-}
-
-.action-item:active {
-  background: rgba(255, 255, 255, 0.05);
-  transform: scale(0.95);
-}
-
-.action-icon-wrapper {
-  width: 88rpx;
-  height: 88rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(201, 169, 98, 0.1);
-  border-radius: 16rpx;
-}
-
-.action-icon {
-  font-size: 48rpx;
-}
-
-.action-label {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.8);
-}
-
-/* 功能菜单 */
-.menu-section {
-  margin-bottom: 32rpx;
-}
-
-.menu-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 20rpx;
 }
 
-.menu-item {
+/* 功能入口 */
+.features-section {
+  margin-bottom: 24rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #F5F5F0;
+  margin-bottom: 20rpx;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.feature-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12rpx;
-  padding: 24rpx 12rpx;
+  padding: 28rpx 16rpx;
   background: rgba(255, 255, 255, 0.03);
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   transition: all 0.3s;
 }
 
-.menu-item:active {
-  background: rgba(255, 255, 255, 0.05);
+.feature-item:active {
+  background: rgba(255, 255, 255, 0.06);
   transform: scale(0.95);
 }
 
-.menu-icon-wrapper {
+.feature-icon-wrapper {
   width: 72rpx;
   height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 16rpx;
+}
+
+.feature-icon-wrapper.gold {
+  background: rgba(201, 169, 98, 0.15);
+}
+
+.feature-icon-wrapper.bronze {
+  background: rgba(212, 165, 116, 0.15);
+}
+
+.feature-icon-wrapper.sage {
+  background: rgba(122, 154, 142, 0.15);
+}
+
+.feature-icon-wrapper.danger {
+  background: rgba(184, 92, 92, 0.15);
+}
+
+.feature-label {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.85);
+  text-align: center;
+}
+
+.feature-badge {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  min-width: 36rpx;
+  height: 36rpx;
+  padding: 0 10rpx;
+  background: #B85C5C;
+  border-radius: 18rpx;
+  font-size: 22rpx;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 更多功能 */
+.more-section {
+  margin-bottom: 24rpx;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.expand-icon {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s;
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.expand-arrow {
+  font-size: 36rpx;
+  color: rgba(245, 245, 240, 0.5);
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12rpx;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  padding: 20rpx 12rpx;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12rpx;
+  transition: all 0.3s;
+}
+
+.menu-item:active {
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(0.95);
+}
+
+.menu-icon-wrapper {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
 }
 
 .menu-icon-wrapper.gold {
@@ -607,110 +567,11 @@ const goToPage = (link: string) => {
   background: rgba(122, 154, 142, 0.15);
 }
 
-.menu-icon-wrapper.danger {
-  background: rgba(184, 92, 92, 0.15);
-}
-
 .menu-label {
-  font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.8);
+  font-size: 20rpx;
+  color: rgba(245, 245, 240, 0.75);
   text-align: center;
   line-height: 1.2;
-}
-
-/* 最近订单 */
-.orders-section {
-  margin-bottom: 32rpx;
-}
-
-.recent-orders {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.order-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24rpx;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12rpx;
-  transition: all 0.3s;
-}
-
-.order-item:active {
-  background: rgba(255, 255, 255, 0.05);
-  transform: scale(0.98);
-}
-
-.order-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.order-no {
-  font-size: 28rpx;
-  color: #F5F5F0;
-  font-weight: 500;
-}
-
-.order-user {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.5);
-}
-
-.order-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8rpx;
-}
-
-.order-amount {
-  font-size: 28rpx;
-  color: #C9A962;
-  font-weight: 600;
-}
-
-.order-status {
-  font-size: 22rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-}
-
-.order-status.pending {
-  background: rgba(212, 165, 116, 0.2);
-  color: #D4A574;
-}
-
-.order-status.paid {
-  background: rgba(201, 169, 98, 0.2);
-  color: #C9A962;
-}
-
-.order-status.shipping {
-  background: rgba(122, 154, 142, 0.2);
-  color: #7A9A8E;
-}
-
-.order-status.completed {
-  background: rgba(245, 245, 240, 0.1);
-  color: rgba(245, 245, 240, 0.5);
-}
-
-/* 空状态 */
-.empty-state {
-  padding: 80rpx 0;
-  display: flex;
-  justify-content: center;
-}
-
-.empty-text {
-  font-size: 26rpx;
-  color: rgba(245, 245, 240, 0.4);
 }
 
 /* 安全区域 */

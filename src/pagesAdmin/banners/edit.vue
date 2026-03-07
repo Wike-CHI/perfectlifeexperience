@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
-import { callFunction, uploadFile } from '@/utils/cloudbase'
+import { callFunction } from '@/utils/cloudbase'
 
 /**
  * Banner编辑页
@@ -196,24 +196,46 @@ const chooseImage = () => {
 }
 
 /**
- * 上传图片
+ * 上传图片 - 使用云函数服务端上传（支持压缩）
  */
 const uploadImage = async (filePath: string) => {
   uni.showLoading({ title: '上传中...' })
 
   try {
-    const cloudPath = `banners/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`
-    const res = await uploadFile(cloudPath, filePath)
+    // 1. 读取文件为 base64
+    const base64 = await getFileBase64(filePath)
+    console.log('图片base64长度:', base64.length)
 
-    if (res.fileID) {
-      formData.value.image = res.fileID
+    // 2. 调用云函数上传（服务端上传，不受客户端存储权限限制）
+    const res = await callFunction('admin-api', {
+      action: 'uploadBannerImage',
+      adminToken: AdminAuthManager.getToken(),
+      data: {
+        base64Data: base64,
+        fileName: 'banner.jpg'
+      }
+    })
+
+    // 3. 检查 token 过期
+    if (res.code === 401 || res.msg?.includes('登录已过期')) {
+      AdminAuthManager.logout()
+      uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+      setTimeout(() => {
+        uni.redirectTo({ url: '/pagesAdmin/login/index' })
+      }, 1500)
+      return
+    }
+
+    if (res.code === 0 && res.data) {
+      // 使用临时访问 URL
+      formData.value.image = res.data.tempFileURL || res.data.fileID
       uni.hideLoading()
       uni.showToast({
         title: '上传成功',
         icon: 'success'
       })
     } else {
-      throw new Error('上传失败')
+      throw new Error(res.msg || '上传失败')
     }
   } catch (error: any) {
     console.error('上传图片失败:', error)
@@ -223,6 +245,24 @@ const uploadImage = async (filePath: string) => {
       icon: 'none'
     })
   }
+}
+
+/**
+ * 获取文件的 base64 编码
+ */
+const getFileBase64 = (filePath: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    uni.getFileSystemManager().readFile({
+      filePath: filePath,
+      encoding: 'base64',
+      success: (res) => {
+        resolve(res.data as string)
+      },
+      fail: (err) => {
+        reject(err)
+      }
+    })
+  })
 }
 
 /**

@@ -88,14 +88,14 @@ async function getProductDetailAdmin(db, data) {
         .get()
     ]);
 
-    if (!productResult.data) {
+    if (!productResult.data || productResult.data.length === 0) {
       return { code: 404, msg: '商品不存在' };
     }
 
     return {
       code: 0,
       data: {
-        product: productResult.data,
+        product: productResult.data[0],  // 取数组第一个元素
         categories: categoriesResult.data
       }
     };
@@ -149,16 +149,35 @@ async function createProductAdmin(db, logOperation, data, wxContext) {
       return { code: -2, msg: 'isActive必须是布尔值' };
     }
 
+    // 构建产品数据（支持所有字段）
     const productData = {
+      // 基本信息
       name: data.name,
+      enName: data.enName || '',
       category: data.category,
       price: data.price || 0,
       stock: data.stock || 0,
-      isActive: data.isActive !== undefined ? data.isActive : true,
-      image: data.image || '',
       description: data.description || '',
+      // 产品属性
+      specs: data.specs || '',
+      alcoholContent: data.alcoholContent || null,
+      brewery: data.brewery || '',
+      volume: data.volume || null,
+      tags: data.tags || [],
+      // 销售设置
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      isHot: data.isHot === true,
+      isNew: data.isNew === true,
+      // 默认值
       sales: 0,
       rating: 0,
+      // ERP扩展
+      sku: data.sku || '',
+      costPrice: data.costPrice || null,
+      lowStockThreshold: data.lowStockThreshold !== undefined ? data.lowStockThreshold : 10,
+      shelfLifeDays: data.shelfLifeDays || null,
+      storageLocation: data.storageLocation || '',
+      // 时间戳
       createTime: db.serverDate(),
       updateTime: db.serverDate()
     };

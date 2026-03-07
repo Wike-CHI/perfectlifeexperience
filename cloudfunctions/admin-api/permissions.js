@@ -45,11 +45,6 @@ const PERMISSIONS = {
   FINANCE_VIEW: 'finance.view',
   FINANCE_APPROVE: 'finance.approve',
 
-  // 库存管理
-  INVENTORY_VIEW: 'inventory.view',
-  INVENTORY_ADJUST: 'inventory.adjust',
-  INVENTORY_CHECK: 'inventory.check',
-
   // 活动管理
   ACTIVITY_VIEW: 'activity.view',
   ACTIVITY_CREATE: 'activity.create',
@@ -91,19 +86,6 @@ const PERMISSIONS = {
   // 系统配置
   SYSTEM_CONFIG_VIEW: 'system_config.view',
   SYSTEM_CONFIG_UPDATE: 'system_config.update',
-
-  // ========== ERP 权限 ==========
-  // 供应商管理
-  SUPPLIER_VIEW: 'supplier.view',
-  SUPPLIER_CREATE: 'supplier.create',
-  SUPPLIER_UPDATE: 'supplier.update',
-  SUPPLIER_DELETE: 'supplier.delete',
-
-  // 采购管理
-  PURCHASE_VIEW: 'purchase.view',
-  PURCHASE_CREATE: 'purchase.create',
-  PURCHASE_UPDATE: 'purchase.update',
-  PURCHASE_RECEIVE: 'purchase.receive'
 }
 
 /**
@@ -152,8 +134,8 @@ const ACTION_PERMISSIONS = {
   'approveWithdraw': PERMISSIONS.FINANCE_APPROVE,
   'getFinanceReport': PERMISSIONS.FINANCE_VIEW,
 
-  // 库存管理
-  'getLowStockProducts': PERMISSIONS.INVENTORY_VIEW,
+  // 库存管理（低库存预警属于产品管理）
+  'getLowStockProducts': PERMISSIONS.PRODUCT_VIEW,
 
   // 活动管理
   'getPromotions': PERMISSIONS.ACTIVITY_VIEW,
@@ -234,39 +216,6 @@ const ACTION_PERMISSIONS = {
 
   // 财务提现列表（兼容不同的 action 命名）
   'getWithdrawals': PERMISSIONS.FINANCE_VIEW,
-
-  // ========== ERP 权限映射 ==========
-  // 供应商管理
-  'getSuppliers': PERMISSIONS.SUPPLIER_VIEW,
-  'getSupplierDetail': PERMISSIONS.SUPPLIER_VIEW,
-  'createSupplier': PERMISSIONS.SUPPLIER_CREATE,
-  'updateSupplier': PERMISSIONS.SUPPLIER_UPDATE,
-  'deleteSupplier': PERMISSIONS.SUPPLIER_DELETE,
-
-  // 采购管理
-  'getPurchaseOrders': PERMISSIONS.PURCHASE_VIEW,
-  'getPurchaseOrderDetail': PERMISSIONS.PURCHASE_VIEW,
-  'createPurchaseOrder': PERMISSIONS.PURCHASE_CREATE,
-  'updatePurchaseOrder': PERMISSIONS.PURCHASE_UPDATE,
-  'submitPurchaseOrder': PERMISSIONS.PURCHASE_UPDATE,
-  'receivePurchaseOrder': PERMISSIONS.PURCHASE_RECEIVE,
-  'cancelPurchaseOrder': PERMISSIONS.PURCHASE_UPDATE,
-
-  // 库存管理
-  'getInventoryOverview': PERMISSIONS.INVENTORY_VIEW,
-  'getInventoryBatches': PERMISSIONS.INVENTORY_VIEW,
-  'getInventoryTransactions': PERMISSIONS.INVENTORY_VIEW,
-  'adjustInventory': PERMISSIONS.INVENTORY_ADJUST,
-  'getExpiringBatches': PERMISSIONS.INVENTORY_VIEW,
-  'getExpiredBatches': PERMISSIONS.INVENTORY_VIEW,
-
-  // 盘点管理
-  'getInventoryChecks': PERMISSIONS.INVENTORY_CHECK,
-  'getInventoryCheckDetail': PERMISSIONS.INVENTORY_CHECK,
-  'createInventoryCheck': PERMISSIONS.INVENTORY_CHECK,
-  'updateInventoryCheckItem': PERMISSIONS.INVENTORY_CHECK,
-  'completeInventoryCheck': PERMISSIONS.INVENTORY_CHECK,
-  'cancelInventoryCheck': PERMISSIONS.INVENTORY_CHECK
 }
 
 /**

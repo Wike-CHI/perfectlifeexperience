@@ -6,6 +6,11 @@
       "write": "auth.openid != null"
     },
     {
+      "path": "banners/*",
+      "read": true,
+      "write": "auth.openid != null"
+    },
+    {
       "path": "product/*",
       "read": true,
       "write": false

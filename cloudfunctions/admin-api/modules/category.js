@@ -116,9 +116,16 @@ async function deleteCategory(db, logOperation, data, wxContext) {
       return { code: 400, msg: '分类ID不能为空' };
     }
 
-    // 检查是否有产品使用此分类
+    // 先获取分类信息（商品表中category存储的是分类名称，不是ID）
+    const categoryRes = await db.collection('categories').doc(id).get();
+    if (!categoryRes.data || categoryRes.data.length === 0) {
+      return { code: 404, msg: '分类不存在' };
+    }
+    const categoryName = categoryRes.data[0].name;
+
+    // 检查是否有产品使用此分类（使用分类名称查询）
     const productsCount = await db.collection('products')
-      .where({ category: id })
+      .where({ category: categoryName })
       .count();
 
     if (productsCount.total > 0) {

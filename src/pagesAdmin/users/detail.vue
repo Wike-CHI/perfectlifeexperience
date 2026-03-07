@@ -44,7 +44,7 @@
         <view class="value-with-btn">
           <text class="value">{{ userInfo.parentId ? '已绑定' : '未绑定' }}</text>
           <view class="btn-group">
-            <button class="edit-btn" @click="showBindDialog">绑定</button>
+            <button class="edit-btn" @click="openBindDialog">绑定</button>
             <button class="edit-btn danger" @click="handleUnbind" v-if="userInfo.parentId">解绑</button>
           </view>
         </view>
@@ -246,7 +246,7 @@ const confirmLevelChange = async () => {
 }
 
 // 显示绑定弹窗
-const showBindDialog = () => {
+const openBindDialog = () => {
   bindInviteCode.value = ''
   showBindDialog.value = true
 }

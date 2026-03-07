@@ -104,7 +104,10 @@ const statusTabs = ref([
   { label: '待付款', value: 'pending', count: 0 },
   { label: '待发货', value: 'paid', count: 0 },
   { label: '待收货', value: 'shipping', count: 0 },
-  { label: '已完成', value: 'completed', count: 0 }
+  { label: '已完成', value: 'completed', count: 0 },
+  { label: '退款中', value: 'refunding', count: 0 },
+  { label: '已退款', value: 'refunded', count: 0 },
+  { label: '已取消', value: 'cancelled', count: 0 }
 ])
 
 // 数据状态
@@ -122,6 +125,8 @@ const statusMap: Record<string, string> = {
   paid: 'paid',
   shipping: 'shipping',
   completed: 'completed',
+  refunding: 'refunding',
+  refunded: 'refunded',
   cancelled: 'cancelled'
 }
 
@@ -316,8 +321,10 @@ const handleUpdateStatus = (order: any) => {
   const statusOptions = [
     { label: '待付款', value: 'pending' },
     { label: '待发货', value: 'paid' },
-    { label: '待收货', value: 'shipping' },
+    { label: '配送中', value: 'shipping' },
     { label: '已完成', value: 'completed' },
+    { label: '退款中', value: 'refunding' },
+    { label: '已退款', value: 'refunded' },
     { label: '已取消', value: 'cancelled' }
   ]
 
