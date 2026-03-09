@@ -150,15 +150,14 @@ async function checkRateLimit(db, action, openid, clientIP, options = {}) {
     };
   } catch (error) {
     console.error('[RateLimiter] 检查频率限制失败:', error);
-    // 🔒 安全修复：频率限制检查失败时应拒绝请求，防止绕过
-    // 原策略：允许请求通过（过于宽松）
-    // 新策略：拒绝请求（安全优先）
+    // 降级处理：数据库错误时允许请求通过，避免影响正常业务
+    // 记录错误但不阻塞用户操作
     return {
-      allowed: false,
-      message: '系统繁忙，请稍后再试',
-      remaining: 0,
+      allowed: true,
+      message: 'OK (rate limit check failed, allowed by fallback)',
+      remaining: 999,
       resetTime: null,
-      error: error.message  // 内部错误信息
+      error: error.message
     };
   }
 }

@@ -157,6 +157,10 @@ exports.main = async (event, context) => {
         return await productModule.updateProductAdmin(db, logOperation, data, wxContext)
       case 'deleteProduct':
         return await productModule.deleteProductAdmin(db, logOperation, data, wxContext)
+      case 'getAllProducts':
+        return await productModule.getAllProducts(db, data)
+      case 'fixProductPrices':
+        return await productModule.fixProductPrices(db, logOperation, data, wxContext)
       case 'adjustProductStock':
         return await inventoryModule.adjustProductStock(db, logOperation, data, wxContext)
       case 'getCategories':
@@ -179,6 +183,8 @@ exports.main = async (event, context) => {
         return await orderAdminModule.searchOrderByExpress(db, data)
       case 'updateOrderExpress':
         return await orderAdminModule.updateOrderExpress(db, logOperation, data, wxContext)
+      case 'deleteOrder':
+        return await orderAdminModule.deleteOrder(db, logOperation, data, wxContext)
       case 'getAnnouncements':
         return await announcementModule.getAnnouncementsAdmin(db, data)
       case 'createAnnouncement':
@@ -2794,7 +2800,8 @@ async function getCommissionWalletsAdmin(data) {
 // ==================== System Configuration Functions ====================
 
 /**
- * 获取系统配置
+ * 获取系统配置（管理端）
+ * 返回数据时转换分→元用于管理端显示
  */
 async function getSystemConfigAdmin(data) {
   try {
@@ -2805,7 +2812,7 @@ async function getSystemConfigAdmin(data) {
       .get();
 
     if (result.data.length === 0) {
-      // 返回默认配置
+      // 返回默认配置（金额单位：元，对应数据库分）
       return {
         code: 0,
         data: {
@@ -2813,21 +2820,38 @@ async function getSystemConfigAdmin(data) {
           level2Commission: 12,
           level3Commission: 8,
           level4Commission: 4,
-          bronzeThreshold: 1000,
-          silverSalesThreshold: 5000,
-          goldSalesThreshold: 20000,
-          silverTeamThreshold: 30,
-          goldTeamThreshold: 100,
-          withdrawalMinAmount: 100,
-          withdrawalMaxAmount: 50000,
-          withdrawalFeeRate: 0
+          bronzeTotalSales: 20000,      // 2万元
+          silverMonthSales: 50000,      // 5万元
+          silverTeamCount: 50,
+          goldMonthSales: 100000,       // 10万元
+          goldTeamCount: 200,
+          minWithdrawAmount: 100,       // 100元
+          withdrawFeeRate: 0
         }
       };
     }
 
+    const config = result.data[0];
+    // 扁平返回，金额字段分→元转换
+    const displayData = {
+      _id: config._id,
+      level1Commission: config.level1Commission ?? 20,
+      level2Commission: config.level2Commission ?? 12,
+      level3Commission: config.level3Commission ?? 8,
+      level4Commission: config.level4Commission ?? 4,
+      bronzeTotalSales: (config.bronzeTotalSales ?? 2000000) / 100,
+      silverMonthSales: (config.silverMonthSales ?? 5000000) / 100,
+      silverTeamCount: config.silverTeamCount ?? 50,
+      goldMonthSales: (config.goldMonthSales ?? 10000000) / 100,
+      goldTeamCount: config.goldTeamCount ?? 200,
+      minWithdrawAmount: (config.minWithdrawAmount ?? 10000) / 100,
+      withdrawFeeRate: config.withdrawFeeRate ?? 0,
+      rechargeOptions: config.rechargeOptions ?? []
+    };
+
     return {
       code: 0,
-      data: result.data[0].config || {}
+      data: displayData
     };
   } catch (error) {
     console.error('Get system config error:', error);
@@ -2836,22 +2860,28 @@ async function getSystemConfigAdmin(data) {
 }
 
 /**
- * 更新系统配置
+ * 更新系统配置（管理端）
+ * 接收元，保存时转换为分
  */
 async function updateSystemConfigAdmin(data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
 
-    // 验证数据格式
-    const numericFields = [
-      'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission',
-      'bronzeThreshold', 'silverSalesThreshold', 'goldSalesThreshold',
-      'silverTeamThreshold', 'goldTeamThreshold',
-      'withdrawalMinAmount', 'withdrawalMaxAmount', 'withdrawalFeeRate'
+    // 百分比字段
+    const percentFields = [
+      'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission', 'withdrawFeeRate'
     ];
+    // 金额字段（需要元→分转换）
+    const amountFields = [
+      'bronzeTotalSales', 'silverMonthSales', 'goldMonthSales', 'minWithdrawAmount'
+    ];
+    // 整数字段
+    const intFields = ['silverTeamCount', 'goldTeamCount'];
 
     const configData = {};
-    for (const field of numericFields) {
+
+    // 处理百分比字段
+    for (const field of percentFields) {
       if (data[field] !== undefined) {
         const value = parseFloat(data[field]);
         if (isNaN(value)) {
@@ -2859,6 +2889,33 @@ async function updateSystemConfigAdmin(data, wxContext) {
         }
         configData[field] = value;
       }
+    }
+
+    // 处理金额字段（元→分）
+    for (const field of amountFields) {
+      if (data[field] !== undefined) {
+        const value = parseFloat(data[field]);
+        if (isNaN(value)) {
+          return { code: 400, msg: `${field} 必须是数字` };
+        }
+        configData[field] = Math.round(value * 100);
+      }
+    }
+
+    // 处理整数字段
+    for (const field of intFields) {
+      if (data[field] !== undefined) {
+        const value = parseInt(data[field], 10);
+        if (isNaN(value)) {
+          return { code: 400, msg: `${field} 必须是整数` };
+        }
+        configData[field] = value;
+      }
+    }
+
+    // 处理充值选项
+    if (data.rechargeOptions !== undefined) {
+      configData.rechargeOptions = data.rechargeOptions;
     }
 
     // 检查是否已存在配置
@@ -2869,15 +2926,12 @@ async function updateSystemConfigAdmin(data, wxContext) {
 
     const updateData = {
       type: 'commission_config',
-      config: {
-        ...configData,
-        updateTime: new Date()
-      },
+      ...configData,
       updateTime: new Date()
     };
 
     if (existingResult.data.length > 0) {
-      // 更新现有配置
+      // 更新现有配置（扁平存储）
       await db.collection('system_config')
         .doc(existingResult.data[0]._id)
         .update({ data: updateData });

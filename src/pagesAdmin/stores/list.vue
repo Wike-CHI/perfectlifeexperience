@@ -54,7 +54,7 @@
 
       <!-- 空状态 -->
       <view class="empty-state" v-if="list.length === 0 && !loading">
-        <AdminIcon name="store" size="large" variant="muted" />
+        <AdminIcon name="store" size="large" />
         <text class="empty-text">暂无门店</text>
         <text class="empty-hint">点击上方按钮添加第一个门店</text>
       </view>
@@ -68,9 +68,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { callFunction } from '@/utils/cloudbase'
-import AdminAuthManager from '@/utils/admin-auth'
+import { onMounted } from 'vue'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
 import AdminIcon from '@/components/admin-icon.vue'
 
 interface Store {
@@ -82,48 +81,46 @@ interface Store {
   isDefault: boolean
 }
 
-const list = ref<Store[]>([])
-const loading = ref(false)
-const page = ref(1)
-const limit = ref(50)
-const total = ref(0)
+/**
+ * 门店管理列表页
+ * 使用 useAdminList composable 简化代码
+ */
 
-onMounted(() => {
-  loadData()
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  refresh
+} = useAdminList({
+  action: 'getStoreInfo',
+  cachePrefix: 'stores',
+  pageSize: 50,
+  onLoaded: (data) => {
+    console.log('门店列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载门店失败', error)
+  }
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await callFunction('admin-api', {
-      action: 'getStoreInfo',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: limit.value
-      }
-    })
+// 操作 Actions
+const { execute: setDefaultStore } = useAdminAction({
+  action: 'setDefaultStore',
+  successMsg: '设置成功'
+})
 
-    if (res.code === 0 && res.data) {
-      list.value = res.data.list || []
-      total.value = res.data.total || 0
-    }
-  } catch (error) {
-    console.error('加载门店失败:', error)
-    uni.showToast({
-      title: '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
-  }
-}
+const { execute: deleteStore } = useAdminAction({
+  action: 'deleteStore',
+  successMsg: '删除成功'
+})
 
+// 跳转到编辑页面
 const goToEdit = (id?: string) => {
   const url = id ? `/pagesAdmin/stores/edit?id=${id}` : '/pagesAdmin/stores/edit'
   uni.navigateTo({ url })
 }
 
+// 设置默认门店
 const setDefault = (item: Store) => {
   uni.showModal({
     title: '设置默认',
@@ -131,38 +128,17 @@ const setDefault = (item: Store) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '设置中...' })
-
-          const res = await callFunction('admin-api', {
-            action: 'setDefaultStore',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: item._id }
-          })
-
-          uni.hideLoading()
-
-          if (res.code === 0) {
-            uni.showToast({
-              title: '设置成功',
-              icon: 'success'
-            })
-            loadData()
-          } else {
-            throw new Error(res.msg || '设置失败')
-          }
-        } catch (error: any) {
-          uni.hideLoading()
-          console.error('设置默认门店失败:', error)
-          uni.showToast({
-            title: error.message || '设置失败',
-            icon: 'none'
-          })
+          await setDefaultStore({ id: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
   })
 }
 
+// 删除门店
 const handleDelete = (item: Store) => {
   uni.showModal({
     title: '确认删除',
@@ -170,32 +146,10 @@ const handleDelete = (item: Store) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '删除中...' })
-
-          const res = await callFunction('admin-api', {
-            action: 'deleteStore',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: item._id }
-          })
-
-          uni.hideLoading()
-
-          if (res.code === 0) {
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            })
-            loadData()
-          } else {
-            throw new Error(res.msg || '删除失败')
-          }
-        } catch (error: any) {
-          uni.hideLoading()
-          console.error('删除门店失败:', error)
-          uni.showToast({
-            title: error.message || '删除失败',
-            icon: 'none'
-          })
+          await deleteStore({ id: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }

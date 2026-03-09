@@ -215,14 +215,25 @@ onMounted(async () => {
 
 const loadProduct = async () => {
   try {
+    uni.showLoading({ title: '加载中...' })
+
+    console.log('加载商品详情, ID:', productId.value)
+
     const res = await callFunction('admin-api', {
       action: 'getProductDetail',
       adminToken: AdminAuthManager.getToken(),
       data: { id: productId.value }
     })
+
+    console.log('云函数返回结果:', JSON.stringify(res))
+
+    uni.hideLoading()
+
     // 云函数返回格式: { code: 0, data: { product: {...}, categories: [...] } }
     // 需要从 data.product 中提取商品数据
     const productData = res.data?.product || res.data?.data || res.data
+
+    console.log('提取的商品数据:', JSON.stringify(productData))
 
     if (res.code === 0 && productData) {
       // 设置分类
@@ -263,9 +274,16 @@ const loadProduct = async () => {
         // 多规格价格
         priceList: priceList
       }
+
+      console.log('表单数据已填充:', JSON.stringify(formData.value))
+    } else {
+      console.error('加载商品失败 - code:', res.code, 'msg:', res.msg)
+      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
     }
   } catch (e) {
-    console.error('加载商品失败', e)
+    uni.hideLoading()
+    console.error('加载商品异常', e)
+    uni.showToast({ title: '加载异常', icon: 'none' })
   }
 }
 

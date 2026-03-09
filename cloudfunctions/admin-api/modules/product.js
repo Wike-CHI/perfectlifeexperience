@@ -88,14 +88,14 @@ async function getProductDetailAdmin(db, data) {
         .get()
     ]);
 
-    if (!productResult.data || productResult.data.length === 0) {
+    if (!productResult.data) {
       return { code: 404, msg: '商品不存在' };
     }
 
     return {
       code: 0,
       data: {
-        product: productResult.data[0],  // 取数组第一个元素
+        product: productResult.data,  // doc().get() 返回的是单个对象,不是数组
         categories: categoriesResult.data
       }
     };
@@ -164,6 +164,10 @@ async function createProductAdmin(db, logOperation, data, wxContext) {
       brewery: data.brewery || '',
       volume: data.volume || null,
       tags: data.tags || [],
+      // 多规格价格列表（默认空数组）
+      priceList: data.priceList || [],
+      // 商品图片列表（默认空数组）
+      images: data.images || [],
       // 销售设置
       isActive: data.isActive !== undefined ? data.isActive : true,
       isHot: data.isHot === true,
@@ -246,6 +250,29 @@ async function updateProductAdmin(db, logOperation, data, wxContext) {
       return { code: -2, msg: 'isActive必须是布尔值' };
     }
 
+    // 验证images数组
+    if (updateData.images !== undefined) {
+      if (!Array.isArray(updateData.images)) {
+        return { code: -2, msg: 'images必须是数组' };
+      }
+    }
+
+    // 验证priceList数组
+    if (updateData.priceList !== undefined) {
+      if (!Array.isArray(updateData.priceList)) {
+        return { code: -2, msg: 'priceList必须是数组' };
+      }
+      // 验证priceList中的每个对象
+      for (const spec of updateData.priceList) {
+        if (typeof spec.price !== 'number' || spec.price <= 0) {
+          return { code: -2, msg: 'priceList中的价格必须是正数' };
+        }
+        if (!spec.volume || typeof spec.volume !== 'string') {
+          return { code: -2, msg: 'priceList中的volume不能为空' };
+        }
+      }
+    }
+
     // 移除不允许更新的字段
     delete updateData._id;
     delete updateData._openid;
@@ -304,10 +331,119 @@ async function deleteProductAdmin(db, logOperation, data, wxContext) {
   }
 }
 
+/**
+ * 获取所有商品（用于价格检查）
+ * @param {Object} db - 数据库实例
+ * @param {Object} data - 请求数据
+ * @returns {Promise<Object>} 查询结果
+ */
+async function getAllProducts(db, data) {
+  try {
+    const result = await db.collection('products')
+      .orderBy('createTime', 'desc')
+      .get();
+
+    return {
+      code: 0,
+      msg: 'success',
+      data: result.data
+    };
+  } catch (error) {
+    console.error('Get all products error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+/**
+ * 修复商品价格数据
+ * @param {Object} db - 数据库实例
+ * @param {Object} logOperation - 日志记录函数
+ * @param {Object} data - 请求数据
+ * @param {Object} wxContext - 微信上下文
+ * @returns {Promise<Object>} 修复结果
+ */
+async function fixProductPrices(db, logOperation, data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+    const { products } = data || {};
+
+    if (!products || !Array.isArray(products)) {
+      return { code: -2, msg: '缺少商品数据' };
+    }
+
+    const results = {
+      total: products.length,
+      success: 0,
+      failed: 0,
+      details: []
+    };
+
+    for (const product of products) {
+      try {
+        const updateData = {};
+
+        // 如果price字段无效，尝试从priceList获取
+        if (!product.price || product.price <= 0) {
+          if (product.priceList && product.priceList.length > 0 && product.priceList[0].price > 0) {
+            updateData.price = product.priceList[0].price;
+          } else {
+            // 如果无法修复，跳过
+            results.failed++;
+            results.details.push({
+              productId: product._id,
+              name: product.name,
+              status: 'failed',
+              reason: '无法找到有效的价格数据'
+            });
+            continue;
+          }
+        }
+
+        // 更新数据库
+        if (Object.keys(updateData).length > 0) {
+          await db.collection('products').doc(product._id).update({
+            data: updateData
+          });
+
+          results.success++;
+          results.details.push({
+            productId: product._id,
+            name: product.name,
+            status: 'success',
+            oldValue: product.price,
+            newValue: updateData.price
+          });
+        }
+      } catch (error) {
+        results.failed++;
+        results.details.push({
+          productId: product._id,
+          name: product.name,
+          status: 'error',
+          reason: error.message
+        });
+      }
+    }
+
+    await logOperation(adminInfo.id, 'fixProductPrices', results);
+
+    return {
+      code: 0,
+      msg: '修复完成',
+      data: results
+    };
+  } catch (error) {
+    console.error('Fix product prices error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
 module.exports = {
   getProductsList,
   getProductDetailAdmin,
   createProductAdmin,
   updateProductAdmin,
-  deleteProductAdmin
+  deleteProductAdmin,
+  getAllProducts,
+  fixProductPrices
 };

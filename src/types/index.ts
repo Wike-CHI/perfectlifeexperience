@@ -78,7 +78,7 @@ export interface Order {
   totalAmount: number;
   shippingFee?: number;
   deliveryType?: 'delivery' | 'pickup';
-  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled' | 'refunded';
+  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'refunding' | 'refunded' | 'cancelled';
   address?: Address;
   remark?: string;
   paymentMethod?: 'wechat' | 'balance';

@@ -41,7 +41,7 @@
     <!-- 商品列表 -->
     <view class="products-list">
       <view
-        v-for="product in products"
+        v-for="product in list"
         :key="product._id"
         class="product-item"
         @click="goToDetail(product._id)"
@@ -63,7 +63,7 @@
       </view>
 
       <!-- 空状态 -->
-      <view v-if="products.length === 0 && !loading" class="empty-state">
+      <view v-if="list.length === 0 && !loading" class="empty-state">
         <AdminIcon name="package" size="large" />
         <text class="empty-text">暂无商品</text>
       </view>
@@ -73,30 +73,30 @@
         <view class="loading-spinner"></view>
       </view>
     </view>
+
+    <!-- 加载更多 -->
+    <view v-if="hasMore && !loading" class="load-more" @click="loadMore">
+      <text class="load-more-text">加载更多</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import { callFunction } from '@/utils/cloudbase'
-import AdminAuthManager from '@/utils/admin-auth'
+import { useAdminList } from '@/composables/useAdmin'
 import AdminSearch from '@/components/admin-search.vue'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 商品管理页面
- * 功能：商品列表、搜索、分类筛选
+ * 使用 useAdminList composable 简化代码
  */
 
-// ==================== 数据状态 ====================
-
-const products = ref<any[]>([])
+// 分类数据
 const categories = ref<any[]>([])
 const selectedCategory = ref('')
-const loading = ref(false)
-const page = ref(1)
-const hasMore = ref(true)
 
 // 分类筛选选项
 const filterOptions = [
@@ -104,41 +104,14 @@ const filterOptions = [
   { key: 'outOfStock', label: '缺货' }
 ]
 
-// ==================== 生命周期 ====================
-
-onMounted(() => {
-  loadCategories()
-  loadProducts()
-})
-
-onPullDownRefresh(async () => {
-  page.value = 1
-  hasMore.value = true
-  await loadProducts()
-  uni.stopPullDownRefresh()
-})
-
-onReachBottom(() => {
-  if (hasMore.value && !loading.value) {
-    page.value++
-    loadProducts()
-  }
-})
-
-// ==================== 数据加载 ====================
-
-/**
- * 加载分类列表
- */
+// 加载分类列表
 const loadCategories = async () => {
   try {
     const res = await callFunction('admin-api', {
-      action: 'getCategories',
-      adminToken: AdminAuthManager.getToken()
+      action: 'getCategories'
     })
 
     if (res.code === 0 && res.data) {
-      // 兼容返回格式：可能是数组或 {list: [...]} 或 {categories: [...]} 对象
       if (Array.isArray(res.data)) {
         categories.value = res.data
       } else if (res.data.list) {
@@ -154,131 +127,95 @@ const loadCategories = async () => {
   }
 }
 
-/**
- * 加载商品列表
- */
-const loadProducts = async () => {
-  try {
-    loading.value = true
+// 获取选中分类名称
+const categoryFilter = computed(() => {
+  if (!selectedCategory.value) return undefined
+  const selectedCat = categories.value.find(c => c._id === selectedCategory.value)
+  return selectedCat?.name
+})
 
-    // 获取选中的分类名称（数据库中category存的是名称不是ID）
-    let categoryFilter = undefined
-    if (selectedCategory.value) {
-      const selectedCat = categories.value.find(c => c._id === selectedCategory.value)
-      categoryFilter = selectedCat?.name
-    }
-
-    const res = await callFunction('admin-api', {
-      action: 'getProducts',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: 20,
-        category: categoryFilter,
-        status: undefined
-      }
-    })
-
-    if (res.code === 0 && res.data) {
-      if (page.value === 1) {
-        products.value = res.data.list || []
-      } else {
-        products.value.push(...(res.data.list || []))
-      }
-      hasMore.value = (res.data.list || []).length >= 20
-    }
-  } catch (error) {
-    console.error('加载商品失败:', error)
-    uni.showToast({
-      title: '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  hasMore,
+  search,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getProducts',
+  cachePrefix: 'products',
+  pageSize: 20,
+  extraParams: computed(() => ({
+    category: categoryFilter.value
+  })),
+  onLoaded: (data) => {
+    console.log('商品列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载商品失败', error)
   }
+})
+
+// 初始化
+onMounted(async () => {
+  await loadCategories()
+})
+
+// 监听分类变化
+watch(selectedCategory, () => {
+  refresh()
+})
+
+// 处理搜索
+const handleSearch = (keyword: string, filters: Record<string, any>) => {
+  search(keyword)
 }
 
-// ==================== 操作函数 ====================
-
-/**
- * 处理搜索
- */
-const handleSearch = async (keyword: string, filters: Record<string, any>) => {
-  try {
-    loading.value = true
-    page.value = 1
-
-    const res = await callFunction('admin-api', {
-      action: 'getProducts',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: 1,
-        limit: 20,
-        keyword: keyword || undefined,
-        status: filters.inStock ? 'active' : filters.outOfStock ? 'inactive' : undefined
-      }
-    })
-
-    if (res.code === 0 && res.data) {
-      products.value = res.data.list || []
-    }
-  } catch (error) {
-    console.error('搜索失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-/**
- * 选择分类
- */
+// 选择分类
 const selectCategory = (categoryId: string) => {
   selectedCategory.value = categoryId
-  page.value = 1
-  hasMore.value = true
-  loadProducts()
 }
 
-/**
- * 格式化价格
- */
+// 格式化价格
 const formatPrice = (price: number): string => {
   return (price / 100).toFixed(2)
 }
 
-/**
- * 获取分类名称
- * category 可能是分类ID或分类名称
- */
+// 获取分类名称
 const getCategoryName = (category: string): string => {
   if (!category) return '未分类'
-  // 先尝试用ID查找
   const cat = categories.value.find(c => c._id === category)
   if (cat) return cat.name
-  // 再尝试用名称查找
   const catByName = categories.value.find(c => c.name === category)
   if (catByName) return catByName.name
-  // 如果都没找到，返回原始值
   return category || '未分类'
 }
 
-/**
- * 跳转到添加页面
- */
+// 跳转到添加页面
 const goToAdd = () => {
   uni.navigateTo({
     url: '/pagesAdmin/products/edit'
   })
 }
 
-/**
- * 跳转到详情页
- */
+// 跳转到详情页
 const goToDetail = (id: string) => {
   uni.navigateTo({
     url: `/pagesAdmin/products/edit?id=${id}`
   })
 }
+
+// 下拉刷新
+onPullDownRefresh(async () => {
+  await refresh()
+  uni.stopPullDownRefresh()
+})
+
+// 上拉加载更多
+onReachBottom(() => {
+  loadMore()
+})
 </script>
 
 <style scoped>
@@ -488,5 +425,16 @@ const goToDetail = (id: string) => {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* 加载更多 */
+.load-more {
+  text-align: center;
+  padding: 32rpx;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #C9A962;
 }
 </style>

@@ -98,7 +98,7 @@ function validateProductData(data) {
  * 验证订单状态
  */
 function validateOrderStatus(status) {
-  const allowedStatuses = ['pending', 'paid', 'shipping', 'completed', 'cancelled'];
+  const allowedStatuses = ['pending', 'paid', 'shipping', 'completed', 'refunding', 'refunded', 'cancelled'];
   return isEnum(status, allowedStatuses, '订单状态');
 }
 

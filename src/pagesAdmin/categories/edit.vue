@@ -7,44 +7,75 @@
 
     <!-- 表单 -->
     <view class="form-section">
+      <!-- 分类名称 -->
       <view class="form-item">
         <text class="form-label">分类名称 *</text>
-        <input
-          class="form-input"
-          v-model="form.name"
-          placeholder="请输入分类名称"
-        />
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model="form.name"
+            placeholder="请输入分类名称"
+            placeholder-class="input-placeholder"
+          />
+        </view>
       </view>
 
+      <!-- 图标 -->
       <view class="form-item">
         <text class="form-label">图标</text>
-        <input
-          class="form-input"
-          v-model="form.icon"
-          placeholder="请输入图标emoji或图片URL"
-        />
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model="form.icon"
+            placeholder="请输入图标emoji或图片URL"
+            placeholder-class="input-placeholder"
+          />
+        </view>
         <text class="form-tip">支持emoji或图片URL，如: 🍺</text>
       </view>
 
+      <!-- 排序 -->
       <view class="form-item">
         <text class="form-label">排序</text>
-        <input
-          class="form-input"
-          v-model.number="form.sort"
-          type="number"
-          placeholder="数字越小越靠前"
-        />
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model.number="form.sort"
+            type="number"
+            placeholder="数字越小越靠前"
+            placeholder-class="input-placeholder"
+          />
+        </view>
         <text class="form-tip">数字越小越靠前，默认为0</text>
       </view>
 
-      <view class="form-item">
+      <!-- 启用状态 -->
+      <view class="form-item switch-item">
         <view class="switch-row">
-          <text class="form-label">是否启用</text>
+          <view class="switch-label">
+            <text class="form-label">是否启用</text>
+            <text class="switch-desc">{{ form.isActive ? '分类将在小程序中显示' : '分类将隐藏' }}</text>
+          </view>
           <switch
             :checked="form.isActive"
             @change="onSwitchChange"
             color="#C9A962"
           />
+        </view>
+      </view>
+    </view>
+
+    <!-- 预览区 -->
+    <view class="preview-section">
+      <text class="preview-title">预览效果</text>
+      <view class="preview-card">
+        <view class="preview-icon">{{ form.icon || '📁' }}</view>
+        <view class="preview-content">
+          <text class="preview-name">{{ form.name || '分类名称' }}</text>
+          <text class="preview-sort">排序: {{ form.sort || 0 }}</text>
+        </view>
+        <view :class="['preview-status', form.isActive ? 'active' : 'inactive']">
+          {{ form.isActive ? '启用' : '禁用' }}
         </view>
       </view>
     </view>
@@ -182,7 +213,7 @@ const handleSave = async () => {
   min-height: 100vh;
   background: #1A1A1A;
   padding: 24rpx;
-  padding-bottom: 120rpx;
+  padding-bottom: 200rpx;
 }
 
 .page-header {
@@ -201,11 +232,11 @@ const handleSave = async () => {
   background: rgba(255, 255, 255, 0.03);
   border: 1rpx solid rgba(201, 169, 98, 0.1);
   border-radius: 16rpx;
-  padding: 24rpx;
+  padding: 32rpx;
 }
 
 .form-item {
-  margin-bottom: 32rpx;
+  margin-bottom: 40rpx;
 }
 
 .form-item:last-child {
@@ -213,28 +244,52 @@ const handleSave = async () => {
 }
 
 .form-label {
-  font-size: 26rpx;
-  color: rgba(245, 245, 240, 0.6);
+  font-size: 28rpx;
+  color: #F5F5F0;
+  font-weight: 500;
   display: block;
-  margin-bottom: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.input-wrapper {
+  position: relative;
 }
 
 .form-input {
   width: 100%;
-  padding: 20rpx 24rpx;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1rpx solid rgba(201, 169, 98, 0.2);
+  height: 96rpx;
+  padding: 0 24rpx;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2rpx solid rgba(201, 169, 98, 0.3);
   border-radius: 12rpx;
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: #F5F5F0;
   box-sizing: border-box;
+  line-height: 96rpx;
+}
+
+.form-input:focus {
+  border-color: #C9A962;
+  background: rgba(201, 169, 98, 0.08);
+}
+
+.input-placeholder {
+  color: rgba(245, 245, 240, 0.3);
 }
 
 .form-tip {
   font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.3);
-  margin-top: 8rpx;
+  color: rgba(245, 245, 240, 0.4);
+  margin-top: 12rpx;
   display: block;
+}
+
+.switch-item {
+  background: rgba(201, 169, 98, 0.05);
+  margin: 24rpx -32rpx -32rpx;
+  padding: 24rpx 32rpx;
+  border-radius: 0 0 16rpx 16rpx;
+  border-top: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .switch-row {
@@ -243,31 +298,118 @@ const handleSave = async () => {
   align-items: center;
 }
 
-.switch-row .form-label {
+.switch-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.switch-label .form-label {
   margin-bottom: 0;
 }
 
+.switch-desc {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+}
+
+/* 预览区 */
+.preview-section {
+  margin-top: 32rpx;
+  padding: 24rpx;
+}
+
+.preview-title {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.preview-card {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1rpx solid rgba(201, 169, 98, 0.1);
+  border-radius: 16rpx;
+}
+
+.preview-icon {
+  width: 80rpx;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(201, 169, 98, 0.1);
+  border-radius: 12rpx;
+  font-size: 40rpx;
+}
+
+.preview-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.preview-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #F5F5F0;
+}
+
+.preview-sort {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+}
+
+.preview-status {
+  padding: 8rpx 20rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.preview-status.active {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+}
+
+.preview-status.inactive {
+  background: rgba(158, 158, 158, 0.15);
+  color: #9E9E9E;
+}
+
+/* 操作按钮 */
 .action-buttons {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: 0;
   display: flex;
   gap: 16rpx;
-  margin-top: 48rpx;
+  padding: 24rpx;
+  background: #1A1A1A;
+  border-top: 1rpx solid rgba(201, 169, 98, 0.1);
 }
 
 .action-btn {
   flex: 1;
-  height: 88rpx;
+  height: 96rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 16rpx;
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 600;
   border: none;
 }
 
 .action-btn.secondary {
   background: rgba(255, 255, 255, 0.05);
-  border: 1rpx solid rgba(201, 169, 98, 0.2);
+  border: 2rpx solid rgba(201, 169, 98, 0.3);
   color: #C9A962;
 }
 

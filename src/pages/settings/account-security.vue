@@ -87,6 +87,20 @@ onShow(async () => {
       avatarUrl: user.avatarUrl || '',
       phone: user.phone || ''
     };
+
+    // 如果头像是云存储格式，转换为临时URL显示
+    if (userInfo.value.avatarUrl && userInfo.value.avatarUrl.startsWith('cloud://')) {
+      try {
+        const res = await wx.cloud.getTempFileURL({
+          fileList: [userInfo.value.avatarUrl]
+        });
+        if (res.fileList && res.fileList[0] && res.fileList[0].tempFileURL) {
+          userInfo.value.avatarUrl = res.fileList[0].tempFileURL;
+        }
+      } catch (error) {
+        console.error('获取头像临时URL失败:', error);
+      }
+    }
   }
 });
 
@@ -121,18 +135,18 @@ const onChooseAvatar = async (e: any) => {
       fileList: [uploadRes.fileID]
     });
 
-    const newAvatarUrl = urlRes.fileList[0]?.tempFileURL || uploadRes.fileID;
-    console.log('临时URL:', newAvatarUrl);
+    const tempAvatarUrl = urlRes.fileList[0]?.tempFileURL || uploadRes.fileID;
+    console.log('临时URL:', tempAvatarUrl);
 
-    // 3. 更新本地显示
-    userInfo.value.avatarUrl = newAvatarUrl;
+    // 3. 更新本地显示（使用临时URL）
+    userInfo.value.avatarUrl = tempAvatarUrl;
 
-    // 4. 更新云端用户信息
-    const success = await updateCloudUserInfo({ avatarUrl: newAvatarUrl });
+    // 4. 更新云端用户信息（保存fileID，而不是临时URL）
+    const success = await updateCloudUserInfo({ avatarUrl: uploadRes.fileID });
     if (!success) throw new Error('同步到云端失败');
 
-    // 5. 更新本地缓存
-    await saveUserInfo({ avatarUrl: newAvatarUrl });
+    // 5. 更新本地缓存（保存fileID）
+    await saveUserInfo({ avatarUrl: uploadRes.fileID });
 
     uni.hideLoading();
     uni.showToast({ title: '头像更新成功', icon: 'success' });

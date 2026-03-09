@@ -40,6 +40,7 @@
     "test:watch": "vitest watch",
     "test:ui": "vitest --ui",
     "test:cf": "node scripts/run-cf-tests.js",
+    "test:module-fix": "node test-module-fix.js",
     "test:all": "npm run test:run && npm run test:cf"
   },
   "dependencies": {

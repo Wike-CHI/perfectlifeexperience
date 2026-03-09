@@ -47,7 +47,7 @@
 
       <!-- 空状态 -->
       <view class="empty-state" v-if="list.length === 0 && !loading">
-        <AdminIcon name="folder-open" size="large" variant="muted" />
+        <AdminIcon name="folder-open" size="large" />
         <text class="empty-text">暂无分类</text>
         <text class="empty-hint">点击上方按钮添加第一个分类</text>
       </view>
@@ -61,9 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { callFunction } from '@/utils/cloudbase'
-import AdminAuthManager from '@/utils/admin-auth'
+import { onMounted } from 'vue'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
 import AdminIcon from '@/components/admin-icon.vue'
 
 interface Category {
@@ -74,48 +73,42 @@ interface Category {
   isActive: boolean
 }
 
-const list = ref<Category[]>([])
-const loading = ref(false)
-const page = ref(1)
-const limit = ref(50)
-const total = ref(0)
+/**
+ * 分类管理列表页
+ * 使用 useAdminList composable 简化代码
+ */
 
-onMounted(() => {
-  loadData()
+// 使用 useAdminList（分类数据较少，使用较大 pageSize 一次加载）
+const {
+  list,
+  loading,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getCategories',
+  cachePrefix: 'categories',
+  pageSize: 50,
+  onLoaded: (data) => {
+    console.log('分类列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载分类失败', error)
+  }
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await callFunction('admin-api', {
-      action: 'getCategories',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: limit.value
-      }
-    })
+// 操作 Actions
+const { execute: deleteCategory } = useAdminAction({
+  action: 'deleteCategory',
+  successMsg: '删除成功'
+})
 
-    if (res.code === 0 && res.data) {
-      list.value = res.data.list || []
-      total.value = res.data.total || 0
-    }
-  } catch (error) {
-    console.error('加载分类失败:', error)
-    uni.showToast({
-      title: '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
+// 跳转到编辑页面
 const goToEdit = (id?: string) => {
   const url = id ? `/pagesAdmin/categories/edit?id=${id}` : '/pagesAdmin/categories/edit'
   uni.navigateTo({ url })
 }
 
+// 删除分类
 const handleDelete = (item: Category) => {
   uni.showModal({
     title: '确认删除',
@@ -123,32 +116,10 @@ const handleDelete = (item: Category) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '删除中...' })
-
-          const res = await callFunction('admin-api', {
-            action: 'deleteCategory',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: item._id }
-          })
-
-          uni.hideLoading()
-
-          if (res.code === 0) {
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            })
-            loadData()
-          } else {
-            throw new Error(res.msg || '删除失败')
-          }
-        } catch (error: any) {
-          uni.hideLoading()
-          console.error('删除分类失败:', error)
-          uni.showToast({
-            title: error.message || '删除失败',
-            icon: 'none'
-          })
+          await deleteCategory({ id: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }

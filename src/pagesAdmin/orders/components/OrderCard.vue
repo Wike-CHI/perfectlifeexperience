@@ -4,25 +4,32 @@
     <view class="card-header">
       <text class="order-no">{{ order.orderNo }}</text>
       <view :class="['status-badge', order.status]">
-        {{ statusMap[order.status] }}
+        {{ statusMap[order.status] || order.status }}
       </view>
     </view>
 
     <!-- 卡片内容 -->
     <view class="card-body">
-      <!-- 商品缩略图 -->
-      <scroll-view scroll-x class="product-images" v-if="order.items && order.items.length">
-        <image
-          v-for="(item, index) in order.items.slice(0, 5)"
-          :key="index"
-          class="product-image"
-          :src="item.image || '/static/logo.png'"
-          mode="aspectFill"
-        />
-        <view v-if="order.items.length > 5" class="more-count">
-          +{{ order.items.length - 5 }}
+      <!-- 商品列表 -->
+      <view class="product-section" v-if="orderItems.length">
+        <scroll-view scroll-x class="product-images">
+          <image
+            v-for="(item, index) in orderItems.slice(0, 5)"
+            :key="index"
+            class="product-image"
+            :src="item.productImage || item.image || '/static/logo.png'"
+            mode="aspectFill"
+          />
+          <view v-if="orderItems.length > 5" class="more-count">
+            +{{ orderItems.length - 5 }}
+          </view>
+        </scroll-view>
+        <!-- 商品名称摘要 -->
+        <view class="product-summary">
+          <text class="product-names">{{ productNames }}</text>
+          <text class="product-count">共 {{ orderItems.length }} 件商品</text>
         </view>
-      </scroll-view>
+      </view>
 
       <!-- 订单信息 -->
       <view class="order-info">
@@ -32,7 +39,7 @@
         </view>
         <view class="info-row">
           <text class="info-label">金额：</text>
-          <text class="info-value amount">¥{{ order.totalAmount }}</text>
+          <text class="info-value amount">¥{{ formatAmount(order.totalAmount) }}</text>
         </view>
         <view class="info-row">
           <text class="info-label">时间：</text>
@@ -50,11 +57,16 @@
       <button class="action-btn update-btn" @click="handleUpdateStatus">
         <text>更新状态</text>
       </button>
+      <button class="action-btn delete-btn" @click="handleDelete">
+        <AdminIcon name="trash" size="small" />
+        <text>删除</text>
+      </button>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
@@ -63,7 +75,9 @@ import AdminIcon from '@/components/admin-icon.vue'
 
 interface OrderItem {
   image?: string
-  name: string
+  productImage?: string
+  name?: string
+  productName?: string
   quantity: number
   price: number
 }
@@ -73,6 +87,7 @@ interface Order {
   orderNo: string
   status: string
   items?: OrderItem[]
+  products?: OrderItem[]
   userName?: string
   totalAmount: number
   createTime: string | Date
@@ -88,7 +103,21 @@ const emit = defineEmits<{
   click: [order: Order]
   scan: [order: Order]
   updateStatus: [order: Order]
+  delete: [order: Order]
 }>()
+
+// 兼容 items/products 字段
+const orderItems = computed(() => {
+  return props.order.items || props.order.products || []
+})
+
+// 商品名称摘要
+const productNames = computed(() => {
+  const items = orderItems.value
+  if (items.length === 0) return '暂无商品'
+  const names = items.slice(0, 2).map(item => item.productName || item.name || '商品').join('、')
+  return items.length > 2 ? `${names}等` : names
+})
 
 // 订单状态映射
 const statusMap: Record<string, string> = {
@@ -96,7 +125,19 @@ const statusMap: Record<string, string> = {
   paid: '待发货',
   shipping: '待收货',
   completed: '已完成',
+  refunding: '退款中',
+  refunded: '已退款',
   cancelled: '已取消'
+}
+
+// 格式化金额
+const formatAmount = (amount: number) => {
+  if (!amount) return '0.00'
+  // 如果金额大于1000，可能是以分为单位
+  if (amount > 1000) {
+    return (amount / 100).toFixed(2)
+  }
+  return amount.toFixed(2)
 }
 
 // 格式化时间
@@ -123,6 +164,11 @@ const handleScan = () => {
 // 处理更新状态
 const handleUpdateStatus = () => {
   emit('updateStatus', props.order)
+}
+
+// 处理删除订单
+const handleDelete = () => {
+  emit('delete', props.order)
 }
 </script>
 
@@ -191,6 +237,16 @@ const handleUpdateStatus = () => {
   color: #B85C5C;
 }
 
+.status-badge.refunding {
+  background: rgba(255, 176, 133, 0.2);
+  color: #FFB085;
+}
+
+.status-badge.refunded{
+  background: rgba(155, 139, 127, 0.2);
+  color: #9B8B7F;
+}
+
 /* 卡片内容 */
 .card-body {
   display: flex;
@@ -202,6 +258,33 @@ const handleUpdateStatus = () => {
   display: flex;
   white-space: nowrap;
   gap: 12rpx;
+}
+
+.product-section {
+  margin-bottom: 16rpx;
+}
+
+.product-summary {
+  margin-top: 12rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-names {
+  font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.7);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-count {
+  font-size: 22rpx;
+  color: rgba(245, 245, 240, 0.4);
+  margin-left: 16rpx;
+  flex-shrink: 0;
 }
 
 .product-image {
@@ -290,5 +373,14 @@ const handleUpdateStatus = () => {
 
 .update-btn:active {
   background: rgba(122, 154, 142, 0.2);
+}
+
+.delete-btn {
+  background: rgba(184, 92, 92, 0.1);
+  color: #B85C5C;
+}
+
+.delete-btn:active {
+  background: rgba(184, 92, 92, 0.2);
 }
 </style>

@@ -3,8 +3,8 @@
     <!-- 订单状态卡片 -->
     <admin-card class="status-card">
       <view class="status-content">
-        <view :class="['status-icon', order.status]">
-          <AdminIcon :name="statusIcon" size="large" :variant="getStatusVariant(order.status)" />
+        <view :class="['status-icon', detail.status]">
+          <AdminIcon :name="statusIcon" size="large" :variant="getStatusVariant(detail.status)" />
         </view>
         <view class="status-info">
           <text class="status-text">{{ statusText }}</text>
@@ -18,19 +18,19 @@
       <view class="info-list">
         <view class="info-item">
           <text class="info-label">订单编号</text>
-          <text class="info-value">{{ order.orderNo }}</text>
+          <text class="info-value">{{ detail.orderNo }}</text>
         </view>
         <view class="info-item">
           <text class="info-label">下单时间</text>
-          <text class="info-value">{{ formatFullTime(order.createTime) }}</text>
+          <text class="info-value">{{ formatFullTime(detail.createTime) }}</text>
         </view>
         <view class="info-item">
           <text class="info-label">订单金额</text>
-          <text class="info-value amount">¥{{ (order.totalAmount / 100).toFixed(2) }}</text>
+          <text class="info-value amount">¥{{ (detail.totalAmount / 100).toFixed(2) }}</text>
         </view>
-        <view v-if="order.payTime" class="info-item">
+        <view v-if="detail.payTime" class="info-item">
           <text class="info-label">支付时间</text>
-          <text class="info-value">{{ formatFullTime(order.payTime) }}</text>
+          <text class="info-value">{{ formatFullTime(detail.payTime) }}</text>
         </view>
       </view>
     </admin-card>
@@ -38,10 +38,10 @@
     <!-- 用户信息 -->
     <admin-card title="用户信息" class="section-card">
       <view class="user-info">
-        <image class="user-avatar" :src="order.userAvatar || '/static/logo.png'" mode="aspectFill" />
+        <image class="user-avatar" :src="detail.userAvatar || '/static/logo.png'" mode="aspectFill" />
         <view class="user-details">
-          <text class="user-name">{{ order.userName || '未知用户' }}</text>
-          <text class="user-phone">{{ order.userPhone || '未绑定手机' }}</text>
+          <text class="user-name">{{ detail.userName || '未知用户' }}</text>
+          <text class="user-phone">{{ detail.userPhone || '未绑定手机' }}</text>
         </view>
       </view>
     </admin-card>
@@ -50,16 +50,16 @@
     <admin-card title="收货地址" class="section-card">
       <view class="address-info">
         <view class="address-header">
-          <text class="receiver-name">{{ order.receiverName }}</text>
-          <text class="receiver-phone">{{ order.receiverPhone }}</text>
+          <text class="receiver-name">{{ detail.receiverName }}</text>
+          <text class="receiver-phone">{{ detail.receiverPhone }}</text>
         </view>
-        <text class="address-detail">{{ order.fullAddress }}</text>
+        <text class="address-detail">{{ detail.fullAddress }}</text>
         <!-- 地图预览 -->
-        <view v-if="order.location" class="map-container">
+        <view v-if="detail.location" class="map-container">
           <map
             class="order-map"
-            :latitude="order.location.latitude"
-            :longitude="order.location.longitude"
+            :latitude="detail.location.latitude"
+            :longitude="detail.location.longitude"
             :markers="mapMarkers"
             :scale="14"
             :show-location="true"
@@ -80,10 +80,10 @@
     <!-- 商品列表 -->
     <admin-card title="商品清单" class="section-card">
       <view class="product-list">
-        <view v-for="item in order.items" :key="item.id" class="product-item">
-          <image class="product-image" :src="item.image || '/static/logo.png'" mode="aspectFill" />
+        <view v-for="item in detail.items" :key="item.id || item.productId" class="product-item">
+          <image class="product-image" :src="item.productImage || item.image || '/static/logo.png'" mode="aspectFill" />
           <view class="product-details">
-            <text class="product-name">{{ item.name }}</text>
+            <text class="product-name">{{ item.productName || item.name }}</text>
             <view class="product-meta">
               <text class="product-spec">{{ item.spec || '' }}</text>
               <text class="product-price">¥{{ item.price }}</text>
@@ -95,18 +95,18 @@
     </admin-card>
 
     <!-- 物流信息 -->
-    <admin-card v-if="order.expressCode" title="物流信息" class="section-card">
+    <admin-card v-if="detail.expressNo" title="物流信息" class="section-card">
       <view class="express-info">
         <view class="express-row">
           <text class="express-label">快递公司</text>
-          <text class="express-value">{{ order.expressCompany || '未知' }}</text>
+          <text class="express-value">{{ detail.expressCompany || '未知' }}</text>
         </view>
         <view class="express-row">
           <text class="express-label">快递单号</text>
-          <text class="express-value">{{ order.expressCode }}</text>
+          <text class="express-value">{{ detail.expressNo }}</text>
         </view>
         <button class="scan-express-btn" @click="scanExpress">
-          <AdminIcon name="search" size="small" />
+          <AdminIcon name="scan" size="small" />
           <text>重新扫描</text>
         </button>
       </view>
@@ -117,7 +117,7 @@
       <button class="action-btn primary" @click="handleUpdateStatus">
         更新状态
       </button>
-      <button v-if="order.status === 'paid'" class="action-btn secondary" @click="handleAddExpress">
+      <button v-if="detail.status === 'paid'" class="action-btn secondary" @click="handleAddExpress">
         添加物流
       </button>
     </view>
@@ -131,33 +131,53 @@
 import { ref, onMounted, computed } from 'vue'
 import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
+import { useAdminDetail } from '@/composables/useAdmin'
 import AdminCard from '@/components/admin-card.vue'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 订单详情页面
+ * 使用 useAdminDetail composable 简化代码
  */
 
-onMounted(() => {
-  if (!AdminAuthManager.checkAuth()) return
-  loadOrderDetail()
+// 从页面参数获取订单ID
+const getOrderIdFromOptions = (): string => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1] as any
+  const options = currentPage.options || {}
+  return options.id || ''
+}
+
+// 使用 useAdminDetail
+const { detail, loading, loadDetail } = useAdminDetail({
+  action: 'getOrderDetail',
+  idParam: 'id',
+  transform: (data: any) => {
+    const orderData = data.order || data
+    const userInfo = data.user || {}
+    return {
+      ...orderData,
+      items: orderData.items || orderData.products || [],
+      userName: orderData.userName || userInfo.nickName || userInfo.name || '未知用户',
+      userPhone: orderData.userPhone || userInfo.phone || userInfo.mobile || '',
+      userAvatar: userInfo.avatarUrl || userInfo.avatar || ''
+    }
+  },
+  onLoaded: (data) => {
+    console.log('订单详情加载完成', data.orderNo)
+  },
+  onError: (error) => {
+    console.error('加载订单详情失败', error)
+  }
 })
 
-// 订单数据
-const order = ref<any>({
-  orderNo: '',
-  status: '',
-  createTime: '',
-  totalAmount: 0,
-  items: [],
-  userName: '',
-  userPhone: '',
-  receiverName: '',
-  receiverPhone: '',
-  fullAddress: '',
-  location: null,
-  expressCode: '',
-  expressCompany: ''
+// 初始化
+onMounted(() => {
+  if (!AdminAuthManager.checkAuth()) return
+  const orderId = getOrderIdFromOptions()
+  if (orderId) {
+    loadDetail(orderId)
+  }
 })
 
 // 状态映射
@@ -166,12 +186,14 @@ const statusConfig: Record<string, { icon: string; text: string; desc: string }>
   paid: { icon: 'package', text: '待发货', desc: '请尽快发货' },
   shipping: { icon: 'truck', text: '待收货', desc: '商品配送中' },
   completed: { icon: 'check', text: '已完成', desc: '订单已完成' },
+  refunding: { icon: 'refresh', text: '退款中', desc: '退款申请处理中' },
+  refunded: { icon: 'reload', text: '已退款', desc: '退款已完成' },
   cancelled: { icon: 'close', text: '已取消', desc: '订单已取消' }
 }
 
-const statusIcon = computed(() => statusConfig[order.value.status]?.icon || '')
-const statusText = computed(() => statusConfig[order.value.status]?.text || '')
-const statusDesc = computed(() => statusConfig[order.value.status]?.desc || '')
+const statusIcon = computed(() => statusConfig[detail.value?.status]?.icon || '')
+const statusText = computed(() => statusConfig[detail.value?.status]?.text || '')
+const statusDesc = computed(() => statusConfig[detail.value?.status]?.desc || '')
 
 // 获取状态图标颜色变体
 const getStatusVariant = (status: string): 'default' | 'gold' | 'success' | 'warning' | 'danger' => {
@@ -180,59 +202,16 @@ const getStatusVariant = (status: string): 'default' | 'gold' | 'success' | 'war
     paid: 'gold',
     shipping: 'default',
     completed: 'success',
+    refunding: 'warning',
+    refunded: 'default',
     cancelled: 'danger'
   }
   return variants[status] || 'default'
 }
 
-// 加载订单详情
-const loadOrderDetail = async () => {
-  try {
-    const pages = getCurrentPages()
-    const currentPage = pages[pages.length - 1] as any
-    const options = currentPage.options || {}
-    const orderId = options.id
-
-    if (!orderId) {
-      throw new Error('订单ID不存在')
-    }
-
-    uni.showLoading({ title: '加载中...' })
-
-    const res = await callFunction('admin-api', {
-      action: 'getOrderDetail',
-      adminToken: AdminAuthManager.getToken(),
-      data: { id: orderId }
-    })
-
-    uni.hideLoading()
-
-    if (res.code === 0 && res.data) {
-      const orderData = res.data.order || res.data
-      // 合并用户信息到订单数据
-      const userInfo = res.data.user || {}
-      order.value = {
-        ...orderData,
-        // 兼容用户信息字段名
-        userName: orderData.userName || userInfo.nickName || userInfo.name || '未知用户',
-        userPhone: orderData.userPhone || userInfo.phone || userInfo.mobile || '',
-        userAvatar: userInfo.avatarUrl || userInfo.avatar || ''
-      }
-    } else {
-      throw new Error(res.msg || '加载失败')
-    }
-  } catch (error: any) {
-    uni.hideLoading()
-    console.error('加载订单详情失败:', error)
-    uni.showToast({
-      title: error.message || '加载失败',
-      icon: 'none'
-    })
-  }
-}
-
 // 格式化完整时间
 const formatFullTime = (time: string | Date) => {
+  if (!time) return '-'
   const date = new Date(time)
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
@@ -243,25 +222,25 @@ const formatFullTime = (time: string | Date) => {
   })
 }
 
-// 地图标记点 - 使用系统默认标记
+// 地图标记点
 const mapMarkers = computed(() => {
-  if (!order.value?.location) return []
+  if (!detail.value?.location) return []
   return [{
     id: 1,
-    latitude: order.value.location.latitude,
-    longitude: order.value.location.longitude,
+    latitude: detail.value.location.latitude,
+    longitude: detail.value.location.longitude,
     title: '配送位置'
   }]
 })
 
 // 打开微信地图导航
 const openLocation = () => {
-  if (!order.value.location) return
+  if (!detail.value.location) return
   uni.openLocation({
-    latitude: order.value.location.latitude,
-    longitude: order.value.location.longitude,
+    latitude: detail.value.location.latitude,
+    longitude: detail.value.location.longitude,
     name: '配送地址',
-    address: order.value.fullAddress
+    address: detail.value.fullAddress
   })
 }
 
@@ -281,8 +260,8 @@ const scanExpress = () => {
           action: 'updateOrderExpress',
           adminToken: AdminAuthManager.getToken(),
           data: {
-            orderId: order.value.id,
-            expressCode: res.result
+            orderId: detail.value.id || detail.value._id,
+            expressNo: res.result
           }
         })
 
@@ -293,7 +272,8 @@ const scanExpress = () => {
         })
 
         // 刷新详情
-        loadOrderDetail()
+        const orderId = getOrderIdFromOptions()
+        loadDetail(orderId)
       } catch (error: any) {
         uni.hideLoading()
         uni.showToast({
@@ -312,10 +292,12 @@ const handleUpdateStatus = () => {
     { label: '待发货', value: 'paid' },
     { label: '待收货', value: 'shipping' },
     { label: '已完成', value: 'completed' },
+    { label: '退款中', value: 'refunding' },
+    { label: '已退款', value: 'refunded' },
     { label: '已取消', value: 'cancelled' }
   ]
 
-  const currentIndex = statusOptions.findIndex(s => s.value === order.value.status)
+  const currentIndex = statusOptions.findIndex(s => s.value === detail.value.status)
 
   uni.showActionSheet({
     itemList: statusOptions.map(s => s.label),
@@ -331,7 +313,7 @@ const handleUpdateStatus = () => {
           action: 'updateOrderStatus',
           adminToken: AdminAuthManager.getToken(),
           data: {
-            orderId: order.value.id,
+            orderId: detail.value.id,
             status: newStatus
           }
         })
@@ -343,7 +325,8 @@ const handleUpdateStatus = () => {
         })
 
         // 刷新详情
-        loadOrderDetail()
+        const orderId = getOrderIdFromOptions()
+        loadDetail(orderId)
       } catch (error: any) {
         uni.hideLoading()
         uni.showToast({
@@ -370,8 +353,8 @@ const handleAddExpress = () => {
             action: 'updateOrderExpress',
             adminToken: AdminAuthManager.getToken(),
             data: {
-              orderId: order.value.id,
-              expressCode: res.content
+              orderId: detail.value.id || detail.value._id,
+              expressNo: res.content
             }
           })
 
@@ -382,7 +365,8 @@ const handleAddExpress = () => {
           })
 
           // 刷新详情
-          loadOrderDetail()
+          const orderId = getOrderIdFromOptions()
+          loadDetail(orderId)
         } catch (error: any) {
           uni.hideLoading()
           uni.showToast({

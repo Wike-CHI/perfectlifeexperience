@@ -144,16 +144,13 @@
     </scroll-view>
 
     <!-- 底部活动规则入口 -->
-    <view class="rules-footer" @click="showRules">
-      <view class="rules-icon">
-        <view class="document">
-          <view class="doc-line" v-for="n in 3" :key="n"></view>
-        </view>
+    <view class="rules-footer">
+      <view class="rules-btn" @click="showRules">
+        <text class="rules-btn-text">活动规则</text>
       </view>
-      <text class="rules-text">活动规则</text>
-      <view class="rules-arrow">
-        <view class="arrow-line"></view>
-        <view class="arrow-head"></view>
+      <view class="rules-divider"></view>
+      <view class="rules-btn" @click="goToPromoList">
+        <text class="rules-btn-text">更多活动</text>
       </view>
     </view>
 
@@ -325,6 +322,13 @@ const showRules = () => {
     content: '1. 活动时间：每日00:00-23:59\n2. 特惠商品数量有限，售完即止\n3. 活动商品不与其他优惠同享\n4. 最终解释权归商家所有',
     showCancel: false,
     confirmText: '我知道了'
+  });
+};
+
+// 跳转活动列表
+const goToPromoList = () => {
+  uni.navigateTo({
+    url: '/pages/promo/list'
   });
 };
 
@@ -797,57 +801,28 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12rpx;
+  gap: 24rpx;
   background: rgba(200, 164, 100, 0.08);
   border-top: 1rpx solid rgba(200, 164, 100, 0.1);
   padding: 24rpx;
 }
 
-.rules-icon {
-  width: 32rpx;
-  height: 32rpx;
+.rules-btn {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* 文档图标 */
-.document {
-  position: relative;
-  width: 28rpx;
-  height: 32rpx;
-  background: rgba(200, 164, 100, 0.3);
-  border: 2rpx solid rgba(200, 164, 100, 0.5);
-  border-radius: 4rpx;
-}
-
-.doc-line {
-  position: absolute;
-  left: 6rpx;
-  width: 12rpx;
-  height: 2rpx;
-  background: rgba(200, 164, 100, 0.5);
-  border-radius: 1rpx;
-}
-
-.doc-line:nth-child(1) { top: 8rpx; }
-.doc-line:nth-child(2) { top: 14rpx; }
-.doc-line:nth-child(3) { top: 20rpx; }
-
-.rules-text {
+.rules-btn-text {
   font-size: 26rpx;
   color: rgba(200, 164, 100, 0.7);
 }
 
-.rules-arrow {
-  display: flex;
-  align-items: center;
-}
-
-.arrow-line {
-  width: 16rpx;
-  height: 2rpx;
-  background: rgba(200, 164, 100, 0.4);
+.rules-divider {
+  width: 1rpx;
+  height: 32rpx;
+  background: rgba(200, 164, 100, 0.2);
 }
 
 .arrow-head {

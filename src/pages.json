@@ -19,6 +19,24 @@
 			}
 		},
 		{
+			"path": "pages/promo/list",
+			"style": {
+				"navigationBarTitleText": "优惠活动",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/promo/detail",
+			"style": {
+				"navigationBarTitleText": "活动详情",
+				"navigationBarBackgroundColor": "#1A1A1A",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
 			"path": "pages/category/category",
 			"style": {
 				"navigationBarTitleText": "分类",
@@ -615,6 +633,22 @@
 					"path": "settings/config",
 					"style": {
 						"navigationBarTitleText": "系统设置",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "system/init",
+					"style": {
+						"navigationBarTitleText": "数据库初始化",
+						"navigationBarBackgroundColor": "#1A1A1A",
+						"navigationBarTextStyle": "white"
+					}
+				},
+				{
+					"path": "system/price-check",
+					"style": {
+						"navigationBarTitleText": "商品价格检查",
 						"navigationBarBackgroundColor": "#1A1A1A",
 						"navigationBarTextStyle": "white"
 					}

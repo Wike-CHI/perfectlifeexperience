@@ -1,41 +1,105 @@
 /**
- * 图片处理工具函数
- * 用于优化图片加载，提升性能
+ * 转换云存储 URL 为临时访问链接
+ * @param url 原始URL（可能是cloud://格式或普通URL）
+ * @returns Promise<string> 临时访问链接或原始URL
  */
-
-// CloudBase CDN 基础 URL
-const CDN_BASE = 'https://cloud1-6gmp2q0y3171c353-1403736715.tcloudbaseapp.com';
-
-/**
- * 获取图片缩略图 URL
- * 使用 CDN 图片处理参数生成缩略图
- * @param url 原始图片 URL
- * @param width 目标宽度
- * @param height 目标高度
- * @returns 处理后的图片 URL
- */
-export function getThumbnail(
-  url: string,
-  width: number = 400,
-  height: number = 400
-): string {
+export async function convertCloudUrl(url: string): Promise<string> {
   if (!url) {
-    return '/static/images/default.png';
+    return '/static/logo.png';
   }
 
-  // 如果是本地静态资源，直接返回
-  if (url.startsWith('/static/') || url.startsWith('/static/')) {
+  // 如果不是云存储格式，直接返回
+  if (!url.startsWith('cloud://')) {
     return url;
   }
 
-  // 如果已经是 CDN 图片，添加处理参数
-  if (url.includes('cloudbaseapp.com') || url.includes('tcloudbaseapp.com')) {
-    // 判断 URL 是否已经包含参数
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}imageMogr2/thumbnail/${width}x${height}`;
+  try {
+    const res = await wx.cloud.getTempFileURL({
+      fileList: [url]
+    });
+
+    if (res.fileList && res.fileList[0] && res.fileList[0].tempFileURL) {
+      return res.fileList[0].tempFileURL;
+    }
+
+    return '/static/logo.png';
+  } catch (error) {
+    console.error('转换云存储URL失败:', error);
+    return '/static/logo.png';
+  }
+}
+
+/**
+ * 批量转换云存储URL为临时访问链接
+ * @param urls 云存储URL数组
+ * @returns Promise<Array<{originalUrl: string, convertedUrl: string}>> 转换结果数组
+ */
+export async function batchConvertCloudUrls(urls: string[]): Promise<Array<{originalUrl: string, convertedUrl: string}>> {
+  if (!urls || urls.length === 0) return [];
+
+  const cloudUrls = urls.filter(url => url && url.startsWith('cloud://'));
+
+  if (cloudUrls.length === 0) {
+    // 没有云存储URL，直接返回原始URL
+    return urls.map(url => ({
+      originalUrl: url,
+      convertedUrl: url || '/static/logo.png'
+    }));
   }
 
-  // 其他外部 URL
+  try {
+    const res = await wx.cloud.getTempFileURL({
+      fileList: cloudUrls
+    });
+
+    // 建立映射关系
+    const urlMap = new Map<string, string>();
+    res.fileList.forEach((file) => {
+      if (file.tempFileURL) {
+        urlMap.set(file.fileID, file.tempFileURL);
+      }
+    });
+
+    // 返回转换结果（保持原顺序）
+    return urls.map(url => {
+      if (!url) {
+        return { originalUrl: url, convertedUrl: '/static/logo.png' };
+      }
+      if (!url.startsWith('cloud://')) {
+        return { originalUrl: url, convertedUrl: url };
+      }
+      return {
+        originalUrl: url,
+        convertedUrl: urlMap.get(url) || '/static/logo.png'
+      };
+    });
+  } catch (error) {
+    console.error('批量转换云存储URL失败:', error);
+    // 失败时返回原始URL
+    return urls.map(url => ({
+      originalUrl: url,
+      convertedUrl: url || '/static/logo.png'
+    }));
+  }
+}
+
+/**
+ * 获取缩略图 URL（云存储图片处理）
+ * @param url 原始图片 URL
+ * @param width 宽度
+ * @param height 高度
+ * @returns 缩略图 URL
+ */
+export function getThumbnail(url: string, width: number = 200, height: number = 200): string {
+  if (!url) {
+    return '/static/logo.png';
+  }
+
+  // 如果是云存储临时链接，添加图片处理参数
+  if (url.includes('tcb.qcloud.la') || url.includes('cos.')) {
+    return `${url}?imageMogr2/thumbnail/${width}x${height}`;
+  }
+
   return url;
 }
 
@@ -49,7 +113,7 @@ export function getListThumbnail(url: string): string {
 }
 
 /**
- * 获取详情页缩略图 - 针对详情页优化
+ * 获取详情页缩略图 - 针对商品详情页优化
  * @param url 原始图片 URL
  * @returns 缩略图 URL
  */
@@ -58,51 +122,10 @@ export function getDetailThumbnail(url: string): string {
 }
 
 /**
- * 获取头像缩略图
+ * 获取头像缩略图 - 针对用户头像优化
  * @param url 原始图片 URL
  * @returns 缩略图 URL
  */
 export function getAvatarThumbnail(url: string): string {
   return getThumbnail(url, 200, 200);
-}
-
-/**
- * 检查图片 URL 是否有效
- * @param url 图片 URL
- * @returns 是否有效
- */
-export function isValidImageUrl(url: string): boolean {
-  if (!url) return false;
-  return url.startsWith('http') || url.startsWith('/static');
-}
-
-/**
- * 预加载图片
- * @param urls 图片 URL 数组
- * @returns Promise 数组
- */
-export function preloadImages(urls: string[]): Promise<UniApp.GetImageInfoSuccessData>[] {
-  return urls.map(
-    (url) =>
-      new Promise((resolve, reject) => {
-        uni.getImageInfo({
-          src: url,
-          success: resolve,
-          fail: reject,
-        });
-      })
-  );
-}
-
-/**
- * 清理图片缓存（uni-app 需要手动清理）
- * 某些情况下可能需要手动触发垃圾回收
- */
-export function clearImageCache(): void {
-  // 小程序中无法直接清理图片缓存
-  // 但可以清理相关的内存引用
-  if (uni.canIUse('PERFORMANCE')) {
-    // 仅作为占位符，实际清理需要平台特定 API
-    console.log('[ImageUtils] Image cache clear not supported on this platform');
-  }
 }

@@ -1,3 +1,7 @@
+/**
+ * 初始化数据库数据
+ * 使用真实的商品数据：鲜啤外带 + 增味啤
+ */
 const cloud = require('wx-server-sdk');
 
 cloud.init({
@@ -5,275 +9,515 @@ cloud.init({
 });
 
 const db = cloud.database();
+const _ = db.command;
 
-// 分类数据
+// ==================== 分类数据 ====================
 const categories = [
   { name: '全部', icon: 'all', sort: 0, isActive: true },
-  { name: 'IPA', icon: 'ipa', sort: 1, isActive: true },
-  { name: '世涛', icon: 'stout', sort: 2, isActive: true },
-  { name: '艾尔', icon: 'ale', sort: 3, isActive: true },
-  { name: '拉格', icon: 'lager', sort: 4, isActive: true },
-  { name: '小麦', icon: 'wheat', sort: 5, isActive: true },
-  { name: '精酿套装', icon: 'set', sort: 6, isActive: true }
+  { name: '鲜啤外带', icon: 'fresh', sort: 1, isActive: true },
+  { name: '增味啤', icon: 'flavor', sort: 2, isActive: true }
 ];
 
-// 商品数据
+// ==================== 商品数据 ====================
 const products = [
+  // ========== 鲜啤外带 ==========
   {
-    name: '大友元气 · 经典IPA',
-    description: '采用美国西海岸风格酿造，浓郁的啤酒花香气，带有柑橘和松针的芬芳，苦味适中，回味悠长。酒精度6.5%，适合精酿入门爱好者。',
-    price: 2800,
-    originalPrice: 3500,
+    name: '飞云江小麦',
+    enName: 'Feiyunjiang wheat',
+    category: '鲜啤外带',
+    description: '飞云江小麦 - 酒精含量≥5% / 麦芽浓度12°P',
+    specs: '酒精含量≥5% / 麦芽浓度12°P',
+    alcoholContent: 5,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 1400,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 1400 },
+      { volume: '1L', price: 2600 },
+      { volume: '1.5L', price: 3600 },
+      { volume: '2.5L', price: 6000 },
+      { volume: '1.5L×4（整箱）', price: 14400 }
+    ],
     images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
-    category: 'IPA',
-    tags: ['热销', '入门推荐'],
-    stock: 100,
-    sales: 568,
-    rating: 4.8,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 6.5,
-    volume: 330,
-    isHot: true,
-    isNew: false,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 双倍IPA',
-    description: '双倍干投啤酒花，带来爆炸性的热带水果香气，芒果、菠萝、百香果风味交织，酒体饱满，苦度较高但平衡感极佳。',
-    price: 3200,
-    originalPrice: 3800,
-    images: ['https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400'],
-    category: 'IPA',
-    tags: ['新品', '重度酒花'],
-    stock: 80,
-    sales: 234,
-    rating: 4.9,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 8.2,
-    volume: 330,
-    isHot: true,
-    isNew: true,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 牛奶世涛',
-    description: '添加乳糖酿造的甜世涛，口感丝滑如奶油，带有咖啡、巧克力和焦糖的香气，甜度适中，是冬季的暖心之选。',
-    price: 2600,
-    originalPrice: 3200,
-    images: ['https://images.unsplash.com/photo-1586993451228-c2600805a51f?w=400'],
-    category: '世涛',
-    tags: ['冬季限定', '甜型'],
-    stock: 60,
-    sales: 445,
-    rating: 4.7,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 5.8,
-    volume: 330,
-    isHot: true,
-    isNew: false,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 帝国世涛',
-    description: '高酒精度的帝国世涛，酒体厚重，带有浓郁的烘焙咖啡、黑巧克力和干果香气，适合慢慢品味。',
-    price: 3800,
-    originalPrice: 4500,
-    images: ['https://images.unsplash.com/photo-1575037614876-c38a4c44f5bd?w=400'],
-    category: '世涛',
-    tags: ['限量', '收藏级'],
-    stock: 30,
-    sales: 89,
-    rating: 4.9,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 10.5,
-    volume: 330,
-    isHot: false,
-    isNew: true,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 比利时小麦',
-    description: '传统比利时风格小麦啤酒，添加橙皮和芫荽籽，带有清新的柑橘香气和香料味，口感清爽，适合夏日畅饮。',
-    price: 2200,
-    originalPrice: 2800,
-    images: ['https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400'],
-    category: '小麦',
-    tags: ['清爽', '夏日推荐'],
-    stock: 120,
-    sales: 892,
-    rating: 4.6,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 4.8,
-    volume: 330,
-    isHot: true,
-    isNew: false,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 德式小麦',
-    description: '遵循德国纯净法酿造，浓郁的香蕉和丁香香气，酒体浑浊金黄，口感醇厚，是德式小麦的经典之作。',
-    price: 2400,
-    originalPrice: 3000,
-    images: ['https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=400'],
-    category: '小麦',
-    tags: ['经典', '德式'],
-    stock: 90,
-    sales: 567,
-    rating: 4.7,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 5.2,
-    volume: 500,
     isHot: false,
     isNew: false,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 淡色艾尔',
-    description: '英式淡色艾尔风格，麦芽甜味与啤酒花苦味完美平衡，带有太妃糖和柑橘的香气，适合日常饮用。',
-    price: 2000,
-    originalPrice: 2600,
-    images: ['https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400'],
-    category: '艾尔',
-    tags: ['日常', '平衡'],
-    stock: 150,
-    sales: 723,
+    stock: 999,
+    sales: 0,
     rating: 4.5,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 4.5,
-    volume: 330,
+    tags: [],
+    sort: 0,
+    createTime: db.serverDate()
+  },
+  {
+    name: '玉海楼·皮尔森',
+    enName: 'Yuhailou pilsner',
+    category: '鲜啤外带',
+    description: '玉海楼·皮尔森 - 酒精含量≥5% / 麦芽浓度12°P',
+    specs: '酒精含量≥5% / 麦芽浓度12°P',
+    alcoholContent: 5,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 1800,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 1800 },
+      { volume: '1L', price: 3400 },
+      { volume: '1.5L', price: 4900 },
+      { volume: '2.5L', price: 8100 },
+      { volume: '1.5L×4（整箱）', price: 19600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
     isHot: false,
     isNew: false,
-    createTime: new Date()
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 1,
+    createTime: db.serverDate()
   },
   {
-    name: '大友元气 · 琥珀艾尔',
-    description: '深琥珀色酒体，焦糖麦芽香气浓郁，带有坚果和干果的风味，口感醇厚，是秋季的完美选择。',
-    price: 2600,
-    originalPrice: 3200,
-    images: ['https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400'],
-    category: '艾尔',
-    tags: ['秋季限定', '醇厚'],
-    stock: 70,
-    sales: 334,
-    rating: 4.6,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 5.5,
-    volume: 330,
+    name: '晒黑浑浊IPA',
+    enName: 'Tanned cloudy ipa',
+    category: '鲜啤外带',
+    description: '晒黑浑浊IPA - 酒精含量≥8.2% / 麦芽浓度19°P',
+    specs: '酒精含量≥8.2% / 麦芽浓度19°P',
+    alcoholContent: 8.2,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 2700,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 2700 },
+      { volume: '1L', price: 4800 },
+      { volume: '1.5L', price: 7600 },
+      { volume: '2.5L', price: 12200 },
+      { volume: '1.5L×4（整箱）', price: 30400 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
     isHot: false,
-    isNew: true,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 皮尔森',
-    description: '捷克风格皮尔森，金黄色酒体清澈透亮，萨兹啤酒花带来独特的香料和花香，口感干爽清脆。',
-    price: 1800,
-    originalPrice: 2400,
-    images: ['https://images.unsplash.com/photo-1579126035584-6dca6e318943?w=400'],
-    category: '拉格',
-    tags: ['清爽', '入门'],
-    stock: 200,
-    sales: 1205,
-    rating: 4.4,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 4.2,
-    volume: 330,
-    isHot: true,
     isNew: false,
-    createTime: new Date()
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 2,
+    createTime: db.serverDate()
   },
   {
-    name: '大友元气 · 精酿品鉴套装',
-    description: '包含6款不同风格的精酿啤酒，从清爽的小麦到浓郁的世涛，一次品尝大友元气的经典之作，附赠品鉴指南。',
-    price: 12800,
-    originalPrice: 16800,
-    images: ['https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=400'],
-    category: '精酿套装',
-    tags: ['礼盒', '品鉴'],
-    stock: 50,
-    sales: 156,
-    rating: 4.9,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 0,
-    volume: 1980,
-    isHot: true,
-    isNew: false,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 新英格兰IPA',
-    description: '浑浊IPA风格，果汁感十足，带有浓郁的热带水果香气，口感顺滑，几乎没有苦味，是当下最流行的精酿风格。',
-    price: 3000,
-    originalPrice: 3600,
-    images: ['https://images.unsplash.com/photo-1505075106905-fb0528c29f1c?w=400'],
-    category: 'IPA',
-    tags: ['潮流', '果汁感'],
-    stock: 65,
-    sales: 445,
-    rating: 4.8,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 6.8,
-    volume: 330,
-    isHot: true,
-    isNew: true,
-    createTime: new Date()
-  },
-  {
-    name: '大友元气 · 咖啡世涛',
-    description: '与本地咖啡烘焙坊合作，添加精选咖啡豆酿造，浓郁的咖啡香气与啤酒完美融合，是咖啡爱好者的最爱。',
-    price: 2800,
-    originalPrice: 3400,
-    images: ['https://images.unsplash.com/photo-1546549010-63b5dd2d8fb9?w=400'],
-    category: '世涛',
-    tags: ['联名', '咖啡'],
-    stock: 45,
-    sales: 278,
-    rating: 4.7,
-    brewery: '大友元气酿酒厂',
-    alcoholContent: 6.2,
-    volume: 330,
+    name: '仙浆',
+    enName: 'Fairy pulp',
+    category: '鲜啤外带',
+    description: '仙浆 - 酒精度8° / 麦芽浓度18°P',
+    specs: '酒精度8° / 麦芽浓度18°P',
+    alcoholContent: 8,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 2500,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 2500 },
+      { volume: '1L', price: 4800 },
+      { volume: '1.5L', price: 7000 },
+      { volume: '2.5L', price: 11600 },
+      { volume: '1.5L×4（整箱）', price: 28000 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
     isHot: false,
-    isNew: true,
-    createTime: new Date()
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 3,
+    createTime: db.serverDate()
+  },
+
+  // ========== 增味啤 ==========
+  {
+    name: '百香果啤',
+    enName: 'Passion Fruit',
+    category: '增味啤',
+    description: '百香果啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 4,
+    createTime: db.serverDate()
+  },
+  {
+    name: '番石榴啤',
+    enName: 'Guava',
+    category: '增味啤',
+    description: '番石榴啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 5,
+    createTime: db.serverDate()
+  },
+  {
+    name: '奶油芭乐啤',
+    enName: 'Creamy bala',
+    category: '增味啤',
+    description: '奶油芭乐啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 6,
+    createTime: db.serverDate()
+  },
+  {
+    name: '苹果啤',
+    enName: 'Apple',
+    category: '增味啤',
+    description: '苹果啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 7,
+    createTime: db.serverDate()
+  },
+  {
+    name: '草莓啤',
+    enName: 'Strawberry beer',
+    category: '增味啤',
+    description: '草莓啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 8,
+    createTime: db.serverDate()
+  },
+  {
+    name: '葡萄啤',
+    enName: 'Grape beer',
+    category: '增味啤',
+    description: '葡萄啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 9,
+    createTime: db.serverDate()
+  },
+  {
+    name: '柠檬红茶',
+    enName: 'Black tea beer',
+    category: '增味啤',
+    description: '柠檬红茶 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 10,
+    createTime: db.serverDate()
+  },
+  {
+    name: '红茶啤',
+    enName: 'Black tea beer',
+    category: '增味啤',
+    description: '红茶啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 11,
+    createTime: db.serverDate()
+  },
+  {
+    name: '乌龙茶啤',
+    enName: 'Oolong tea',
+    category: '增味啤',
+    description: '乌龙茶啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 12,
+    createTime: db.serverDate()
+  },
+  {
+    name: '芒果啤',
+    enName: 'Mango beer',
+    category: '增味啤',
+    description: '芒果啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 13,
+    createTime: db.serverDate()
+  },
+  {
+    name: '一桶姜山',
+    enName: 'A bucket of ginger',
+    category: '增味啤',
+    description: '一桶姜山 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 14,
+    createTime: db.serverDate()
+  },
+  {
+    name: '菠萝啤',
+    enName: 'Pineapple beer',
+    category: '增味啤',
+    description: '菠萝啤 - 酒精度≥4',
+    specs: '酒精度≥4',
+    note: '部分商品500ml/1500ml价格统一',
+    alcoholContent: 4,  // 酒精度（%vol）
+    brewery: '大友元气精酿',  // 酿酒厂
+    volume: 500,  // 默认容量（ml）
+    price: 4000,  // 主价格（单位：分）
+    priceList: [
+      { volume: '500ml', price: 4000 },
+      { volume: '1.5L', price: 11400 },
+      { volume: '1.5L×4（整箱）', price: 45600 }
+    ],
+    images: ['https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400'],
+    isHot: false,
+    isNew: false,
+    stock: 999,
+    sales: 0,
+    rating: 4.5,
+    tags: [],
+    sort: 15,
+    createTime: db.serverDate()
   }
 ];
 
+// ==================== 初始化函数 ====================
 exports.main = async (event, context) => {
+  const results = {
+    categories: { success: 0, failed: 0 },
+    products: { success: 0, failed: 0 }
+  };
+
   try {
-    // 清空现有数据
-    const categoryRes = await db.collection('categories').get();
-    for (const item of categoryRes.data) {
-      await db.collection('categories').doc(item._id).remove();
+    console.log('开始初始化数据库...');
+
+    // 1. 清空现有分类数据
+    console.log('清空现有分类数据...');
+    const existingCategories = await db.collection('categories').get();
+    for (const category of existingCategories.data) {
+      await db.collection('categories').doc(category._id).remove();
     }
-    
-    const productRes = await db.collection('products').get();
-    for (const item of productRes.data) {
-      await db.collection('products').doc(item._id).remove();
-    }
-    
-    // 添加分类
+
+    // 2. 插入新分类数据
+    console.log('插入新分类数据...');
     for (const category of categories) {
-      await db.collection('categories').add({
-        data: category
-      });
+      try {
+        await db.collection('categories').add({ data: category });
+        results.categories.success++;
+        console.log(`✓ 分类添加成功: ${category.name}`);
+      } catch (err) {
+        results.categories.failed++;
+        console.error(`✗ 分类添加失败: ${category.name}`, err);
+      }
     }
-    
-    // 添加商品
+
+    // 3. 清空现有商品数据
+    console.log('清空现有商品数据...');
+    const existingProducts = await db.collection('products').get();
+    for (const product of existingProducts.data) {
+      await db.collection('products').doc(product._id).remove();
+    }
+
+    // 4. 插入新商品数据
+    console.log('插入新商品数据...');
     for (const product of products) {
-      await db.collection('products').add({
-        data: product
-      });
+      try {
+        await db.collection('products').add({ data: product });
+        results.products.success++;
+        console.log(`✓ 商品添加成功: ${product.name}`);
+      } catch (err) {
+        results.products.failed++;
+        console.error(`✗ 商品添加失败: ${product.name}`, err);
+      }
     }
-    
+
+    console.log('数据库初始化完成！');
+
     return {
       success: true,
-      message: '数据初始化成功',
-      categoryCount: categories.length,
-      productCount: products.length
+      message: '数据库初始化成功',
+      data: results,
+      summary: {
+        totalCategories: categories.length,
+        totalProducts: products.length,
+        successRate: {
+          categories: `${results.categories.success}/${categories.length}`,
+          products: `${results.products.success}/${products.length}`
+        }
+      }
     };
+
   } catch (error) {
+    console.error('初始化失败:', error);
     return {
       success: false,
-      message: error.message
+      message: '数据库初始化失败',
+      error: error.message,
+      data: results
     };
   }
 };

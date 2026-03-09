@@ -15,6 +15,10 @@
           <AdminIcon name="plus" size="small" variant="default" />
           <text class="action-text">添加商品</text>
         </view>
+        <view class="action-btn" @click="goToDbInit">
+          <AdminIcon name="database" size="small" variant="default" />
+          <text class="action-text">初始化</text>
+        </view>
       </view>
     </view>
 
@@ -335,6 +339,13 @@ const scanExpressCode = async () => {
 const goToProductAdd = () => {
   uni.navigateTo({
     url: '/pagesAdmin/products/edit'
+  })
+}
+
+// 数据库初始化
+const goToDbInit = () => {
+  uni.navigateTo({
+    url: '/pagesAdmin/system/init'
   })
 }
 </script>

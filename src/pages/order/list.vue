@@ -62,10 +62,10 @@
 
         <!-- 商品列表 -->
         <view class="order-goods" @click="goToDetail(order)">
-          <view class="goods-item" v-for="(item, idx) in order.products" :key="item._id || idx">
-            <image class="goods-image" :src="getListThumbnail(item.image)" mode="aspectFill" lazy-load />
+          <view class="goods-item" v-for="(item, idx) in (order.items || order.products)" :key="item._id || idx">
+            <image class="goods-image" :src="getListThumbnail(item.productImage || item.image)" mode="aspectFill" lazy-load />
             <view class="goods-info">
-              <text class="goods-name">{{ item.name }}</text>
+              <text class="goods-name">{{ item.productName || item.name }}</text>
               <view class="goods-bottom">
                 <text class="goods-price">¥{{ fp(item.price) }}</text>
                 <text class="goods-quantity">x{{ item.quantity }}</text>
@@ -108,7 +108,7 @@
 
     <!-- 空状态 -->
     <view class="empty-state" v-else>
-      <view class="empty-icon">&#xe6af;</view>
+      <image class="empty-icon" src="/static/icons/empty-order.svg" mode="aspectFit" />
       <text class="empty-title">暂无订单</text>
       <text class="empty-desc">快去选购心仪的精酿啤酒吧</text>
       <view class="go-shopping" @click="goToHome">
@@ -158,7 +158,8 @@ const getStatusColor = (status: OrderStatus | string) => {
 
 // 获取商品总数
 const getTotalQuantity = (order: Order) => {
-  return order.products.reduce((total, item) => total + item.quantity, 0);
+  const items = order.items || order.products || [];
+  return items.reduce((total, item) => total + item.quantity, 0);
 };
 
 // 加载订单列表
@@ -545,9 +546,8 @@ onShow(() => {
 }
 
 .empty-icon {
-  font-family: "iconfont";
-  font-size: 120rpx;
-  color: #D4A574;
+  width: 160rpx;
+  height: 160rpx;
   margin-bottom: 40rpx;
 }
 

@@ -273,14 +273,24 @@ const loadProductDetail = async (id: string) => {
   try {
     const res = await getProductDetail(id);
     product.value = res;
+
     // 初始化选中第一个规格（如果有）
     if (res.priceList && res.priceList.length > 0) {
       currentPrice.value = res.priceList[0].price;
       currentSpec.value = res.priceList[0].volume;
-    } else {
+    } else if (res.price !== undefined && res.price !== null) {
       currentPrice.value = res.price;
-      currentSpec.value = res.specs || ''; // 如果没有 priceList，尝试使用 specs 字段
+      currentSpec.value = res.specs || '';
+    } else {
+      // 价格数据异常，记录错误并提示
+      console.error('商品价格数据异常:', res);
+      uni.showToast({
+        title: '商品价格异常',
+        icon: 'none'
+      });
+      return;
     }
+
     // 检查收藏状态
     checkFavoriteStatus();
   } catch (error) {
@@ -350,8 +360,18 @@ const decreaseQuantity = () => {
 // 加入购物车
 const addToCart = async () => {
   if (loading.value) return;
+
+  // 验证价格是否有效
+  if (!currentPrice.value || currentPrice.value <= 0) {
+    uni.showToast({
+      title: '商品价格异常，无法加入购物车',
+      icon: 'none'
+    });
+    return;
+  }
+
   loading.value = true;
-  
+
   try {
     await apiAddToCart({
       productId: product.value._id!,

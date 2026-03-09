@@ -4,7 +4,12 @@
     <view class="user-header" @click="handleHeaderClick">
       <view class="user-bg"></view>
       <view class="user-info">
-        <image class="user-avatar" :src="userInfo.avatarUrl || '/static/logo.png'" mode="aspectFill" />
+        <image
+          class="user-avatar"
+          :src="displayAvatarUrl"
+          mode="aspectFill"
+          @error="handleAvatarError"
+        />
         <view class="user-detail">
           <text class="user-name">{{ isLoggedIn ? (userInfo.nickName || '微信用户') : '点击登录' }}</text>
           <view class="user-level" v-if="isLoggedIn">
@@ -180,11 +185,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getUserInfo, getUserInfoFromCloud, getOrders, getWalletBalance, getPromotionInfo, fullLogin, getCommissionWalletBalance } from '@/utils/api';
 import { getCachedOpenid, checkLogin as checkCloudLogin } from '@/utils/cloudbase';
 import { getFavoriteCount } from '@/utils/favorite';
+import { convertCloudUrl } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 interface UserInfo {
@@ -230,6 +236,37 @@ const orderCount = ref({
 });
 const favoriteCount = ref(0); // 收藏数量
 
+// 计算属性：显示头像URL
+const displayAvatarUrl = computed(() => {
+  const avatar = userInfo.value.avatarUrl;
+  // 如果没有头像或头像为空字符串，显示默认logo
+  if (!avatar || avatar === '') {
+    return '/static/logo.png';
+  }
+  // 返回头像URL（已在loadUserInfo中转换过）
+  return avatar;
+});
+
+// 头像加载错误处理
+const handleAvatarError = () => {
+  console.log('头像加载失败，使用默认头像');
+  // 加载失败时，强制使用默认头像
+  userInfo.value.avatarUrl = '';
+};
+
+// 统一处理头像URL转换（云存储格式转换为临时URL）
+// 提取公共函数，避免重复代码
+const processAvatarUrl = async (userData: Partial<UserInfo>): Promise<Partial<UserInfo>> => {
+  if (!userData) return userData;
+
+  // 如果头像是云存储格式，转换为临时URL
+  if (userData.avatarUrl && userData.avatarUrl.startsWith('cloud://')) {
+    const tempUrl = await convertCloudUrl(userData.avatarUrl);
+    return { ...userData, avatarUrl: tempUrl };
+  }
+  return userData;
+};
+
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
@@ -240,10 +277,12 @@ const loadUserInfo = async () => {
     if (res) {
       const cloudInfo = await getUserInfoFromCloud();
       if (cloudInfo) {
-        userInfo.value = cloudInfo;
+        // 使用统一的头像处理函数
+        userInfo.value = await processAvatarUrl(cloudInfo);
       } else {
-        userInfo.value = res;
+        userInfo.value = await processAvatarUrl(res);
       }
+
       isLoggedIn.value = true;
 
       // 并行加载其他数据（优化性能）
@@ -269,7 +308,8 @@ const loadUserInfo = async () => {
     // 即使出错也尝试使用本地缓存
     const res = await getUserInfo();
     if (res) {
-      userInfo.value = res;
+      // 使用统一的头像处理函数
+      userInfo.value = await processAvatarUrl(res);
       isLoggedIn.value = true;
     } else {
       isLoggedIn.value = false;

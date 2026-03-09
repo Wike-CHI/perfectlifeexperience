@@ -2,131 +2,138 @@
   <view class="user-detail-page">
     <view class="page-title">用户详情</view>
 
-    <view class="user-card">
-      <image class="avatar" :src="userInfo.avatarUrl" />
-      <text class="nickname">{{ userInfo.nickName || '未设置' }}</text>
-      <view class="stats">
-        <view class="stat-item">
-          <text class="stat-value">¥{{ formatMoney(userInfo.performance?.totalSales || 0) }}</text>
-          <text class="stat-label">销售额</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-value">{{ userInfo.performance?.teamCount || 0 }}</text>
-          <text class="stat-label">团队人数</text>
-        </view>
-      </view>
+    <!-- 加载状态 -->
+    <view v-if="loading" class="loading-state">
+      <text class="loading-text">加载中...</text>
     </view>
 
-    <view class="info-section">
-      <text class="section-title">基本信息</text>
-      <view class="info-item">
-        <text class="label">OPENID</text>
-        <text class="value">{{ userInfo._openid }}</text>
-      </view>
-      <view class="info-item">
-        <text class="label">代理等级</text>
-        <view class="value-with-btn">
-          <text class="value">{{ getAgentLevelName(userInfo.agentLevel) }}</text>
-          <button class="edit-btn" @click="showLevelPicker">修改等级</button>
-        </view>
-      </view>
-    </view>
-
-    <!-- 推广关系信息 -->
-    <view class="info-section">
-      <text class="section-title">推广关系</text>
-      <view class="info-item">
-        <text class="label">邀请码</text>
-        <text class="value">{{ userInfo.inviteCode || '无' }}</text>
-      </view>
-      <view class="info-item">
-        <text class="label">上级推广人</text>
-        <view class="value-with-btn">
-          <text class="value">{{ userInfo.parentId ? '已绑定' : '未绑定' }}</text>
-          <view class="btn-group">
-            <button class="edit-btn" @click="openBindDialog">绑定</button>
-            <button class="edit-btn danger" @click="handleUnbind" v-if="userInfo.parentId">解绑</button>
+    <template v-else>
+      <view class="user-card">
+        <image class="avatar" :src="detail.avatarUrl" />
+        <text class="nickname">{{ detail.nickName || '未设置' }}</text>
+        <view class="stats">
+          <view class="stat-item">
+            <text class="stat-value">¥{{ formatMoney(detail.performance?.totalSales || 0) }}</text>
+            <text class="stat-label">销售额</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-value">{{ detail.performance?.teamCount || 0 }}</text>
+            <text class="stat-label">团队人数</text>
           </view>
         </view>
       </view>
-      <view class="info-item" v-if="userInfo.promotionPath">
-        <text class="label">推广路径</text>
-        <text class="value">{{ userInfo.promotionPath }}</text>
-      </view>
-    </view>
 
-    <!-- 业绩信息 -->
-    <view class="info-section" v-if="userInfo.performance">
-      <text class="section-title">业绩信息</text>
-      <view class="info-item">
-        <text class="label">累计销售额</text>
-        <text class="value">¥{{ formatMoney(userInfo.performance.totalSales || 0) }}</text>
-      </view>
-      <view class="info-item">
-        <text class="label">本月销售额</text>
-        <text class="value">¥{{ formatMoney(userInfo.performance.monthSales || 0) }}</text>
-      </view>
-      <view class="info-item">
-        <text class="label">团队人数</text>
-        <text class="value">{{ userInfo.performance.teamCount || 0 }}人</text>
-      </view>
-    </view>
-
-    <!-- 修改等级弹窗 -->
-    <view class="level-picker-mask" v-if="showPicker" @click="showPicker = false">
-      <view class="level-picker" @click.stop>
-        <view class="picker-header">
-          <text class="picker-title">修改代理等级</text>
-          <text class="picker-close" @click="showPicker = false">×</text>
+      <view class="info-section">
+        <text class="section-title">基本信息</text>
+        <view class="info-item">
+          <text class="label">OPENID</text>
+          <text class="value">{{ detail._openid }}</text>
         </view>
-        <view class="picker-content">
-          <view
-            v-for="level in levels"
-            :key="level.value"
-            :class="['level-option', { active: selectedLevel === level.value }]"
-            @click="selectedLevel = level.value"
-          >
-            <view class="level-info">
-              <text class="level-name">{{ level.name }}</text>
-              <text class="level-desc">{{ level.desc }}</text>
+        <view class="info-item">
+          <text class="label">代理等级</text>
+          <view class="value-with-btn">
+            <text class="value">{{ getAgentLevelName(detail.agentLevel) }}</text>
+            <button class="edit-btn" @click="showLevelPicker">修改等级</button>
+          </view>
+        </view>
+      </view>
+
+      <!-- 推广关系信息 -->
+      <view class="info-section">
+        <text class="section-title">推广关系</text>
+        <view class="info-item">
+          <text class="label">邀请码</text>
+          <text class="value">{{ detail.inviteCode || '无' }}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">上级推广人</text>
+          <view class="value-with-btn">
+            <text class="value">{{ detail.parentId ? '已绑定' : '未绑定' }}</text>
+            <view class="btn-group">
+              <button class="edit-btn" @click="openBindDialog">绑定</button>
+              <button class="edit-btn danger" @click="handleUnbind" v-if="detail.parentId">解绑</button>
             </view>
-            <view class="level-check" v-if="selectedLevel === level.value">✓</view>
           </view>
         </view>
-        <view class="picker-footer">
-          <button class="cancel-btn" @click="showPicker = false">取消</button>
-          <button class="confirm-btn" @click="confirmLevelChange" :disabled="selectedLevel === userInfo.agentLevel">
-            确认修改
-          </button>
+        <view class="info-item" v-if="detail.promotionPath">
+          <text class="label">推广路径</text>
+          <text class="value">{{ detail.promotionPath }}</text>
         </view>
       </view>
-    </view>
 
-    <!-- 绑定推广人弹窗 -->
-    <view class="level-picker-mask" v-if="showBindDialog" @click="showBindDialog = false">
-      <view class="level-picker" @click.stop>
-        <view class="picker-header">
-          <text class="picker-title">绑定上级推广人</text>
-          <text class="picker-close" @click="showBindDialog = false">×</text>
+      <!-- 业绩信息 -->
+      <view class="info-section" v-if="detail.performance">
+        <text class="section-title">业绩信息</text>
+        <view class="info-item">
+          <text class="label">累计销售额</text>
+          <text class="value">¥{{ formatMoney(detail.performance.totalSales || 0) }}</text>
         </view>
-        <view class="picker-content">
-          <view class="bind-input-item">
-            <text class="input-label">上级邀请码</text>
-            <input
-              class="bind-input"
-              v-model="bindInviteCode"
-              placeholder="请输入上级用户的邀请码"
-            />
-          </view>
+        <view class="info-item">
+          <text class="label">本月销售额</text>
+          <text class="value">¥{{ formatMoney(detail.performance.monthSales || 0) }}</text>
         </view>
-        <view class="picker-footer">
-          <button class="cancel-btn" @click="showBindDialog = false">取消</button>
-          <button class="confirm-btn" @click="confirmBind" :disabled="!bindInviteCode">
-            确认绑定
-          </button>
+        <view class="info-item">
+          <text class="label">团队人数</text>
+          <text class="value">{{ detail.performance.teamCount || 0 }}人</text>
         </view>
       </view>
-    </view>
+
+      <!-- 修改等级弹窗 -->
+      <view class="level-picker-mask" v-if="showPicker" @click="showPicker = false">
+        <view class="level-picker" @click.stop>
+          <view class="picker-header">
+            <text class="picker-title">修改代理等级</text>
+            <text class="picker-close" @click="showPicker = false">×</text>
+          </view>
+          <view class="picker-content">
+            <view
+              v-for="level in levels"
+              :key="level.value"
+              :class="['level-option', { active: selectedLevel === level.value }]"
+              @click="selectedLevel = level.value"
+            >
+              <view class="level-info">
+                <text class="level-name">{{ level.name }}</text>
+                <text class="level-desc">{{ level.desc }}</text>
+              </view>
+              <view class="level-check" v-if="selectedLevel === level.value">✓</view>
+            </view>
+          </view>
+          <view class="picker-footer">
+            <button class="cancel-btn" @click="showPicker = false">取消</button>
+            <button class="confirm-btn" @click="confirmLevelChange" :disabled="selectedLevel === detail.agentLevel">
+              确认修改
+            </button>
+          </view>
+        </view>
+      </view>
+
+      <!-- 绑定推广人弹窗 -->
+      <view class="level-picker-mask" v-if="showBindDialog" @click="showBindDialog = false">
+        <view class="level-picker" @click.stop>
+          <view class="picker-header">
+            <text class="picker-title">绑定上级推广人</text>
+            <text class="picker-close" @click="showBindDialog = false">×</text>
+          </view>
+          <view class="picker-content">
+            <view class="bind-input-item">
+              <text class="input-label">上级邀请码</text>
+              <input
+                class="bind-input"
+                v-model="bindInviteCode"
+                placeholder="请输入上级用户的邀请码"
+              />
+            </view>
+          </view>
+          <view class="picker-footer">
+            <button class="cancel-btn" @click="showBindDialog = false">取消</button>
+            <button class="confirm-btn" @click="confirmBind" :disabled="!bindInviteCode">
+              确认绑定
+            </button>
+          </view>
+        </view>
+      </view>
+    </template>
   </view>
 </template>
 
@@ -134,8 +141,43 @@
 import { ref, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
+import { useAdminDetail } from '@/composables/useAdmin'
 
-const userInfo = ref<any>({})
+/**
+ * 用户详情页面
+ * 使用 useAdminDetail composable 简化代码
+ */
+
+// 从页面参数获取用户ID
+const getUserIdFromOptions = (): string => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1] as any
+  const options = currentPage.options || {}
+  return options.id || ''
+}
+
+// 使用 useAdminDetail
+const { detail, loading, loadDetail } = useAdminDetail({
+  action: 'getUserDetail',
+  idParam: 'userId',
+  onLoaded: (data) => {
+    console.log('用户详情加载完成', data.nickName)
+  },
+  onError: (error) => {
+    console.error('加载用户详情失败', error)
+  }
+})
+
+// 初始化
+onMounted(() => {
+  if (!AdminAuthManager.checkAuth()) return
+  const userId = getUserIdFromOptions()
+  if (userId) {
+    loadDetail(userId)
+  }
+})
+
+// 弹窗状态
 const showPicker = ref(false)
 const selectedLevel = ref(4)
 const showBindDialog = ref(false)
@@ -171,48 +213,13 @@ const formatMoney = (amount: number): string => {
   return (amount / 100).toFixed(2)
 }
 
-onMounted(() => {
-  const pages = getCurrentPages()
-  const currentPage = pages[pages.length - 1] as any
-  const options = currentPage.options || {}
-
-  if (options.id) {
-    loadUser(options.id)
-  }
-})
-
-const loadUser = async (id: string) => {
-  try {
-    uni.showLoading({ title: '加载中...' })
-
-    const res = await callFunction('admin-api', {
-      action: 'getUserDetail',
-      adminToken: AdminAuthManager.getToken(),
-      data: { userId: id }
-    })
-
-    uni.hideLoading()
-
-    if (res.code === 0) {
-      userInfo.value = res.data
-      selectedLevel.value = res.data.agentLevel || 4
-    } else {
-      uni.showToast({ title: res.msg || '加载失败', icon: 'none' })
-    }
-  } catch (e) {
-    uni.hideLoading()
-    console.error('加载用户失败', e)
-    uni.showToast({ title: '网络错误', icon: 'none' })
-  }
-}
-
 const showLevelPicker = () => {
-  selectedLevel.value = userInfo.value.agentLevel || 4
+  selectedLevel.value = detail.value.agentLevel || 4
   showPicker.value = true
 }
 
 const confirmLevelChange = async () => {
-  if (selectedLevel.value === userInfo.value.agentLevel) {
+  if (selectedLevel.value === detail.value.agentLevel) {
     showPicker.value = false
     return
   }
@@ -224,7 +231,7 @@ const confirmLevelChange = async () => {
       action: 'updateUserAgentLevel',
       adminToken: AdminAuthManager.getToken(),
       data: {
-        userId: userInfo.value._id,
+        userId: detail.value._id,
         agentLevel: selectedLevel.value
       }
     })
@@ -233,7 +240,7 @@ const confirmLevelChange = async () => {
 
     if (res.code === 0) {
       uni.showToast({ title: '修改成功', icon: 'success' })
-      userInfo.value.agentLevel = selectedLevel.value
+      detail.value.agentLevel = selectedLevel.value
       showPicker.value = false
     } else {
       uni.showToast({ title: res.msg || '修改失败', icon: 'none' })
@@ -265,7 +272,7 @@ const confirmBind = async () => {
       action: 'bindUserRelation',
       adminToken: AdminAuthManager.getToken(),
       data: {
-        userId: userInfo.value._id,
+        userId: detail.value._id,
         parentInviteCode: bindInviteCode.value
       }
     })
@@ -275,9 +282,9 @@ const confirmBind = async () => {
     if (res.code === 0) {
       uni.showToast({ title: '绑定成功', icon: 'success' })
       // 更新本地数据
-      userInfo.value.parentId = res.data.parentId
-      userInfo.value.promotionPath = res.data.promotionPath
-      userInfo.value.agentLevel = res.data.agentLevel
+      detail.value.parentId = res.data.parentId
+      detail.value.promotionPath = res.data.promotionPath
+      detail.value.agentLevel = res.data.agentLevel
       showBindDialog.value = false
     } else {
       uni.showToast({ title: res.msg || '绑定失败', icon: 'none' })
@@ -303,7 +310,7 @@ const handleUnbind = () => {
             action: 'unbindUserRelation',
             adminToken: AdminAuthManager.getToken(),
             data: {
-              userId: userInfo.value._id
+              userId: detail.value._id
             }
           })
 
@@ -312,9 +319,9 @@ const handleUnbind = () => {
           if (response.code === 0) {
             uni.showToast({ title: '解绑成功', icon: 'success' })
             // 更新本地数据
-            userInfo.value.parentId = null
-            userInfo.value.promotionPath = null
-            userInfo.value.agentLevel = 4
+            detail.value.parentId = null
+            detail.value.promotionPath = null
+            detail.value.agentLevel = 4
           } else {
             uni.showToast({ title: response.msg || '解绑失败', icon: 'none' })
           }
@@ -339,6 +346,18 @@ const handleUnbind = () => {
   font-weight: bold;
   text-align: center;
   margin-bottom: 40rpx;
+}
+
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 120rpx 0;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
 }
 
 .user-card {

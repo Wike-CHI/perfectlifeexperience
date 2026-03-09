@@ -49,8 +49,9 @@ const OrderStatus = {
   PAID: 'paid',
   SHIPPING: 'shipping',
   COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
-  REFUNDED: 'refunded'
+  REFUNDING: 'refunding',
+  REFUNDED: 'refunded',
+  CANCELLED: 'cancelled'
 };
 
 // ==================== 金额精度常量 ====================

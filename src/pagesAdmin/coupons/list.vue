@@ -27,7 +27,7 @@
     <!-- 优惠券列表 -->
     <view class="coupon-list">
       <view
-        v-for="coupon in coupons"
+        v-for="coupon in list"
         :key="coupon._id"
         class="coupon-item"
         @click="goToEdit(coupon._id)"
@@ -72,7 +72,7 @@
       </view>
 
       <!-- 空状态 -->
-      <view v-if="coupons.length === 0 && !loading" class="empty-state">
+      <view v-if="list.length === 0 && !loading" class="empty-state">
         <AdminIcon name="coupon" size="large" />
         <text class="empty-text">暂无优惠券</text>
         <view class="empty-action" @click="goToCreate">
@@ -86,27 +86,25 @@
         <text class="loading-text">加载中...</text>
       </view>
     </view>
+
+    <!-- 加载更多 -->
+    <view v-if="hasMore && !loading" class="load-more" @click="loadMore">
+      <text class="load-more-text">加载更多</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
-import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * 优惠券管理列表页
+ * 使用 useAdminList composable 简化代码
  */
-
-// ==================== 数据状态 ====================
-
-const coupons = ref<any[]>([])
-const loading = ref(false)
-const statusFilter = ref('all')
-const page = ref(1)
-const hasMore = ref(true)
 
 // 状态筛选选项
 const statusTabs = [
@@ -115,114 +113,66 @@ const statusTabs = [
   { label: '禁用', value: 'inactive' }
 ]
 
-// ==================== 生命周期 ====================
+const statusFilter = ref('all')
 
-onMounted(() => {
-  if (!AdminAuthManager.checkAuth()) return
-  loadCoupons()
-})
-
-onPullDownRefresh(async () => {
-  page.value = 1
-  hasMore.value = true
-  await loadCoupons()
-  uni.stopPullDownRefresh()
-})
-
-onReachBottom(() => {
-  if (hasMore.value && !loading.value) {
-    page.value++
-    loadCoupons()
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  hasMore,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getCoupons',
+  cachePrefix: 'coupons',
+  pageSize: 20,
+  extraParams: computed(() => ({
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value
+  })),
+  onLoaded: (data) => {
+    console.log('优惠券列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载优惠券失败', error)
   }
 })
 
-// ==================== 数据加载 ====================
+// 操作 Actions
+const { execute: updateCoupon } = useAdminAction({
+  action: 'updateCoupon',
+  successMsg: '状态更新成功'
+})
 
-/**
- * 加载优惠券列表
- */
-const loadCoupons = async () => {
-  try {
-    loading.value = true
+const { execute: deleteCouponAction } = useAdminAction({
+  action: 'deleteCoupon',
+  successMsg: '删除成功'
+})
 
-    const res = await callFunction('admin-api', {
-      action: 'getCoupons',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: 20,
-        status: statusFilter.value === 'all' ? undefined : statusFilter.value
-      }
-    })
-
-    if (res.code === 0 && res.data) {
-      if (page.value === 1) {
-        coupons.value = res.data.list || []
-      } else {
-        coupons.value.push(...(res.data.list || []))
-      }
-      hasMore.value = (res.data.list || []).length >= 20
-    } else {
-      throw new Error(res.msg || '加载失败')
-    }
-  } catch (error: any) {
-    console.error('加载优惠券列表失败:', error)
-    uni.showToast({
-      title: error.message || '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-// ==================== 操作函数 ====================
-
-/**
- * 切换状态筛选
- */
+// 切换状态筛选
 const changeStatusFilter = (status: string) => {
   statusFilter.value = status
-  page.value = 1
-  hasMore.value = true
-  loadCoupons()
 }
 
-/**
- * 切换优惠券状态
- */
+// 监听状态变化
+watch(statusFilter, () => {
+  refresh()
+})
+
+// 切换优惠券状态
 const toggleStatus = async (coupon: any) => {
   try {
-    const res = await callFunction('admin-api', {
-      action: 'updateCoupon',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        id: coupon._id,
-        isActive: !coupon.isActive
-      }
+    await updateCoupon({
+      id: coupon._id,
+      isActive: !coupon.isActive
     })
-
-    if (res.code === 0) {
-      coupon.isActive = !coupon.isActive
-      uni.showToast({
-        title: coupon.isActive ? '已启用' : '已禁用',
-        icon: 'success'
-      })
-    } else {
-      throw new Error(res.msg || '操作失败')
-    }
-  } catch (error: any) {
-    console.error('切换状态失败:', error)
-    uni.showToast({
-      title: error.message || '操作失败',
-      icon: 'none'
-    })
+    // 更新本地状态
+    coupon.isActive = !coupon.isActive
+  } catch (error) {
+    // 错误已由 useAdminAction 处理
   }
 }
 
-/**
- * 删除优惠券
- */
+// 删除优惠券
 const deleteCoupon = async (coupon: any) => {
   uni.showModal({
     title: '确认删除',
@@ -230,58 +180,17 @@ const deleteCoupon = async (coupon: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const result = await callFunction('admin-api', {
-            action: 'deleteCoupon',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: coupon._id }
-          })
-
-          if (result.code === 0) {
-            coupons.value = coupons.value.filter(c => c._id !== coupon._id)
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            })
-          } else {
-            throw new Error(result.msg || '删除失败')
-          }
-        } catch (error: any) {
-          console.error('删除优惠券失败:', error)
-          uni.showToast({
-            title: error.message || '删除失败',
-            icon: 'none'
-          })
+          await deleteCouponAction({ id: coupon._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
   })
 }
 
-// ==================== 导航函数 ====================
-
-/**
- * 跳转到创建页面
- */
-const goToCreate = () => {
-  uni.navigateTo({
-    url: '/pagesAdmin/coupons/edit'
-  })
-}
-
-/**
- * 跳转到编辑页面
- */
-const goToEdit = (id: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/coupons/edit?id=${id}`
-  })
-}
-
-// ==================== 工具函数 ====================
-
-/**
- * 获取优惠券面值显示
- */
+// 工具函数
 const getCouponValue = (coupon: any): string => {
   if (coupon.type === 'discount') {
     return coupon.value
@@ -289,9 +198,6 @@ const getCouponValue = (coupon: any): string => {
   return (coupon.value / 100).toFixed(0)
 }
 
-/**
- * 获取优惠券单位
- */
 const getCouponUnit = (coupon: any): string => {
   if (coupon.type === 'amount' || coupon.type === 'no_threshold') {
     return '元'
@@ -302,17 +208,39 @@ const getCouponUnit = (coupon: any): string => {
   return ''
 }
 
-/**
- * 获取类型名称
- */
 const getTypeName = (type: string): string => {
-  const names = {
+  const names: Record<string, string> = {
     amount: '满减券',
     discount: '折扣券',
     no_threshold: '无门槛券'
   }
   return names[type] || type
 }
+
+// 跳转到创建页面
+const goToCreate = () => {
+  uni.navigateTo({
+    url: '/pagesAdmin/coupons/edit'
+  })
+}
+
+// 跳转到编辑页面
+const goToEdit = (id: string) => {
+  uni.navigateTo({
+    url: `/pagesAdmin/coupons/edit?id=${id}`
+  })
+}
+
+// 下拉刷新
+onPullDownRefresh(async () => {
+  await refresh()
+  uni.stopPullDownRefresh()
+})
+
+// 上拉加载更多
+onReachBottom(() => {
+  loadMore()
+})
 </script>
 
 <style scoped>
@@ -599,5 +527,16 @@ const getTypeName = (type: string): string => {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* 加载更多 */
+.load-more {
+  text-align: center;
+  padding: 32rpx;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #C9A962;
 }
 </style>

@@ -27,7 +27,7 @@
     <!-- 活动列表 -->
     <view class="promotion-list">
       <view
-        v-for="promotion in promotions"
+        v-for="promotion in list"
         :key="promotion._id"
         class="promotion-item"
         @click="goToDetail(promotion._id)"
@@ -86,7 +86,7 @@
       </view>
 
       <!-- 空状态 -->
-      <view v-if="promotions.length === 0 && !loading" class="empty-state">
+      <view v-if="list.length === 0 && !loading" class="empty-state">
         <AdminIcon name="celebration" size="large" variant="gold" />
         <text class="empty-text">暂无活动</text>
         <view class="empty-action" @click="goToCreate">
@@ -100,27 +100,27 @@
         <text class="loading-text">加载中...</text>
       </view>
     </view>
+
+    <!-- 加载更多 -->
+    <view v-if="hasMore && !loading" class="load-more" @click="loadMore">
+      <text class="load-more-text">加载更多</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
-import AdminAuthManager from '@/utils/admin-auth'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
 import AdminIcon from '@/components/admin-icon.vue'
-import { callFunction } from '@/utils/cloudbase'
 
 /**
  * 活动管理列表页
+ * 使用 useAdminList composable 简化代码
  */
 
-// ==================== 数据状态 ====================
-
-const promotions = ref<any[]>([])
-const loading = ref(false)
+// 状态筛选
 const statusFilter = ref('all')
-const page = ref(1)
-const hasMore = ref(true)
 
 // 状态筛选选项
 const statusTabs = [
@@ -130,116 +130,64 @@ const statusTabs = [
   { label: '已结束', value: 'ended' }
 ]
 
-// ==================== 生命周期 ====================
-
-onMounted(() => {
-  if (!AdminAuthManager.checkAuth()) return
-  loadPromotions()
-})
-
-onPullDownRefresh(async () => {
-  page.value = 1
-  hasMore.value = true
-  await loadPromotions()
-  uni.stopPullDownRefresh()
-})
-
-onReachBottom(() => {
-  if (hasMore.value && !loading.value) {
-    page.value++
-    loadPromotions()
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  hasMore,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getPromotions',
+  cachePrefix: 'promotions',
+  pageSize: 20,
+  extraParams: computed(() => ({
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value
+  })),
+  onLoaded: (data) => {
+    console.log('活动列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载活动失败', error)
   }
 })
 
-// ==================== 数据加载 ====================
+// 操作 Actions
+const { execute: updatePromotion } = useAdminAction({
+  action: 'updatePromotion',
+  successMsg: '状态更新成功'
+})
 
-/**
- * 加载活动列表
- */
-const loadPromotions = async () => {
-  try {
-    loading.value = true
+const { execute: deletePromotionAction } = useAdminAction({
+  action: 'deletePromotion',
+  successMsg: '删除成功'
+})
 
-    const res = await callFunction('admin-api', {
-      action: 'getPromotions',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: 20,
-        status: statusFilter.value === 'all' ? undefined : statusFilter.value
-      }
-    })
-
-    if (res.code === 0 && res.data) {
-      if (page.value === 1) {
-        promotions.value = res.data.list || []
-      } else {
-        promotions.value.push(...(res.data.list || []))
-      }
-      hasMore.value = (res.data.list || []).length >= 20
-    } else {
-      throw new Error(res.msg || '加载失败')
-    }
-  } catch (error: any) {
-    console.error('加载活动列表失败:', error)
-    uni.showToast({
-      title: error.message || '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-// ==================== 操作函数 ====================
-
-/**
- * 切换状态筛选
- */
+// 切换状态筛选
 const changeStatusFilter = (status: string) => {
   statusFilter.value = status
-  page.value = 1
-  hasMore.value = true
-  loadPromotions()
 }
 
-/**
- * 切换活动状态
- */
+// 监听状态变化
+watch(statusFilter, () => {
+  refresh()
+})
+
+// 切换活动状态
 const toggleStatus = async (promotion: any) => {
   const newStatus = promotion.status === 'active' ? 'ended' : 'active'
-
   try {
-    const res = await callFunction('admin-api', {
-      action: 'updatePromotion',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        id: promotion._id,
-        status: newStatus
-      }
+    await updatePromotion({
+      id: promotion._id,
+      status: newStatus
     })
-
-    if (res.code === 0) {
-      promotion.status = newStatus
-      uni.showToast({
-        title: newStatus === 'active' ? '已启用' : '已停用',
-        icon: 'success'
-      })
-    } else {
-      throw new Error(res.msg || '操作失败')
-    }
-  } catch (error: any) {
-    console.error('切换状态失败:', error)
-    uni.showToast({
-      title: error.message || '操作失败',
-      icon: 'none'
-    })
+    promotion.status = newStatus
+  } catch (error) {
+    // 错误已由 useAdminAction 处理
   }
 }
 
-/**
- * 删除活动
- */
+// 删除活动
 const deletePromotion = async (promotion: any) => {
   uni.showModal({
     title: '确认删除',
@@ -247,87 +195,26 @@ const deletePromotion = async (promotion: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const result = await callFunction('admin-api', {
-            action: 'deletePromotion',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: promotion._id }
-          })
-
-          if (result.code === 0) {
-            promotions.value = promotions.value.filter(p => p._id !== promotion._id)
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            })
-          } else {
-            throw new Error(result.msg || '删除失败')
-          }
-        } catch (error: any) {
-          console.error('删除活动失败:', error)
-          uni.showToast({
-            title: error.message || '删除失败',
-            icon: 'none'
-          })
+          await deletePromotionAction({ id: promotion._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
   })
 }
 
-// ==================== 导航函数 ====================
-
-/**
- * 跳转到创建页面
- */
-const goToCreate = () => {
-  uni.navigateTo({
-    url: '/pagesAdmin/promotions/edit'
-  })
-}
-
-/**
- * 跳转到编辑页面
- */
-const goToDetail = (id: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/promotions/edit?id=${id}`
-  })
-}
-
-/**
- * 跳转到商品管理
- */
-const goToProducts = (id: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/promotions/products?id=${id}`
-  })
-}
-
-/**
- * 跳转到统计页面
- */
-const goToStats = (id: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/promotions/stats?id=${id}`
-  })
-}
-
-// ==================== 工具函数 ====================
-
-/**
- * 获取状态样式类
- */
+// 获取状态样式类
 const getStatusClass = (promotion: any): string => {
   if (promotion.status === 'active') return 'active'
   if (promotion.status === 'ended') return 'ended'
   return 'draft'
 }
 
-/**
- * 获取状态文本
- */
+// 获取状态文本
 const getStatusText = (promotion: any): string => {
-  const statusMap = {
+  const statusMap: Record<string, string> = {
     draft: '草稿',
     active: '进行中',
     ended: '已结束'
@@ -335,11 +222,9 @@ const getStatusText = (promotion: any): string => {
   return statusMap[promotion.status] || promotion.status
 }
 
-/**
- * 获取类型名称
- */
+// 获取类型名称
 const getTypeName = (type: string): string => {
-  const typeMap = {
+  const typeMap: Record<string, string> = {
     discount: '折扣活动',
     flash_sale: '限时特惠',
     bundle: '组合优惠'
@@ -347,21 +232,56 @@ const getTypeName = (type: string): string => {
   return typeMap[type] || type
 }
 
-/**
- * 格式化时间
- */
+// 格式化时间
 const formatTime = (date: Date | string): string => {
   const d = new Date(date)
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
-/**
- * 格式化预算
- */
+// 格式化预算
 const formatBudget = (budget: number): string => {
   if (!budget) return '未设置'
   return `¥${(budget / 100).toFixed(0)}`
 }
+
+// 跳转到创建页面
+const goToCreate = () => {
+  uni.navigateTo({
+    url: '/pagesAdmin/promotions/edit'
+  })
+}
+
+// 跳转到编辑页面
+const goToDetail = (id: string) => {
+  uni.navigateTo({
+    url: `/pagesAdmin/promotions/edit?id=${id}`
+  })
+}
+
+// 跳转到商品管理
+const goToProducts = (id: string) => {
+  uni.navigateTo({
+    url: `/pagesAdmin/promotions/products?id=${id}`
+  })
+}
+
+// 跳转到统计页面
+const goToStats = (id: string) => {
+  uni.navigateTo({
+    url: `/pagesAdmin/promotions/stats?id=${id}`
+  })
+}
+
+// 下拉刷新
+onPullDownRefresh(async () => {
+  await refresh()
+  uni.stopPullDownRefresh()
+})
+
+// 上拉加载更多
+onReachBottom(() => {
+  loadMore()
+})
 </script>
 
 <style scoped>
@@ -660,6 +580,17 @@ const formatBudget = (budget: number): string => {
 .loading-text {
   font-size: 26rpx;
   color: rgba(245, 245, 240, 0.5);
+}
+
+/* 加载更多 */
+.load-more {
+  text-align: center;
+  padding: 32rpx;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #C9A962;
 }
 
 @keyframes spin {

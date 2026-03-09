@@ -21,14 +21,13 @@
         @click="changeStatusFilter(tab.value)"
       >
         <text class="tab-text">{{ tab.label }}</text>
-        <text v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</text>
       </view>
     </view>
 
     <!-- Banner列表 -->
     <view class="banner-list">
       <view
-        v-for="banner in banners"
+        v-for="banner in list"
         :key="banner._id"
         class="banner-item"
         @click="goToEdit(banner._id)"
@@ -67,7 +66,7 @@
       </view>
 
       <!-- 空状态 -->
-      <view v-if="banners.length === 0 && !loading" class="empty-state">
+      <view v-if="list.length === 0 && !loading" class="empty-state">
         <AdminIcon name="image" size="large" />
         <text class="empty-text">暂无Banner</text>
         <view class="empty-action" @click="goToCreate">
@@ -81,148 +80,93 @@
         <text class="loading-text">加载中...</text>
       </view>
     </view>
+
+    <!-- 加载更多 -->
+    <view v-if="hasMore && !loading" class="load-more" @click="loadMore">
+      <text class="load-more-text">加载更多</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
-import AdminAuthManager from '@/utils/admin-auth'
 import { callFunction } from '@/utils/cloudbase'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
 import AdminIcon from '@/components/admin-icon.vue'
 
 /**
  * Banner管理列表页
+ * 使用 useAdminList composable 简化代码
  */
 
-// ==================== 数据状态 ====================
-
-const banners = ref<any[]>([])
-const loading = ref(false)
+// 状态筛选
 const statusFilter = ref('all')
-const page = ref(1)
-const hasMore = ref(true)
 
 // 状态筛选选项
-const statusTabs = computed(() => {
-  const activeCount = banners.value.filter(b => b.isActive).length
-  const inactiveCount = banners.value.filter(b => !b.isActive).length
+const statusTabs = [
+  { label: '全部', value: 'all' },
+  { label: '启用', value: 'active' },
+  { label: '禁用', value: 'inactive' }
+]
 
-  return [
-    { label: '全部', value: 'all', count: banners.value.length },
-    { label: '启用', value: 'active', count: activeCount },
-    { label: '禁用', value: 'inactive', count: inactiveCount }
-  ]
-})
-
-// ==================== 生命周期 ====================
-
-onMounted(() => {
-  if (!AdminAuthManager.checkAuth()) return
-  loadBanners()
-})
-
-onPullDownRefresh(async () => {
-  page.value = 1
-  hasMore.value = true
-  await loadBanners()
-  uni.stopPullDownRefresh()
-})
-
-onReachBottom(() => {
-  if (hasMore.value && !loading.value) {
-    page.value++
-    loadBanners()
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  hasMore,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getBanners',
+  cachePrefix: 'banners',
+  pageSize: 20,
+  extraParams: computed(() => ({
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value
+  })),
+  onLoaded: (data) => {
+    console.log('Banner列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载Banner失败', error)
   }
 })
 
-// ==================== 数据加载 ====================
+// 操作 Actions
+const { execute: updateBanner } = useAdminAction({
+  action: 'updateBanner',
+  successMsg: '状态更新成功'
+})
 
-/**
- * 加载Banner列表
- */
-const loadBanners = async () => {
-  try {
-    loading.value = true
+const { execute: deleteBannerAction } = useAdminAction({
+  action: 'deleteBanner',
+  successMsg: '删除成功'
+})
 
-    const res = await callFunction('admin-api', {
-      action: 'getBanners',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        page: page.value,
-        limit: 20,
-        status: statusFilter.value === 'all' ? undefined : statusFilter.value
-      }
-    })
-
-    if (res.code === 0 && res.data) {
-      if (page.value === 1) {
-        banners.value = res.data.list || []
-      } else {
-        banners.value.push(...(res.data.list || []))
-      }
-      hasMore.value = (res.data.list || []).length >= 20
-    } else {
-      throw new Error(res.msg || '加载失败')
-    }
-  } catch (error: any) {
-    console.error('加载Banner列表失败:', error)
-    uni.showToast({
-      title: error.message || '加载失败',
-      icon: 'none'
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-// ==================== 操作函数 ====================
-
-/**
- * 切换状态筛选
- */
+// 切换状态筛选
 const changeStatusFilter = (status: string) => {
   statusFilter.value = status
-  page.value = 1
-  hasMore.value = true
-  loadBanners()
 }
 
-/**
- * 切换Banner状态
- */
+// 监听状态变化
+watch(statusFilter, () => {
+  refresh()
+})
+
+// 切换Banner状态
 const toggleStatus = async (banner: any) => {
   try {
-    const res = await callFunction('admin-api', {
-      action: 'updateBanner',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        id: banner._id,
-        isActive: !banner.isActive
-      }
+    await updateBanner({
+      id: banner._id,
+      isActive: !banner.isActive
     })
-
-    if (res.code === 0) {
-      banner.isActive = !banner.isActive
-      uni.showToast({
-        title: banner.isActive ? '已启用' : '已禁用',
-        icon: 'success'
-      })
-    } else {
-      throw new Error(res.msg || '操作失败')
-    }
-  } catch (error: any) {
-    console.error('切换状态失败:', error)
-    uni.showToast({
-      title: error.message || '操作失败',
-      icon: 'none'
-    })
+    banner.isActive = !banner.isActive
+  } catch (error) {
+    // 错误已由 useAdminAction 处理
   }
 }
 
-/**
- * 删除Banner
- */
+// 删除Banner
 const deleteBanner = async (banner: any) => {
   uni.showModal({
     title: '确认删除',
@@ -230,58 +174,17 @@ const deleteBanner = async (banner: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const result = await callFunction('admin-api', {
-            action: 'deleteBanner',
-            adminToken: AdminAuthManager.getToken(),
-            data: { id: banner._id }
-          })
-
-          if (result.code === 0) {
-            banners.value = banners.value.filter(b => b._id !== banner._id)
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            })
-          } else {
-            throw new Error(result.msg || '删除失败')
-          }
-        } catch (error: any) {
-          console.error('删除Banner失败:', error)
-          uni.showToast({
-            title: error.message || '删除失败',
-            icon: 'none'
-          })
+          await deleteBannerAction({ id: banner._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
   })
 }
 
-// ==================== 导航函数 ====================
-
-/**
- * 跳转到创建页面
- */
-const goToCreate = () => {
-  uni.navigateTo({
-    url: '/pagesAdmin/banners/edit'
-  })
-}
-
-/**
- * 跳转到编辑页面
- */
-const goToEdit = (id: string) => {
-  uni.navigateTo({
-    url: `/pagesAdmin/banners/edit?id=${id}`
-  })
-}
-
-// ==================== 工具函数 ====================
-
-/**
- * 格式化链接显示
- */
+// 格式化链接显示
 const formatLink = (link: string): string => {
   if (!link) return '无链接'
   if (link.startsWith('/pages')) {
@@ -290,6 +193,31 @@ const formatLink = (link: string): string => {
   }
   return link.length > 20 ? link.substring(0, 20) + '...' : link
 }
+
+// 跳转到创建页面
+const goToCreate = () => {
+  uni.navigateTo({
+    url: '/pagesAdmin/banners/edit'
+  })
+}
+
+// 跳转到编辑页面
+const goToEdit = (id: string) => {
+  uni.navigateTo({
+    url: `/pagesAdmin/banners/edit?id=${id}`
+  })
+}
+
+// 下拉刷新
+onPullDownRefresh(async () => {
+  await refresh()
+  uni.stopPullDownRefresh()
+})
+
+// 上拉加载更多
+onReachBottom(() => {
+  loadMore()
+})
 </script>
 
 <style scoped>
@@ -373,15 +301,6 @@ const formatLink = (link: string): string => {
 .filter-tab.active .tab-text {
   color: #0D0D0D;
   font-weight: 600;
-}
-
-.tab-count {
-  font-size: 22rpx;
-  color: rgba(245, 245, 240, 0.6);
-}
-
-.filter-tab.active .tab-count {
-  color: #0D0D0D;
 }
 
 /* Banner列表 */
@@ -555,6 +474,17 @@ const formatLink = (link: string): string => {
 .loading-text {
   font-size: 26rpx;
   color: rgba(245, 245, 240, 0.5);
+}
+
+/* 加载更多 */
+.load-more {
+  text-align: center;
+  padding: 32rpx;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #C9A962;
 }
 
 @keyframes spin {

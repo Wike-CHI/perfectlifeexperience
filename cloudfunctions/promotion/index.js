@@ -69,8 +69,12 @@ async function getSystemConfigCached() {
   }
 
   try {
-    const result = await db.collection('system_config').limit(1).get();
+    const result = await db.collection('system_config')
+      .where({ type: 'commission_config' })
+      .limit(1)
+      .get();
     if (result.data && result.data.length > 0) {
+      // 扁平结构，直接返回（不嵌套在 config 字段）
       systemConfigCache = result.data[0];
     } else {
       systemConfigCache = {};
@@ -85,11 +89,33 @@ async function getSystemConfigCached() {
 
 /**
  * 获取晋升门槛配置（强制从数据库读取）
+ * 数据库中金额单位为分，直接使用
  */
 async function getPromotionThresholdWithConfig(currentLevel) {
   const config = await getSystemConfigCached();
 
-  // 强制从数据库配置中获取
+  // 优先从数据库配置中读取（扁平字段）
+  if (config.bronzeTotalSales !== undefined) {
+    const thresholdMap = {
+      [AgentLevel.LEVEL_4]: {
+        totalSales: config.bronzeTotalSales  // 单位：分
+      },
+      [AgentLevel.LEVEL_3]: {
+        monthSales: config.silverMonthSales,  // 单位：分
+        teamCount: config.silverTeamCount
+      },
+      [AgentLevel.LEVEL_2]: {
+        monthSales: config.goldMonthSales,  // 单位：分
+        teamCount: config.goldTeamCount
+      }
+    };
+    const threshold = thresholdMap[currentLevel];
+    if (threshold) {
+      return threshold;
+    }
+  }
+
+  // 兼容旧的嵌套结构 config.promotionThreshold（过渡期）
   if (config.promotionThreshold) {
     const thresholdMap = {
       [AgentLevel.LEVEL_4]: config.promotionThreshold.LEVEL_4_TO_3,
@@ -102,11 +128,11 @@ async function getPromotionThresholdWithConfig(currentLevel) {
     }
   }
 
-  // 没有配置时返回默认晋升门槛
+  // 没有配置时返回默认晋升门槛（单位：分）
   const defaultThresholds = {
-    [AgentLevel.LEVEL_4]: { totalSales: 20000 },  // 铜牌：累计2万
-    [AgentLevel.LEVEL_3]: { monthSales: 50000, teamCount: 50 },  // 银牌：月销5万或团队50人
-    [AgentLevel.LEVEL_2]: { monthSales: 100000, teamCount: 200 }  // 金牌：月销10万或团队200人
+    [AgentLevel.LEVEL_4]: { totalSales: 2000000 },  // 铜牌：累计2万（分）
+    [AgentLevel.LEVEL_3]: { monthSales: 5000000, teamCount: 50 },  // 银牌：月销5万或团队50人（分）
+    [AgentLevel.LEVEL_2]: { monthSales: 10000000, teamCount: 200 }  // 金牌：月销10万或团队200人（分）
   };
 
   return defaultThresholds[currentLevel] || null;
@@ -128,7 +154,7 @@ function parseEvent(event) {
 
 /**
  * 从数据库获取佣金配置
- * @returns {Promise<Object>} 佣金配置对象
+ * @returns {Promise<Object>} 佣金配置对象（扁平结构）
  */
 async function getCommissionConfig() {
   try {
@@ -138,9 +164,12 @@ async function getCommissionConfig() {
       .get();
 
     if (configRes.data && configRes.data.length > 0) {
-      const config = configRes.data[0].config;
-      logger.info('Loaded commission config from database', config);
-      return config;
+      // 扁平结构，直接使用
+      const config = configRes.data[0];
+      // 兼容旧的嵌套结构（过渡期）
+      const configData = config.config || config;
+      logger.info('Loaded commission config from database', configData);
+      return configData;
     }
 
     logger.info('No commission config in database, using defaults');
@@ -2298,6 +2327,82 @@ function calculateTrendData(records, timeRange) {
 }
 
 /**
+ * 获取进行中的活动列表（用户端）
+ */
+async function getActivePromotions() {
+  try {
+    const now = new Date();
+
+    const result = await db.collection('promotions')
+      .where({
+        status: 'active',
+        isActive: true,
+        startTime: _.lte(now),
+        endTime: _.gte(now)
+      })
+      .orderBy('startTime', 'desc')
+      .get();
+
+    return {
+      code: 0,
+      data: result.data
+    };
+  } catch (error) {
+    logger.error('获取进行中活动失败', error);
+    return { code: -1, msg: '获取活动失败' };
+  }
+}
+
+/**
+ * 获取活动详情（用户端）
+ */
+async function getPromotionDetail(promotionId) {
+  try {
+    const promotionRes = await db.collection('promotions').doc(promotionId).get();
+
+    if (!promotionRes.data) {
+      return { code: 404, msg: '活动不存在' };
+    }
+
+    const promotion = promotionRes.data;
+
+    // 获取活动商品
+    const productsRes = await db.collection('promotion_products')
+      .where({ promotionId })
+      .get();
+
+    // 获取完整商品信息
+    const productsWithDetails = await Promise.all(
+      productsRes.data.map(async (pp) => {
+        try {
+          const productRes = await db.collection('products').doc(pp.productId).get();
+          return {
+            ...pp,
+            product: productRes.data || null
+          };
+        } catch (e) {
+          return {
+            ...pp,
+            product: null
+          };
+        }
+      })
+    );
+
+    return {
+      code: 0,
+      data: {
+        promotion,
+        products: productsWithDetails
+      }
+    };
+  } catch (error) {
+    logger.error('获取活动详情失败', error);
+    return { code: -1, msg: '获取活动详情失败' };
+  }
+}
+
+/**
  * 主入口函数
  */
 exports.main = async (event, context) => {
@@ -2343,6 +2448,11 @@ exports.main = async (event, context) => {
       return await revertPromotionReward(requestData, context);
     case 'getDashboard':
       return await getPromotionDashboard(requestData, context);
+    // 用户端活动相关
+    case 'getActivePromotions':
+      return await getActivePromotions();
+    case 'getPromotionDetail':
+      return await getPromotionDetail(requestData.id);
     default:
       return { code: -1, msg: '未知操作' };
   }

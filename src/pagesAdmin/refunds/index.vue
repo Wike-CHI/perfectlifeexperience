@@ -25,7 +25,7 @@
     <view class="refund-list">
       <view
         class="refund-card"
-        v-for="item in refundList"
+        v-for="item in list"
         :key="item._id"
         @click="goToDetail(item._id!)"
       >
@@ -100,23 +100,25 @@
     </view>
 
     <!-- 空状态 -->
-    <view class="empty-state" v-if="refundList.length === 0 && !loading">
+    <view class="empty-state" v-if="list.length === 0 && !loading">
       <text class="empty-text">暂无退款记录</text>
     </view>
 
     <!-- 加载更多 -->
-    <view class="load-more" v-if="hasMore && refundList.length > 0">
+    <view class="load-more" v-if="hasMore && list.length > 0">
       <text class="load-more-text">{{ loading ? '加载中...' : '加载更多' }}</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { adminGetRefundList, adminApproveRefund, adminRejectRefund, adminConfirmReceipt, adminRetryRefund, formatPrice } from '@/utils/api';
-import AdminAuthManager from '@/utils/admin-auth';
+import { ref, computed, onMounted, watch } from 'vue'
+import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
+import { callFunction } from '@/utils/cloudbase'
+import { useAdminList, useAdminAction } from '@/composables/useAdmin'
+import AdminAuthManager from '@/utils/admin-auth'
 
-// 类型定义（内联，避免分包导入问题）
+// 类型定义
 const RefundStatusNames: Record<string, string> = {
   pending: '待审核',
   approved: '已同意',
@@ -133,23 +135,6 @@ const RefundTypeNames: Record<string, string> = {
   return_refund: '退货退款'
 }
 
-interface Refund {
-  _id: string
-  orderId: string
-  refundNo: string
-  refundType: 'only_refund' | 'return_refund'
-  refundStatus: 'pending' | 'approved' | 'waiting_receive' | 'processing' | 'success' | 'failed' | 'rejected' | 'cancelled'
-  refundAmount: number
-  refundReason: string
-  products?: Array<{
-    productName: string
-    productImage: string
-    quantity: number
-    price: number
-  }>
-  createTime: Date
-}
-
 // 状态选项
 const statusOptions = [
   { label: '全部', value: 'all' },
@@ -160,93 +145,99 @@ const statusOptions = [
   { label: '退款成功', value: 'success' },
   { label: '已拒绝', value: 'rejected' },
   { label: '退款失败', value: 'failed' }
-];
+]
 
-const selectedStatus = ref('all');
-const keyword = ref('');
-
-// 退款列表
-const refundList = ref<any[]>([]);
-
-// 分页
-const page = ref(1);
-const pageSize = 20;
-const hasMore = ref(true);
-const loading = ref(false);
+const selectedStatus = ref('all')
+const keyword = ref('')
 
 // 当前选中的状态文本
 const selectedStatusText = computed(() => {
-  return statusOptions.find(s => s.value === selectedStatus.value)?.label || '全部';
-});
+  return statusOptions.find(s => s.value === selectedStatus.value)?.label || '全部'
+})
 
-// 获取状态文本
-const getStatusText = (status?: string) => {
-  return RefundStatusNames[status as keyof typeof RefundStatusNames] || '未知状态';
-};
+// 使用 useAdminList
+const {
+  list,
+  loading,
+  hasMore,
+  search,
+  loadMore,
+  refresh
+} = useAdminList({
+  action: 'getRefundList',
+  cachePrefix: 'refunds',
+  pageSize: 20,
+  extraParams: computed(() => ({
+    status: selectedStatus.value === 'all' ? undefined : selectedStatus.value,
+    keyword: keyword.value || undefined
+  })),
+  onLoaded: (data) => {
+    console.log('退款列表加载完成', data.length)
+  },
+  onError: (error) => {
+    console.error('加载退款列表失败', error)
+  }
+})
 
-// 格式化时间
-const formatDateTime = (time?: Date) => {
-  if (!time) return '';
-  const date = new Date(time);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-};
+// 操作 Actions
+const { execute: approveRefund } = useAdminAction({
+  action: 'approveRefund',
+  successMsg: '已同意退款'
+})
+
+const { execute: rejectRefund } = useAdminAction({
+  action: 'rejectRefund',
+  successMsg: '已拒绝退款'
+})
+
+const { execute: confirmReceipt } = useAdminAction({
+  action: 'confirmRefundReceipt',
+  successMsg: '已确认收货'
+})
+
+const { execute: retryRefund } = useAdminAction({
+  action: 'retryRefund',
+  successMsg: '已重试退款'
+})
+
+// 监听状态变化
+watch(selectedStatus, () => {
+  refresh()
+})
 
 // 状态改变
 const onStatusChange = (e: any) => {
-  selectedStatus.value = statusOptions[e.detail.value].value;
-  page.value = 1;
-  refundList.value = [];
-  hasMore.value = true;
-  loadRefundList();
-};
+  selectedStatus.value = statusOptions[e.detail.value].value
+}
 
 // 搜索
 const handleSearch = () => {
-  page.value = 1;
-  refundList.value = [];
-  hasMore.value = true;
-  loadRefundList();
-};
+  refresh()
+}
 
-// 加载退款列表
-const loadRefundList = async () => {
-  if (loading.value) return;
+// 获取状态文本
+const getStatusText = (status?: string) => {
+  return RefundStatusNames[status as keyof typeof RefundStatusNames] || '未知状态'
+}
 
-  try {
-    loading.value = true;
+// 格式化价格
+const formatPrice = (price: number): string => {
+  return (price / 100).toFixed(2)
+}
 
-    const status = selectedStatus.value === 'all' ? undefined : selectedStatus.value;
-
-    const res = await adminGetRefundList({
-      page: page.value,
-      limit: pageSize,
-      status,
-      keyword: keyword.value || undefined,
-      adminToken: AdminAuthManager.getToken()
-    });
-
-    if (res.list) {
-      if (page.value === 1) {
-        refundList.value = res.list;
-      } else {
-        refundList.value = [...refundList.value, ...res.list];
-      }
-
-      hasMore.value = res.list.length >= pageSize;
-    }
-  } catch (error: any) {
-    console.error('加载退款列表失败:', error);
-  } finally {
-    loading.value = false;
-  }
-};
+// 格式化时间
+const formatDateTime = (time?: Date) => {
+  if (!time) return ''
+  const date = new Date(time)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
 
 // 跳转详情
 const goToDetail = (refundId: string) => {
   uni.navigateTo({
     url: `/pagesAdmin/refunds/detail?refundId=${refundId}`
-  });
-};
+  })
+}
 
 // 快速同意
 const quickApprove = async (item: any) => {
@@ -256,31 +247,15 @@ const quickApprove = async (item: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '处理中...' });
-          await adminApproveRefund({
-            refundId: item._id,
-            adminToken: AdminAuthManager.getToken()
-          });
-          uni.hideLoading();
-          uni.showToast({
-            title: '已同意',
-            icon: 'success'
-          });
-          // 刷新列表
-          page.value = 1;
-          refundList.value = [];
-          loadRefundList();
-        } catch (error: any) {
-          uni.hideLoading();
-          uni.showToast({
-            title: error.message || '操作失败',
-            icon: 'none'
-          });
+          await approveRefund({ refundId: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
-  });
-};
+  })
+}
 
 // 快速拒绝
 const quickReject = async (item: any) => {
@@ -291,32 +266,15 @@ const quickReject = async (item: any) => {
     success: async (res) => {
       if (res.confirm && res.content) {
         try {
-          uni.showLoading({ title: '处理中...' });
-          await adminRejectRefund({
-            refundId: item._id,
-            reason: res.content,
-            adminToken: AdminAuthManager.getToken()
-          });
-          uni.hideLoading();
-          uni.showToast({
-            title: '已拒绝',
-            icon: 'success'
-          });
-          // 刷新列表
-          page.value = 1;
-          refundList.value = [];
-          loadRefundList();
-        } catch (error: any) {
-          uni.hideLoading();
-          uni.showToast({
-            title: error.message || '操作失败',
-            icon: 'none'
-          });
+          await rejectRefund({ refundId: item._id, reason: res.content })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
-  });
-};
+  })
+}
 
 // 快速确认收货
 const quickConfirm = async (item: any) => {
@@ -326,31 +284,15 @@ const quickConfirm = async (item: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '处理中...' });
-          await adminConfirmReceipt({
-            refundId: item._id,
-            adminToken: AdminAuthManager.getToken()
-          });
-          uni.hideLoading();
-          uni.showToast({
-            title: '已确认',
-            icon: 'success'
-          });
-          // 刷新列表
-          page.value = 1;
-          refundList.value = [];
-          loadRefundList();
-        } catch (error: any) {
-          uni.hideLoading();
-          uni.showToast({
-            title: error.message || '操作失败',
-            icon: 'none'
-          });
+          await confirmReceipt({ refundId: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
-  });
-};
+  })
+}
 
 // 重试
 const quickRetry = async (item: any) => {
@@ -360,48 +302,26 @@ const quickRetry = async (item: any) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          uni.showLoading({ title: '处理中...' });
-          await adminRetryRefund({
-            refundId: item._id,
-            adminToken: AdminAuthManager.getToken()
-          });
-          uni.hideLoading();
-          uni.showToast({
-            title: '已重试',
-            icon: 'success'
-          });
-          // 刷新列表
-          page.value = 1;
-          refundList.value = [];
-          loadRefundList();
-        } catch (error: any) {
-          uni.hideLoading();
-          uni.showToast({
-            title: error.message || '操作失败',
-            icon: 'none'
-          });
+          await retryRefund({ refundId: item._id })
+          refresh()
+        } catch (error) {
+          // 错误已由 useAdminAction 处理
         }
       }
     }
-  });
-};
+  })
+}
 
-// 加载更多
-const loadMore = () => {
-  if (!hasMore.value || loading.value) return;
-  page.value++;
-  loadRefundList();
-};
+// 下拉刷新
+onPullDownRefresh(async () => {
+  await refresh()
+  uni.stopPullDownRefresh()
+})
 
-onMounted(() => {
-  if (!AdminAuthManager.checkAuth()) return;
-  loadRefundList();
-});
-
-// 触底加载
-uni.onReachBottom(() => {
-  loadMore();
-});
+// 上拉加载更多
+onReachBottom(() => {
+  loadMore()
+})
 </script>
 
 <style scoped>

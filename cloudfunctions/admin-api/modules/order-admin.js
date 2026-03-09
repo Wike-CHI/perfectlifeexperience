@@ -35,9 +35,13 @@ async function getOrders(db, data) {
       }, {});
     }
 
-    // 为每个订单添加用户名
+    // 为每个订单添加用户名，并统一使用 items 字段
     const list = orders.map(order => ({
       ...order,
+      // 统一返回 id 字段（兼容前端使用）
+      id: order._id,
+      // 统一使用 items 字段（数据库存储为 items）
+      items: order.items || [],
       userName: order.userName || userMap[order._openid]?.nickName || userMap[order._openid]?.name || '微信用户'
     }));
 
@@ -54,7 +58,19 @@ async function getOrderDetail(db, data) {
     const order = await db.collection('orders').doc(id).get();
     if (!order.data) return { code: 404, msg: '订单不存在' };
     const user = await db.collection('users').where({ _openid: order.data._openid }).limit(1).get();
-    return { code: 0, data: { order: order.data, user: user.data[0] || null } };
+
+    // 统一返回字段
+    const orderData = {
+      ...order.data,
+      // 统一使用 items 字段
+      items: order.data.items || [],
+      // 兼容：保留 products 字段以便旧前端代码使用
+      products: order.data.items || [],
+      // 明确返回 id 字段
+      id: order.data._id
+    };
+
+    return { code: 0, data: { order: orderData, user: user.data[0] || null } };
   } catch (error) {
     console.error('Get order detail error:', error);
     return { code: 500, msg: error.message };
@@ -64,10 +80,12 @@ async function getOrderDetail(db, data) {
 async function updateOrderStatus(db, logOperation, data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-    const { id, status } = data || {};
-    if (!id || !status) return { code: -2, msg: '缺少必要参数' };
-    await db.collection('orders').doc(id).update({ data: { status, updateTime: db.serverDate() } });
-    await logOperation(adminInfo.id, 'updateOrderStatus', { orderId: id, status });
+    // 统一使用 orderId 参数
+    const { orderId, status } = data || {};
+    if (!orderId || !status) return { code: -2, msg: '缺少必要参数' };
+
+    await db.collection('orders').doc(orderId).update({ data: { status, updateTime: db.serverDate() } });
+    await logOperation(adminInfo.id, 'updateOrderStatus', { orderId, status });
     return { code: 0, msg: '订单状态更新成功' };
   } catch (error) {
     console.error('Update order status error:', error);
@@ -77,6 +95,7 @@ async function updateOrderStatus(db, logOperation, data, wxContext) {
 
 async function searchOrderByExpress(db, data) {
   try {
+    // 统一使用 expressNo 参数
     const { expressNo } = data || {};
     if (!expressNo) return { code: -2, msg: '缺少快递单号' };
     const result = await db.collection('orders').where({ expressNo: db.RegExp({ regexp: expressNo, options: 'i' }) }).get();
@@ -90,10 +109,12 @@ async function searchOrderByExpress(db, data) {
 async function updateOrderExpress(db, logOperation, data, wxContext) {
   try {
     const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-    const { id, expressNo, expressCompany } = data || {};
-    if (!id) return { code: -2, msg: '缺少订单ID' };
-    await db.collection('orders').doc(id).update({ data: { expressNo, expressCompany, updateTime: db.serverDate() } });
-    await logOperation(adminInfo.id, 'updateOrderExpress', { orderId: id, expressNo, expressCompany });
+    // 统一使用 orderId, expressNo 参数
+    const { orderId, expressNo, expressCompany } = data || {};
+    if (!orderId) return { code: -2, msg: '缺少订单ID' };
+
+    await db.collection('orders').doc(orderId).update({ data: { expressNo, expressCompany, updateTime: db.serverDate() } });
+    await logOperation(adminInfo.id, 'updateOrderExpress', { orderId, expressNo, expressCompany });
     return { code: 0, msg: '快递信息更新成功' };
   } catch (error) {
     console.error('Update express error:', error);
@@ -101,4 +122,26 @@ async function updateOrderExpress(db, logOperation, data, wxContext) {
   }
 }
 
-module.exports = { getOrders, getOrderDetail, updateOrderStatus, searchOrderByExpress, updateOrderExpress };
+async function deleteOrder(db, logOperation, data, wxContext) {
+  try {
+    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
+    // 统一使用 orderId 参数
+    const { orderId } = data || {};
+    if (!orderId) return { code: -2, msg: '缺少订单ID' };
+
+    // 检查订单是否存在
+    const order = await db.collection('orders').doc(orderId).get();
+    if (!order.data) return { code: 404, msg: '订单不存在' };
+
+    // 删除订单
+    await db.collection('orders').doc(orderId).remove();
+    await logOperation(adminInfo.id, 'deleteOrder', { orderId, orderNo: order.data.orderNo });
+
+    return { code: 0, msg: '订单删除成功' };
+  } catch (error) {
+    console.error('Delete order error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
+module.exports = { getOrders, getOrderDetail, updateOrderStatus, searchOrderByExpress, updateOrderExpress, deleteOrder };

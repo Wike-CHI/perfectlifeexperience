@@ -12,7 +12,7 @@
         <!-- 选择框 -->
         <view class="checkbox" @click="toggleSelect(item)">
           <view class="check-circle" :class="{ checked: item.selected }">
-            <text v-if="item.selected" class="check-icon">&#xe6ad;</text>
+            <image v-if="item.selected" class="check-icon" src="/static/icons/check.svg" mode="aspectFit" />
           </view>
         </view>
         
@@ -49,7 +49,7 @@
 
     <!-- 空购物车 -->
     <view class="empty-cart" v-else>
-      <view class="empty-icon">&#xe6af;</view>
+      <image class="empty-icon" src="/static/icons/empty-cart.svg" mode="aspectFit" />
       <text class="empty-title">购物车是空的</text>
       <text class="empty-desc">快去挑选心仪的精酿啤酒吧</text>
       <view class="go-shopping" @click="goToHome">
@@ -62,7 +62,7 @@
       <view class="footer-left">
         <view class="select-all" @click="toggleSelectAll">
           <view class="check-circle" :class="{ checked: isAllSelected }">
-            <text v-if="isAllSelected" class="check-icon">&#xe6ad;</text>
+            <image v-if="isAllSelected" class="check-icon" src="/static/icons/check.svg" mode="aspectFit" />
           </view>
           <text class="select-text">全选</text>
         </view>
@@ -375,9 +375,8 @@ onShow(() => {
 }
 
 .check-icon {
-  font-family: "iconfont";
-  font-size: 24rpx;
-  color: #FFFFFF;
+  width: 24rpx;
+  height: 24rpx;
 }
 
 .item-image {
@@ -489,9 +488,8 @@ onShow(() => {
 }
 
 .empty-icon {
-  font-family: "iconfont";
-  font-size: 120rpx;
-  color: #D4A574;
+  width: 160rpx;
+  height: 160rpx;
   margin-bottom: 40rpx;
 }
 

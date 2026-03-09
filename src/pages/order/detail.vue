@@ -45,13 +45,13 @@
       <view class="section-card goods-card">
         <view class="card-header">
           <text class="card-title">购物清单</text>
-          <text class="goods-count">共 {{ order.products?.length || 0 }} 件</text>
+          <text class="goods-count">共 {{ (order.items || order.products)?.length || 0 }} 件</text>
         </view>
         <view class="goods-list">
-          <view class="goods-item" v-for="(item, index) in order.products" :key="index">
-            <image class="goods-img" :src="item.image" mode="aspectFill" />
+          <view class="goods-item" v-for="(item, index) in (order.items || order.products)" :key="index">
+            <image class="goods-img" :src="item.productImage || item.image" mode="aspectFill" />
             <view class="goods-meta">
-              <text class="goods-name">{{ item.name }}</text>
+              <text class="goods-name">{{ item.productName || item.name }}</text>
               <view class="goods-price-row">
                 <text class="goods-quantity">x{{ item.quantity }}</text>
                 <text class="goods-price">¥{{ formatPrice(item.price) }}</text>
@@ -155,14 +155,23 @@ import { getCachedOpenid } from '@/utils/cloudbase';
 interface Order {
   _id: string
   orderNo: string
-  products: Array<{
+  products?: Array<{
     name: string
     price: number
     quantity: number
     image: string
   }>
+  items?: Array<{
+    productId?: string
+    productName?: string
+    name?: string
+    price: number
+    quantity: number
+    productImage?: string
+    image?: string
+  }>
   totalAmount: number
-  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled'
+  status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled' | 'refunding' | 'refunded'
   address?: {
     name: string
     phone: string
@@ -174,12 +183,14 @@ interface Order {
   createTime: Date
   payTime?: Date
   _openid?: string
+  paymentStatus?: string
 }
 
 // 数据
 const order = ref<Partial<Order>>({
   orderNo: '',
   products: [],
+  items: [],
   totalAmount: 0,
   status: 'pending',
   createTime: new Date()

@@ -50,6 +50,54 @@ export const getHomePageData = async () => {
   }
 };
 
+// ==================== 活动相关 ====================
+
+// 获取进行中的活动列表
+export const getActivePromotions = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('promotion', {
+      action: 'getActivePromotions',
+      data: {}  // 统一格式
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data || [];
+    }
+    return [];
+  } catch (error) {
+    console.error('获取活动列表失败:', error);
+    return [];
+  }
+};
+
+// 获取活动详情
+export const getPromotionDetail = async (id: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('promotion', {
+      action: 'getPromotionDetail',
+      data: { id }
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data;
+    }
+    throw new Error(res.msg || '获取活动详情失败');
+  } catch (error) {
+    console.error('获取活动详情失败:', error);
+    throw error;
+  }
+};
+
+// ==================== 活动相关结束 ====================
+
 // 获取商品列表
 export const getProducts = async (params?: {
   category?: string;
