@@ -190,6 +190,27 @@ async function createProductAdmin(db, logOperation, data, wxContext) {
       data: productData
     });
 
+    // 🔧 清除 product 云函数的缓存，确保用户端看到最新数据
+    try {
+      const cloud = require('wx-server-sdk');
+      cloud.init({
+        env: cloud.DYNAMIC_CURRENT_ENV
+      });
+
+      await cloud.callFunction({
+        name: 'product',
+        data: {
+          action: 'clearCache',
+          data: { productId: result.id }
+        }
+      });
+
+      console.log('[缓存同步] 已清除 product 云函数缓存', { productId: result.id });
+    } catch (cacheError) {
+      console.error('[缓存同步] 清除缓存失败', { error: cacheError.message });
+      // 不影响主流程，继续执行
+    }
+
     await logOperation(adminInfo.id, 'createProduct', {
       productId: result.id,
       name: data.name
@@ -284,6 +305,27 @@ async function updateProductAdmin(db, logOperation, data, wxContext) {
       data: updateData
     });
 
+    // 🔧 清除 product 云函数的缓存，确保用户端看到最新数据
+    try {
+      const cloud = require('wx-server-sdk');
+      cloud.init({
+        env: cloud.DYNAMIC_CURRENT_ENV
+      });
+
+      await cloud.callFunction({
+        name: 'product',
+        data: {
+          action: 'clearCache',
+          data: { productId: id }
+        }
+      });
+
+      console.log('[缓存同步] 已清除 product 云函数缓存', { productId: id });
+    } catch (cacheError) {
+      console.error('[缓存同步] 清除缓存失败', { error: cacheError.message });
+      // 不影响主流程，继续执行
+    }
+
     await logOperation(adminInfo.id, 'updateProduct', {
       productId: id,
       ...updateData
@@ -318,6 +360,27 @@ async function deleteProductAdmin(db, logOperation, data, wxContext) {
     }
 
     await db.collection('products').doc(id).remove();
+
+    // 🔧 清除 product 云函数的缓存，确保用户端看到最新数据
+    try {
+      const cloud = require('wx-server-sdk');
+      cloud.init({
+        env: cloud.DYNAMIC_CURRENT_ENV
+      });
+
+      await cloud.callFunction({
+        name: 'product',
+        data: {
+          action: 'clearCache',
+          data: { productId: id }
+        }
+      });
+
+      console.log('[缓存同步] 已清除 product 云函数缓存', { productId: id });
+    } catch (cacheError) {
+      console.error('[缓存同步] 清除缓存失败', { error: cacheError.message });
+      // 不影响主流程，继续执行
+    }
 
     await logOperation(adminInfo.id, 'deleteProduct', { productId: id });
 

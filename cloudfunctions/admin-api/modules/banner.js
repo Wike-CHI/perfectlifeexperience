@@ -371,24 +371,29 @@ async function uploadProductImage(db, data, wxContext) {
       fileContent: processedBuffer
     });
 
-    // 获取临时访问URL
-    let tempFileURL = '';
+    // 🔧 使用永久下载URL，而不是临时URL
+    // 临时URL有时效性限制（通常几小时），过期后返回403错误
+    let downloadURL = '';
     try {
       const urlResult = await cloud.getTempFileURL({
-        fileList: [result.fileID]
+        fileList: [result.fileID],
+        max_age: 7200  // 2小时（秒）
       });
-      if (urlResult.fileList && urlResult.fileList[0] && urlResult.fileList[0].tempFileURL) {
-        tempFileURL = urlResult.fileList[0].tempFileURL;
+      if (urlResult.fileList && urlResult.fileList[0]) {
+        // 优先使用 downloadURL（永久URL）
+        downloadURL = urlResult.fileList[0].downloadURL || urlResult.fileList[0].tempFileURL;
       }
     } catch (e) {
-      console.error('获取临时URL失败', e);
+      console.error('获取永久URL失败', e);
+      // 降级：直接使用fileID，前端需要时再获取临时URL
+      downloadURL = result.fileID;
     }
 
     return {
       code: 0,
       data: {
         fileID: result.fileID,
-        url: tempFileURL || result.fileID
+        url: downloadURL
       },
       msg: '上传成功'
     };

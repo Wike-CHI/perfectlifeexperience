@@ -399,6 +399,17 @@ const loadData = async () => {
       spec: p.volume ? `${p.volume}ml` : ''
     }));
 
+    // 🔍 调试日志：打印首页数据
+    console.log('=== 首页数据调试 ===');
+    console.log('homeData.topSalesProducts数量:', homeData.topSalesProducts?.length || 0);
+    if (homeData.topSalesProducts && homeData.topSalesProducts.length > 0) {
+      console.log('topSalesProducts[0]原始数据:', JSON.stringify(homeData.topSalesProducts[0]));
+      console.log('topSalesProducts[0].price:', homeData.topSalesProducts[0].price);
+      console.log('hotProducts[0]处理后:', JSON.stringify(hotProducts.value[0]));
+      console.log('hotProducts[0].price:', hotProducts.value[0].price);
+    }
+    console.log('==================');
+
     // 轮播图
     if (homeData.banners && homeData.banners.length > 0) {
       banners.value = homeData.banners;
@@ -424,6 +435,14 @@ const loadData = async () => {
 
 // 打开规格选择弹窗
 const addToCart = (product: Product) => {
+  // 🔍 调试日志：打印传递给弹窗的product对象
+  console.log('=== 首页addToCart调试 ===');
+  console.log('传递的product对象:', JSON.stringify(product));
+  console.log('product.price:', product.price);
+  console.log('product.price类型:', typeof product.price);
+  console.log('product.priceList:', product.priceList);
+  console.log('======================');
+
   currentProduct.value = product;
   skuPopupVisible.value = true;
 };

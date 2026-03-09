@@ -4,6 +4,7 @@
  */
 
 import { CACHE_CONFIG, getCacheKey } from './cache-config'
+import { safeClone } from './serialization'
 
 /**
  * 缓存项数据结构
@@ -29,8 +30,11 @@ class AdminCacheManager {
    */
   static set<T>(key: string, data: T, expireMinutes: number = 30): void {
     try {
+      // 🔧 使用安全克隆移除响应式对象和循环引用
+      const clonedData = safeClone(data)
+
       const cacheItem: CacheItem<T> = {
-        data,
+        data: clonedData,
         timestamp: Date.now(),
         expire: expireMinutes * 60 * 1000
       }
@@ -39,6 +43,18 @@ class AdminCacheManager {
       uni.setStorageSync(fullKey, JSON.stringify(cacheItem))
     } catch (error) {
       console.error('缓存设置失败:', error)
+      // 如果序列化失败（循环引用），尝试存储空数据
+      try {
+        const fullKey = this.getFullKey(key)
+        const fallbackItem: CacheItem<T> = {
+          data: null as any,
+          timestamp: Date.now(),
+          expire: expireMinutes * 60 * 1000
+        }
+        uni.setStorageSync(fullKey, JSON.stringify(fallbackItem))
+      } catch (fallbackError) {
+        console.error('缓存回退失败:', fallbackError)
+      }
     }
   }
 

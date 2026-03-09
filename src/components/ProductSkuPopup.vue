@@ -89,15 +89,35 @@ const currentSpec = ref('');
 watch(() => props.visible, (newVal) => {
   if (newVal && props.product) {
     quantity.value = 1;
+
+    // 🔍 调试日志：打印接收到的product对象
+    console.log('=== ProductSkuPopup 价格调试 ===');
+    console.log('完整product对象:', JSON.stringify(props.product));
+    console.log('price值:', props.product.price);
+    console.log('price类型:', typeof props.product.price);
+    console.log('priceList:', props.product.priceList);
+    console.log('priceList长度:', props.product.priceList?.length || 0);
+    console.log('specs:', props.product.specs);
+    console.log('volume:', props.product.volume);
+    console.log('stock值:', props.product.stock);
+    console.log('stock类型:', typeof props.product.stock);
+    console.log('============================');
+
     if (props.product.priceList && props.product.priceList.length > 0) {
       // 默认选中第一个规格
       const defaultSpec = props.product.priceList[0];
       currentPrice.value = defaultSpec.price;
       currentSpec.value = defaultSpec.volume;
+      console.log('[价格初始化] 使用priceList[0]:', defaultSpec.price);
     } else {
       currentPrice.value = props.product.price;
       currentSpec.value = props.product.specs || '';
+      console.log('[价格初始化] 使用base price:', props.product.price);
     }
+
+    console.log('[价格初始化] 最终currentPrice:', currentPrice.value);
+    console.log('[价格初始化] 格式化后价格:', formatPrice(currentPrice.value));
+    console.log('============================');
   }
 });
 

@@ -15,6 +15,7 @@ import AdminAuthManager from '@/utils/admin-auth'
 import AdminCacheManager from '@/utils/admin-cache'
 import { CACHE_CONFIG } from '@/utils/cache-config'
 import { callFunction } from '@/utils/cloudbase'
+import { safeClone } from '@/utils/serialization'
 
 export interface ListQueryParams {
   page?: number
@@ -100,20 +101,23 @@ export function useAdminList(options: UseAdminListOptions) {
         }
       }
 
-      // 处理 extraParams，支持普通对象或 ComputedRef
+      // 处理 extraParams，支持普通对象或函数
       const resolvedExtraParams = typeof extraParams === 'function'
         ? extraParams()
         : (extraParams || {})
 
+      // 🔧 使用安全克隆移除响应式属性和循环引用
+      const requestData = safeClone({
+        page: currentPage.value,
+        limit: pageSize,
+        keyword: keyword.value || undefined,
+        ...resolvedExtraParams
+      })
+
       const res = await callFunction('admin-api', {
         action,
         adminToken: AdminAuthManager.getToken(),
-        data: {
-          page: currentPage.value,
-          limit: pageSize,
-          keyword: keyword.value || undefined,
-          ...resolvedExtraParams
-        }
+        data: requestData
       })
 
       if (res.code === 0 && res.data) {
@@ -255,10 +259,13 @@ export function useAdminDetail(options: {
     try {
       loading.value = true
 
+      // 🔧 使用安全克隆移除响应式属性和循环引用
+      const requestData = safeClone({ [idParam]: id })
+
       const res = await callFunction('admin-api', {
         action,
         adminToken: AdminAuthManager.getToken(),
-        data: { [idParam]: id }
+        data: requestData
       })
 
       if (res.code === 0 && res.data) {
@@ -308,10 +315,13 @@ export function useAdminAction(options: {
     try {
       loading.value = true
 
+      // 🔧 使用安全克隆移除响应式属性和循环引用
+      const sanitizedData = safeClone(data || {})
+
       const res = await callFunction('admin-api', {
         action,
         adminToken: AdminAuthManager.getToken(),
-        data
+        data: sanitizedData
       })
 
       if (res.code === 0) {

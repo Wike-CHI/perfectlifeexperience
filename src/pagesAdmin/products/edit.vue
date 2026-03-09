@@ -124,6 +124,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { callFunction } from '@/utils/cloudbase'
 import AdminAuthManager from '@/utils/admin-auth'
+import AdminCacheManager from '@/utils/admin-cache'
 
 /**
  * 商品编辑页面 - 添加/编辑商品
@@ -434,6 +435,10 @@ const handleSubmit = async () => {
     console.log('响应结果:', JSON.stringify(res))
 
     if (res.code === 0) {
+      // 🔧 清除管理端产品缓存，确保列表页显示最新数据
+      AdminCacheManager.clearByType('products')
+      console.log('[管理端缓存] 已清除产品列表缓存')
+
       uni.showToast({ title: '保存成功', icon: 'success' })
       setTimeout(() => uni.navigateBack(), 1500)
     } else {

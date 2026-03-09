@@ -708,6 +708,16 @@ exports.main = async (event, context) => {
     case 'fixCategoryIcons':
       return await fixCategoryIcons();
 
+    case 'clearCache':
+      // 清除商品缓存（由 admin-api 在更新产品后调用）
+      const { productId } = data || {};
+      clearProductCache(productId);
+      logger.info('Product cache cleared', { productId });
+      return {
+        code: 0,
+        msg: '缓存清除成功'
+      };
+
     default:
       return {
         code: 400,

@@ -40,8 +40,26 @@ export const getHomePageData = async () => {
       data: {}
     });
 
+    // 🔍 调试日志：打印云函数返回数据
+    console.log('=== API getHomePageData调试 ===');
+    console.log('云函数完整返回:', JSON.stringify(res));
+    console.log('res.code:', res.code);
+    console.log('res.data存在:', !!res.data);
+    if (res.data) {
+      console.log('res.data.code:', (res.data as any).code);
+      console.log('res.data类型:', typeof res.data);
+      console.log('res.data是否为数组:', Array.isArray(res.data));
+    }
+
     if (res.code === 0 && res.data) {
-      return extractData(res);
+      const data = extractData(res);
+      console.log('extractData返回:', JSON.stringify(data));
+      if (data.topSalesProducts && data.topSalesProducts.length > 0) {
+        console.log('topSalesProducts[0]:', JSON.stringify(data.topSalesProducts[0]));
+        console.log('topSalesProducts[0].price:', data.topSalesProducts[0].price);
+      }
+      console.log('=============================');
+      return data;
     }
     throw new Error(res.msg || '获取首页数据失败');
   } catch (error) {
@@ -320,14 +338,22 @@ export const createOrder = async (order: Omit<Order, '_id' | '_openid' | 'orderN
       action: 'createOrder',
       data: newOrder
     });
-    
+
+    console.log('[支付调试] 创建订单响应:', res);
+
     if (res.code === 0 && res.data) {
-      // res.data 是云函数返回值 {code: 0, msg: '...', data: {orderId: '...'}}
-      // 需要访问 res.data.data.orderId
-      const cloudResult = res.data as { code: number; msg: string; data: { orderId?: string } };
-      const orderId = cloudResult.data?.orderId;
-      console.log('[api.ts] createOrder 云函数返回:', cloudResult);
+      // res 已经是云函数返回值: {code: 0, msg: '...', data: {orderId: '...', validatedItems: [...], serverTotalAmount: ...}}
+      // 直接访问 res.data.orderId
+      const orderId = res.data.orderId;
+      console.log('[api.ts] createOrder 云函数返回:', res);
       console.log('[api.ts] createOrder orderId:', orderId);
+      console.log('[支付调试] 提取的 orderId:', orderId);
+
+      if (!orderId) {
+        console.error('[api.ts] orderId 为空，完整响应:', JSON.stringify(res));
+        throw new Error('订单ID获取失败');
+      }
+
       return { _id: orderId };
     }
     throw new Error(res.msg || '创建订单失败');
@@ -346,10 +372,14 @@ export const getOrders = async (status?: string) => {
       data: { status }
     });
 
+    console.log('[API调试] getOrders 云函数返回:', res);
+
     if (res.code === 0 && res.data) {
-      // res.data 是云函数返回的 {code: 0, msg: '...', data: {orders: [...]}}
-      const cloudFunctionData = res.data as { code: number; msg: string; data: { orders: Order[] } };
-      const orders = cloudFunctionData.data?.orders || [];
+      // res 已经是云函数返回值: {code: 0, msg: '...', data: {orders: [...]}}
+      // 直接访问 res.data.orders
+      const orders = res.data.orders || [];
+
+      console.log('[API调试] 提取的订单列表:', orders);
 
       // 更新本地缓存
       uni.setStorageSync(ORDER_KEY, JSON.stringify(orders));
@@ -365,6 +395,7 @@ export const getOrders = async (status?: string) => {
       if (status && status !== 'all') {
         orders = orders.filter(o => o.status === status);
       }
+      console.log('[API调试] 从本地缓存读取订单:', orders);
       return orders;
     } catch (error) {
       console.error('读取本地订单缓存失败:', error);
@@ -375,11 +406,38 @@ export const getOrders = async (status?: string) => {
 
 // 获取订单详情
 export const getOrderDetail = async (id: string) => {
-  // 优先从获取到的订单列表中查找
-  const orders = await getOrders('all');
-  const order = orders.find(o => o._id === id);
-  if (!order) throw new Error('订单不存在');
-  return order;
+  try {
+    const res = await callFunction('order', {
+      action: 'getOrderDetail',
+      data: { orderId: id }
+    });
+
+    console.log('[API调试] getOrderDetail 云函数返回:', res);
+
+    if (res.code === 0 && res.data) {
+      // res 已经是云函数返回值: {code: 0, msg: '...', data: {order: {...}}}
+      // 直接访问 res.data.order
+      const order = res.data.order;
+      console.log('[API调试] 提取的订单详情:', order);
+      return order;
+    }
+    throw new Error(res.msg || '获取订单详情失败');
+  } catch (error) {
+    console.error('获取订单详情失败:', error);
+
+    // 降级：从订单列表中查找
+    try {
+      console.log('[API调试] 降级：从订单列表中查找订单');
+      const orders = await getOrders('all');
+      const order = orders.find(o => o._id === id);
+      if (!order) throw new Error('订单不存在');
+      console.log('[API调试] 从订单列表中找到订单:', order);
+      return order;
+    } catch (fallbackError) {
+      console.error('降级获取订单详情失败:', fallbackError);
+      throw new Error('订单不存在');
+    }
+  }
 };
 
 // 更新订单状态

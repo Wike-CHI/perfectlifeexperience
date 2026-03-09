@@ -38,6 +38,7 @@ declare const wx: {
 
 // 云开发环境ID - 从配置文件读取（支持环境变量回退）
 import { ENV_ID, checkEnvConfig } from '@/config/env';
+import { safeClone, safeStringify } from '@/utils/serialization';
 
 // 存储用户登录凭证
 let userOpenid: string | null = null;
@@ -255,11 +256,14 @@ export const callFunction = async (name: string, data: Record<string, unknown> =
       }
     }
 
-    console.log(`调用云函数 ${name} (原生)`, JSON.stringify(requestData));
+    // 🔧 使用安全克隆移除响应式属性和循环引用
+    const sanitizedData = safeClone(requestData);
+
+    console.log(`调用云函数 ${name} (原生)`, safeStringify(sanitizedData));
 
     const res = await wx.cloud.callFunction({
       name,
-      data: requestData
+      data: sanitizedData
     });
 
     console.log(`云函数 ${name} 响应:`, res.result);
