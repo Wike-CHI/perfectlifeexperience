@@ -13,9 +13,11 @@ export const STORE_LOCATION = {
 
 /**
  * 验证坐标是否有效
+ * 中国范围大致：纬度 3-53，经度 73-135
+ * 瑞安区域：纬度约 27.7，经度约 120.6
  */
 function isValidCoordinate(lat: number, lon: number): boolean {
-  return (
+  const isValid = (
     isFinite(lat) &&
     isFinite(lon) &&
     lat >= -90 &&
@@ -23,6 +25,17 @@ function isValidCoordinate(lat: number, lon: number): boolean {
     lon >= -180 &&
     lon <= 180
   )
+
+  // 如果坐标明显不在中国范围内，发出警告
+  if (isValid && (lat < 3 || lat > 53 || lon < 73 || lon > 135)) {
+    console.warn(`⚠️ 坐标可能不在中国范围内:`, {
+      latitude: lat,
+      longitude: lon,
+      建议范围: '纬度 3-53, 经度 73-135'
+    })
+  }
+
+  return isValid
 }
 
 /**
@@ -40,6 +53,13 @@ export function calculateDistance(
     throw new Error('Invalid coordinates')
   }
 
+  // 调试日志
+  console.log('📍 计算距离:', {
+    用户位置: { lat: lat1, lon: lon1 },
+    门店位置: { lat: lat2, lon: lon2 },
+    坐标差: { lat: lat2 - lat1, lon: lon2 - lon1 }
+  })
+
   const R = 6371000 // 地球半径（米）
   const dLat = toRad(lat2 - lat1)
   const dLon = toRad(lon2 - lon1)
@@ -53,6 +73,15 @@ export function calculateDistance(
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   const distance = R * c
+
+  // 如果距离异常大，输出警告
+  if (distance > 100000) { // 超过100km
+    console.warn('⚠️ 计算出的距离异常大:', {
+      距离: `${(distance / 1000).toFixed(2)}km`,
+      用户坐标: { lat: lat1, lon: lon1 },
+      门店坐标: { lat: lat2, lon: lon2 }
+    })
+  }
 
   return distance
 }
@@ -80,15 +109,27 @@ export function formatDistance(meters: number): string {
 
 /**
  * 获取用户当前位置
+ * 使用微信原生 API，获取更高精度的定位
+ * gcj02 坐标系：国测局坐标系，微信小程序和腾讯地图使用此坐标系
  */
 export function getUserLocation(): Promise<{
   latitude: number
   longitude: number
 }> {
   return new Promise((resolve, reject) => {
-    uni.getLocation({
-      type: 'wgs84', // 返回可以用于 uni.openLocation 的坐标
+    wx.getLocation({
+      type: 'gcj02', // 国测局坐标系，微信小程序标准
+      altitude: true, // 获取高精度
+      isHighAccuracy: true, // 开启高精度定位
+      highAccuracyExpireTime: 3000, // 高精度定位超时时间
+
       success: (res) => {
+        console.log('定位成功:', {
+          latitude: res.latitude,
+          longitude: res.longitude,
+          accuracy: res.accuracy,
+          altitude: res.altitude
+        })
         resolve({
           latitude: res.latitude,
           longitude: res.longitude
@@ -96,6 +137,11 @@ export function getUserLocation(): Promise<{
       },
       fail: (err) => {
         console.error('获取位置失败:', err)
+        uni.showToast({
+          title: '定位失败，请检查定位权限',
+          icon: 'none',
+          duration: 2000
+        })
         reject(err)
       }
     })
@@ -116,6 +162,7 @@ export async function getDistanceToStore(): Promise<number> {
 
   // 检查缓存是否有效
   if (cachedLocation && cacheTime && (now - cacheTime) < CACHE_DURATION) {
+    console.log('♻️ 使用缓存的位置数据')
     return calculateDistance(
       cachedLocation.latitude,
       cachedLocation.longitude,
@@ -125,6 +172,7 @@ export async function getDistanceToStore(): Promise<number> {
   }
 
   try {
+    console.log('🎯 开始获取用户位置...')
     const userLocation = await getUserLocation()
     // 更新缓存
     cachedLocation = userLocation
@@ -136,9 +184,11 @@ export async function getDistanceToStore(): Promise<number> {
       STORE_LOCATION.latitude,
       STORE_LOCATION.longitude
     )
+
+    console.log('✅ 距离计算完成:', formatDistance(distance))
     return distance
   } catch (error) {
-    console.error('计算距离失败:', error)
+    console.error('❌ 计算距离失败:', error)
     throw error
   }
 }

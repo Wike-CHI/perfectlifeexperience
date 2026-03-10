@@ -40,7 +40,6 @@
           <text class="distance-label">距离您</text>
         </view>
         <view class="distance-details">
-          <text class="detail-item">预计{{ estimatedTime }}分钟到达</text>
           <text class="detail-item" :class="{ 'in-range': inDeliveryRange }">
             {{ inDeliveryRange ? '在配送范围内' : '超出配送范围' }}
           </text>
@@ -148,14 +147,6 @@ const distanceLevel = computed(() => {
 const distanceText = computed(() => {
   if (distance.value === null) return '获取中...';
   return `${distanceLevel.value.text} · ${formattedDistance.value}`;
-});
-
-const estimatedTime = computed(() => {
-  if (distance.value === null) return '--';
-  // 假设步行速度为 5km/h，骑行速度为 15km/h
-  const walkingTime = Math.ceil(distance.value / (5000 / 60)); // 分钟
-  const drivingTime = Math.ceil(distance.value / (15000 / 60)); // 分钟
-  return Math.min(walkingTime, drivingTime);
 });
 
 const inDeliveryRange = computed(() => {

@@ -354,10 +354,67 @@ export interface WxCloudFunctionExports {
 }
 
 /**
+ * 微信位置 API 类型定义
+ */
+export interface WxLocationOptions {
+  type?: 'wgs84' | 'gcj02';
+  altitude?: boolean;
+  isHighAccuracy?: boolean;
+  highAccuracyExpireTime?: number;
+}
+
+export interface WxLocationResult {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  altitude: number;
+  verticalAccuracy: number;
+  horizontalAccuracy: number;
+  speed: number;
+}
+
+/**
+ * 微信授权 API 类型定义
+ */
+export interface WxAuthorizeOptions {
+  scope: string;
+}
+
+export interface WxAuthorizeResult {
+  errMsg: string;
+}
+
+/**
+ * 微信打开位置 API 类型定义
+ */
+export interface WxOpenLocationOptions {
+  latitude: number;
+  longitude: number;
+  scale?: number;
+  name?: string;
+  address?: string;
+}
+
+/**
  * 声明 wx 全局对象
  */
 declare const wx: {
   cloud: WxCloud;
+
+  /**
+   * 获取用户地理位置
+   */
+  getLocation: (options: WxLocationOptions) => Promise<WxLocationResult>;
+
+  /**
+   * 提前向用户发起授权请求
+   */
+  authorize: (options: WxAuthorizeOptions) => Promise<WxAuthorizeResult>;
+
+  /**
+   * 在地图上查看位置
+   */
+  openLocation: (options: WxOpenLocationOptions) => void;
 };
 
 /**

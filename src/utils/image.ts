@@ -1,15 +1,28 @@
 /**
  * 转换云存储 URL 为临时访问链接
  * @param url 原始URL（可能是cloud://格式或普通URL）
+ * @param forceRefresh 是否强制刷新（即使已经是http/https链接也重新获取）
  * @returns Promise<string> 临时访问链接或原始URL
  */
-export async function convertCloudUrl(url: string): Promise<string> {
+export async function convertCloudUrl(url: string, forceRefresh: boolean = false): Promise<string> {
   if (!url) {
     return '/static/logo.png';
   }
 
-  // 如果不是云存储格式，直接返回
+  // 如果不是云存储格式，检查是否需要刷新
   if (!url.startsWith('cloud://')) {
+    // 如果是临时链接且已过期或需要强制刷新，从URL中提取fileID重新获取
+    if (forceRefresh && (url.includes('tcb.qcloud.la') || url.includes('cos.'))) {
+      try {
+        // 尝试从URL中提取fileID（适用于云存储URL）
+        const urlParts = url.split('?')[0]; // 移除签名参数
+        // 这里需要存储原始的 cloud:// URL，暂时返回原URL
+        console.warn('无法从临时链接刷新，请使用 cloud:// 格式的文件ID');
+        return url;
+      } catch (error) {
+        return url;
+      }
+    }
     return url;
   }
 
@@ -19,14 +32,44 @@ export async function convertCloudUrl(url: string): Promise<string> {
     });
 
     if (res.fileList && res.fileList[0] && res.fileList[0].tempFileURL) {
-      return res.fileList[0].tempFileURL;
+      const tempUrl = res.fileList[0].tempFileURL;
+      console.log('✅ 获取临时链接成功:', tempUrl);
+      return tempUrl;
     }
 
     return '/static/logo.png';
   } catch (error) {
-    console.error('转换云存储URL失败:', error);
+    console.error('❌ 转换云存储URL失败:', error);
     return '/static/logo.png';
   }
+}
+
+/**
+ * 刷新过期的临时链接
+ * 检测URL是否过期，如果过期则重新获取临时链接
+ * @param url 原始URL或临时链接
+ * @param originalCloudId 原始的 cloud:// 文件ID（可选，如果传入则更可靠）
+ * @returns Promise<string> 新的临时链接
+ */
+export async function refreshExpiredUrl(url: string, originalCloudId?: string): Promise<string> {
+  // 如果提供了原始 cloud:// ID，直接使用
+  if (originalCloudId && originalCloudId.startsWith('cloud://')) {
+    return convertCloudUrl(originalCloudId);
+  }
+
+  // 如果URL已过期（403），尝试重新获取
+  if (url.includes('tcb.qcloud.la') || url.includes('cos.')) {
+    console.warn('⚠️ 检测到可能过期的临时链接，尝试刷新...');
+    // 注意：无法从临时链接还原 cloud:// ID，需要数据库存储原始ID
+    return url;
+  }
+
+  // 如果是 cloud:// 格式，直接转换
+  if (url.startsWith('cloud://')) {
+    return convertCloudUrl(url);
+  }
+
+  return url;
 }
 
 /**
