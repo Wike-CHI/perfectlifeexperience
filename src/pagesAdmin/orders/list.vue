@@ -151,34 +151,56 @@ const goToDetail = (order: any) => {
 }
 
 // 处理更新订单状态
-const handleUpdateStatus = async (order: any, status: string) => {
-  try {
-    uni.showLoading({ title: '更新中...' })
+const handleUpdateStatus = async (order: any) => {
+  // 定义可选状态（根据当前状态过滤）
+  const currentStatus = order.status
+  const statusOptions = [
+    { label: '待付款', value: 'pending' },
+    { label: '已付款', value: 'paid' },
+    { label: '配送中', value: 'shipping' },
+    { label: '已完成', value: 'completed' },
+    { label: '已取消', value: 'cancelled' }
+  ].filter(option => option.value !== currentStatus) // 过滤掉当前状态
 
-    await callFunction('admin-api', {
-      action: 'updateOrderStatus',
-      adminToken: AdminAuthManager.getToken(),
-      data: {
-        orderId: order.id || order._id,
-        status
+  // 显示操作菜单
+  const itemList = statusOptions.map(opt => opt.label)
+
+  uni.showActionSheet({
+    itemList,
+    success: async (res) => {
+      if (res.tapIndex >= 0) {
+        const selectedStatus = statusOptions[res.tapIndex].value
+
+        try {
+          uni.showLoading({ title: '更新中...' })
+
+          await callFunction('admin-api', {
+            action: 'updateOrderStatus',
+            adminToken: AdminAuthManager.getToken(),
+            data: {
+              orderId: order.id || order._id,
+              status: selectedStatus
+            }
+          })
+
+          uni.hideLoading()
+          uni.showToast({
+            title: '更新成功',
+            icon: 'success'
+          })
+
+          // 刷新列表
+          refresh()
+        } catch (error: any) {
+          uni.hideLoading()
+          uni.showToast({
+            title: error.message || '更新失败',
+            icon: 'none'
+          })
+        }
       }
-    })
-
-    uni.hideLoading()
-    uni.showToast({
-      title: '更新成功',
-      icon: 'success'
-    })
-
-    // 刷新列表
-    refresh()
-  } catch (error: any) {
-    uni.hideLoading()
-    uni.showToast({
-      title: error.message || '更新失败',
-      icon: 'none'
-    })
-  }
+    }
+  })
 }
 
 // 处理删除订单
