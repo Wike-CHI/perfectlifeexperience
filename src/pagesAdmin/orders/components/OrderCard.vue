@@ -104,9 +104,9 @@ const emit = defineEmits<{
   delete: [order: Order]
 }>()
 
-// 统一使用 products 字段
+// 统一使用 items 和 products 字段（兼容处理）
 const orderItems = computed(() => {
-  return props.order.products || []
+  return props.order.items || props.order.products || []
 })
 
 // 商品名称摘要

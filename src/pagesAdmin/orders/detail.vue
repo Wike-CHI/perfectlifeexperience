@@ -80,10 +80,10 @@
     <!-- 商品列表 -->
     <admin-card title="商品清单" class="section-card">
       <view class="product-list">
-        <view v-for="item in detail.products" :key="item.id || item.productId" class="product-item">
+        <view v-for="item in orderItems" :key="item.id || item.productId" class="product-item">
           <image class="product-image" :src="item.image || '/static/logo.png'" mode="aspectFill" />
           <view class="product-details">
-            <text class="product-name">{{ item.name }}</text>
+            <text class="product-name">{{ item.productName || item.name }}</text>
             <view class="product-meta">
               <text class="product-spec">{{ item.spec || '' }}</text>
               <text class="product-price">¥{{ formatPrice(item.price) }}</text>
@@ -140,7 +140,7 @@ const { detail, loading, loadDetail } = useAdminDetail({
     const userInfo = data.user || {}
     return {
       ...orderData,
-      products: orderData.products || [],
+      items: orderData.items || orderData.products || [],
       userName: orderData.userName || userInfo.nickName || userInfo.name || '未知用户',
       userPhone: orderData.userPhone || userInfo.phone || userInfo.mobile || '',
       userAvatar: userInfo.avatarUrl || userInfo.avatar || ''
@@ -152,6 +152,12 @@ const { detail, loading, loadDetail } = useAdminDetail({
   onError: (error) => {
     console.error('加载订单详情失败', error)
   }
+})
+
+// 兼容 items 和 products 字段
+const orderItems = computed(() => {
+  if (!detail.value) return []
+  return detail.value.items || detail.value.products || []
 })
 
 // 初始化
