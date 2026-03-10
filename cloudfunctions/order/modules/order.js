@@ -129,8 +129,8 @@ async function validateCartItems(cartItems) {
     } else if (cartItem.specs && product.priceList && product.priceList.length > 0) {
       const specsStr = cartItem.specs.toString().trim();
       const priceItem = product.priceList.find(p => {
-        if (!p.specs) return false;
-        return p.specs.toString().trim() === specsStr;
+        if (!p.volume) return false;
+        return p.volume.toString().trim() === specsStr;
       });
 
       if (!priceItem) {
