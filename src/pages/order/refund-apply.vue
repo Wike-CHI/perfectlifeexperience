@@ -41,7 +41,7 @@
     </view>
 
     <!-- 选择商品 -->
-    <view class="section-card" v-if="order && order.products">
+    <view class="section-card" v-if="order && orderItems.length > 0">
       <view class="card-title">
         选择退款商品
         <text class="select-all" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</text>
@@ -49,7 +49,7 @@
       <view class="product-list">
         <view
           class="product-item"
-          v-for="(product, index) in order.products"
+          v-for="(item, index) in orderItems"
           :key="index"
         >
           <view class="product-checkbox" @click="toggleProduct(index)">
@@ -57,11 +57,11 @@
               <text v-if="selectedProducts.has(index)">✓</text>
             </view>
           </view>
-          <image class="product-img" :src="getDetailThumbnail(product.image || product.productImage || '')" mode="aspectFill" />
+          <image class="product-img" :src="getDetailThumbnail(item.image || '')" mode="aspectFill" />
           <view class="product-info">
-            <text class="product-name">{{ product.name }}</text>
-            <text class="product-price">¥{{ formatPrice(product.price) }}</text>
-            <text class="product-quantity">x{{ product.quantity }}</text>
+            <text class="product-name">{{ item.productName }}</text>
+            <text class="product-price">¥{{ formatPrice(item.price) }}</text>
+            <text class="product-quantity">x{{ item.quantity }}</text>
           </view>
           <view class="quantity-control" v-if="selectedProducts.has(index)">
             <text class="control-btn" @click="decreaseQuantity(index)">-</text>
@@ -127,7 +127,8 @@ import { getDetailThumbnail } from '@/utils/image';
 interface Order {
   _id: string
   orderNo: string
-  products: OrderItem[]
+  items?: OrderItem[]
+  products?: OrderItem[]
   totalAmount: number
   status: 'pending' | 'paid' | 'shipping' | 'completed' | 'cancelled'
   address?: {
@@ -145,7 +146,8 @@ interface Order {
 
 interface OrderItem {
   productId: string
-  name: string
+  name?: string
+  productName?: string
   price: number
   quantity: number
   specs?: string
@@ -175,16 +177,23 @@ const refundReason = ref('');
 const customReason = ref('');
 const showCustomReason = ref(false);
 
+// 兼容 items 和 products 字段
+const orderItems = computed(() => {
+  if (!order.value) return [];
+  // 优先使用 items，否则使用 products
+  return order.value.items || order.value.products || [];
+});
+
 // 计算退款金额
 const calculatedRefundAmount = computed(() => {
   if (!order.value) return 0;
 
   let total = 0;
   for (const index of selectedProducts.value) {
-    const product = order.value.products?.[index];
-    if (product) {
+    const item = orderItems.value[index];
+    if (item) {
       const qty = refundQuantities.value[index] || 1;
-      total += product.price * qty;
+      total += item.price * qty;
     }
   }
   return total;
@@ -192,8 +201,9 @@ const calculatedRefundAmount = computed(() => {
 
 // 是否全选
 const allSelected = computed(() => {
-  if (!order.value || order.value.products.length === 0) return false;
-  return selectedProducts.value.size === order.value.products.length;
+  const items = orderItems.value;
+  if (items.length === 0) return false;
+  return selectedProducts.value.size === items.length;
 });
 
 // 是否可以提交
@@ -216,31 +226,32 @@ const toggleProduct = (index: number) => {
     delete refundQuantities.value[index];
   } else {
     selectedProducts.value.add(index);
-    const product = order.value?.products?.[index];
-    if (product) {
-      refundQuantities.value[index] = product.quantity || 1;
+    const item = orderItems.value[index];
+    if (item) {
+      refundQuantities.value[index] = item.quantity || 1;
     }
   }
 };
 
 // 全选/取消全选
 const toggleSelectAll = () => {
+  const items = orderItems.value;
   if (allSelected.value) {
     selectedProducts.value.clear();
     refundQuantities.value = {};
   } else {
-    order.value?.products?.forEach((_, index) => {
+    items.forEach((_, index) => {
       selectedProducts.value.add(index);
-      refundQuantities.value[index] = order.value.products[index].quantity || 1;
+      refundQuantities.value[index] = items[index].quantity || 1;
     });
   }
 };
 
 // 增加退款数量
 const increaseQuantity = (index: number) => {
-  const product = order.value?.products?.[index];
-  if (product) {
-    const maxQty = product.quantity || 1;
+  const item = orderItems.value[index];
+  if (item) {
+    const maxQty = item.quantity || 1;
     const currentQty = refundQuantities.value[index] || 1;
     if (currentQty < maxQty) {
       refundQuantities.value[index] = currentQty + 1;
@@ -271,10 +282,10 @@ const selectReason = (reason: string) => {
 const submitRefund = async () => {
   if (!canSubmit.value || !order.value) return;
 
-  const products = Array.from(selectedProducts.value).map(index => {
-    const product = order.value!.products![index];
+  const items = Array.from(selectedProducts.value).map(index => {
+    const item = orderItems.value[index];
     return {
-      productId: product.productId || product._id!,
+      productId: item.productId,
       refundQuantity: refundQuantities.value[index]
     };
   });
@@ -287,7 +298,7 @@ const submitRefund = async () => {
       orderId: orderId.value,
       refundType: refundType.value,
       refundReason: finalReason,
-      products: products
+      products: items
     });
     uni.hideLoading();
     uni.showToast({ title: '申请成功', icon: 'success' });
