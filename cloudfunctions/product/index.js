@@ -398,11 +398,17 @@ async function getHotProducts(data) {
       .field({
         _id: true,
         name: true,
+        enName: true,
         images: true,
         price: true,
         priceList: true,
         volume: true,
-        sales: true
+        sales: true,
+        alcoholContent: true,
+        brewery: true,
+        originalPrice: true,
+        tags: true,
+        category: true
       })
       .limit(limit)
       .orderBy('createTime', 'desc')
@@ -449,11 +455,17 @@ async function getNewProducts(data) {
       .field({
         _id: true,
         name: true,
+        enName: true,
         images: true,
         price: true,
         priceList: true,
         volume: true,
-        sales: true
+        sales: true,
+        alcoholContent: true,
+        brewery: true,
+        originalPrice: true,
+        tags: true,
+        category: true
       })
       .limit(limit)
       .orderBy('createTime', 'desc')
@@ -484,6 +496,10 @@ async function getNewProducts(data) {
 async function getHomePageData(data) {
   const cacheKey = 'homepage_aggregate';
 
+  // 🔄 清除旧缓存（字段更新后需要刷新）
+  // 注意：首次部署后可注释掉此行以启用缓存
+  productCache.delete(cacheKey);
+
   // 尝试从缓存获取
   const cached = productCache.get(cacheKey);
   if (cached !== null) {
@@ -497,8 +513,19 @@ async function getHomePageData(data) {
       db.collection('products')
         .where({ isHot: true })
         .field({
-          _id: true, name: true, images: true, price: true,
-          priceList: true, volume: true, sales: true
+          _id: true,
+          name: true,
+          enName: true,
+          images: true,
+          price: true,
+          priceList: true,
+          volume: true,
+          sales: true,
+          alcoholContent: true,
+          brewery: true,
+          originalPrice: true,
+          tags: true,
+          category: true
         })
         .limit(6)
         .orderBy('createTime', 'desc')
@@ -508,8 +535,19 @@ async function getHomePageData(data) {
       db.collection('products')
         .where({ isNew: true })
         .field({
-          _id: true, name: true, images: true, price: true,
-          priceList: true, volume: true, sales: true
+          _id: true,
+          name: true,
+          enName: true,
+          images: true,
+          price: true,
+          priceList: true,
+          volume: true,
+          sales: true,
+          alcoholContent: true,
+          brewery: true,
+          originalPrice: true,
+          tags: true,
+          category: true
         })
         .limit(6)
         .orderBy('createTime', 'desc')
@@ -518,8 +556,19 @@ async function getHomePageData(data) {
       // 所有商品（用于销量排序）
       db.collection('products')
         .field({
-          _id: true, name: true, images: true, price: true,
-          priceList: true, volume: true, sales: true
+          _id: true,
+          name: true,
+          enName: true,
+          images: true,
+          price: true,
+          priceList: true,
+          volume: true,
+          sales: true,
+          alcoholContent: true,
+          brewery: true,
+          originalPrice: true,
+          tags: true,
+          category: true
         })
         .limit(20)
         .get(),
