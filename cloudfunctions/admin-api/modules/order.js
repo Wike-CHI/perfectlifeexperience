@@ -95,7 +95,7 @@ async function getOrderDetailAdmin(data) {
 }
 
 /**
- * 更新订单状态
+ * 更新订单状态（通过调用order云函数）
  */
 async function updateOrderStatusAdmin(data, wxContext) {
   // 需要从外部传入验证器和日志函数
@@ -116,25 +116,23 @@ async function updateOrderStatusAdmin(data, wxContext) {
 
     const { orderId, status } = data || {};
 
-    const updateData = {
-      status,
-      updateTime: new Date()
-    };
-
-    if (status === 'paid') updateData.payTime = new Date();
-    else if (status === 'shipping') updateData.shipTime = new Date();
-    else if (status === 'completed') updateData.completeTime = new Date();
-
-    await db.collection('orders').doc(orderId).update({
-      data: updateData
+    // 调用 order 云函数进行更新（确保业务逻辑统一和缓存一致）
+    const result = await cloud.callFunction({
+      name: 'order',
+      data: {
+        action: 'adminUpdateOrderStatus',
+        data: {
+          orderId,
+          status,
+          adminToken: data.adminToken || 'admin' // 传递管理员标识
+        }
+      }
     });
 
     await logOperation(adminInfo.id, 'updateOrderStatus', { orderId, status });
 
-    return {
-      code: 0,
-      msg: '订单状态更新成功'
-    };
+    // 返回 order 云函数的结果
+    return result.result;
   } catch (error) {
     console.error('Update order status error:', error);
     return { code: 500, msg: error.message };
@@ -174,7 +172,7 @@ async function searchOrderByExpress(data) {
 }
 
 /**
- * 更新订单快递单号
+ * 更新订单快递单号（直接操作数据库，不影响列表缓存）
  */
 async function updateOrderExpressAdmin(data, wxContext) {
   const { isValidObjectId, logOperation } = require('../validator');

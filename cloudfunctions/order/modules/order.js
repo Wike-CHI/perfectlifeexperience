@@ -440,6 +440,91 @@ async function updateOrderStatus(openid, orderId, status) {
 }
 
 /**
+ * 管理员更新订单状态（绕过openid验证，但保留业务逻辑）
+ * @param {string} orderId - 订单ID
+ * @param {string} status - 目标状态
+ */
+async function adminUpdateOrderStatus(orderId, status) {
+  try {
+    logger.info('Admin updating order status', { orderId, status });
+
+    // 查询订单（不需要openid验证）
+    const orderRes = await db.collection('orders')
+      .where({ _id: orderId })
+      .get();
+
+    if (orderRes.data.length === 0) {
+      logger.warn('Order not found for admin update', { orderId });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+    }
+
+    const order = orderRes.data[0];
+    const openid = order._openid;
+
+    // 管理员可以自由转换状态（不限制状态转换规则）
+    const updateData = { status, updateTime: new Date() };
+
+    if (status === 'paid') updateData.payTime = new Date();
+    else if (status === 'shipping') updateData.shipTime = new Date();
+    else if (status === 'completed') updateData.completeTime = new Date();
+    else if (status === 'cancelled') {
+      updateData.cancelTime = new Date();
+      updateData.cancelReason = '管理员取消';
+    }
+
+    const updateResult = await db.collection('orders')
+      .where({ _id: orderId })
+      .update({ data: updateData });
+
+    if (updateResult.stats.updated === 0) {
+      logger.warn('Order update failed - concurrent modification', { orderId });
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单状态更新失败，请重试');
+    }
+
+    logger.info('Order status updated by admin', { orderId, status });
+
+    // 处理取消订单逻辑
+    if (status === 'cancelled') {
+      if (order.items && order.items.length > 0) {
+        logger.info('Restoring stock for cancelled order (admin)', { orderId });
+        const orderInfoForStock = {
+          orderId: order._id,
+          orderNo: order.orderNo,
+          openid: openid
+        };
+        await restoreStock(order.items, { orderInfo: orderInfoForStock });
+      }
+
+      if (order.couponId) {
+        logger.info('Restoring coupon for cancelled order (admin)', { orderId, couponId: order.couponId });
+        await restoreCoupon(openid, order.couponId, order.orderNo);
+      }
+    }
+
+    // 处理完成订单奖励结算
+    if (status === 'completed') {
+      if (!order.rewardSettled) {
+        logger.info('Triggering reward settlement (admin)', { orderId });
+        await settleOrderReward(order._openid, orderId, order.totalAmount);
+      }
+    }
+
+    // 清除用户端订单缓存（所有状态）
+    const orderStatuses = ['all', 'pending', 'paid', 'shipping', 'completed', 'cancelled'];
+    orderStatuses.forEach(s => {
+      const cacheKey = `orders_${openid}_${s}`;
+      userCache.delete(cacheKey);
+    });
+    logger.debug('User order cache cleared after admin update', { openid });
+
+    return success(null, '订单状态更新成功');
+  } catch (err) {
+    logger.error('Failed to admin update order status', err);
+    return error(ErrorCodes.DATABASE_ERROR, '订单状态更新失败', err.message);
+  }
+}
+
+/**
  * 余额支付订单
  * @param {string} openid - 用户openid
  * @param {Object} data - 支付数据
@@ -580,6 +665,7 @@ module.exports = {
   getOrders,
   getOrderDetail,
   updateOrderStatus,
+  adminUpdateOrderStatus,
   payWithBalance,
   validateCartItems,
   parseCartItems
