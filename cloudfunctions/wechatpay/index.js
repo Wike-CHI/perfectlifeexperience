@@ -715,12 +715,15 @@ async function confirmRecharge(data, config) {
   }
 
   try {
+    logger.info('[充值确认] 开始处理', { orderNo });
+
     // 1. 查询充值订单
     const orderRes = await db.collection('recharge_orders')
       .where({ orderNo: orderNo })
       .get();
 
     if (orderRes.data.length === 0) {
+      logger.error('[充值确认] 订单不存在', { orderNo });
       return {
         success: false,
         code: 'ORDER_NOT_FOUND',
@@ -729,9 +732,17 @@ async function confirmRecharge(data, config) {
     }
 
     const rechargeOrder = orderRes.data[0];
+    logger.info('[充值确认] 订单信息', {
+      orderNo,
+      status: rechargeOrder.status,
+      amount: rechargeOrder.amount,
+      giftAmount: rechargeOrder.giftAmount || 0,
+      openid: rechargeOrder._openid
+    });
 
     // 2. 如果已经支付成功，直接返回
     if (rechargeOrder.status === 'paid') {
+      logger.info('[充值确认] 订单已支付，跳过处理', { orderNo });
       return success({
         amount: rechargeOrder.amount,
         giftAmount: rechargeOrder.giftAmount || 0
@@ -740,25 +751,40 @@ async function confirmRecharge(data, config) {
 
     // 3. 查询微信支付订单状态
     const queryResult = await queryOrderByOutTradeNo(orderNo, config);
-    logger.debug('微信支付查询结果', { orderNo, tradeState: queryResult.trade_state });
+    logger.info('[充值确认] 微信支付查询结果', {
+      orderNo,
+      tradeState: queryResult.trade_state,
+      tradeStateDesc: queryResult.trade_state_desc
+    });
 
     // 4. 检查支付状态
     const tradeState = queryResult.trade_state;
     if (tradeState === 'SUCCESS') {
       // 支付成功，更新订单和钱包
+      logger.info('[充值确认] 支付成功，开始更新钱包', {
+        orderNo,
+        amount: rechargeOrder.amount,
+        giftAmount: rechargeOrder.giftAmount || 0
+      });
+
       await handleRechargePaymentSuccess(rechargeOrder, db);
 
-      logger.info('充值成功', { orderNo, amount: rechargeOrder.amount, giftAmount: rechargeOrder.giftAmount || 0 });
+      logger.info('[充值确认] 钱包更新完成', { orderNo });
       return success({
         amount: rechargeOrder.amount,
         giftAmount: rechargeOrder.giftAmount || 0
       }, '充值成功');
     } else {
       // 支付未成功
+      logger.warn('[充值确认] 支付未成功', {
+        orderNo,
+        tradeState,
+        tradeStateDesc: queryResult.trade_state_desc
+      });
       return error(ErrorCodes.TRANSACTION_FAILED, `支付状态: ${tradeState}`);
     }
   } catch (err) {
-    logger.error('确认充值失败', err);
+    logger.error('[充值确认] 处理失败', err);
     return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }
@@ -904,9 +930,16 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
   const { _id, _openid, orderNo, amount, giftAmount = 0 } = rechargeOrder;
   const totalAmount = amount + giftAmount;
 
-  console.log(`[充值成功] 订单号: ${orderNo}, 本金: ${amount}分, 赠送: ${giftAmount}分, 总计: ${totalAmount}分`);
+  logger.info(`[充值处理] 开始处理支付成功`, {
+    orderNo,
+    openid: _openid,
+    amount,
+    giftAmount,
+    totalAmount
+  });
 
   // 1. 更新充值订单状态
+  logger.info(`[充值处理] 更新订单状态为paid`, { orderId: _id });
   await db.collection('recharge_orders').doc(_id).update({
     data: {
       status: 'paid',
@@ -926,8 +959,15 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
     .where({ _openid: _openid })
     .get();
 
+  logger.info(`[充值处理] 查询钱包结果`, {
+    openid: _openid,
+    walletExists: walletRes.data.length > 0,
+    currentBalance: walletRes.data.length > 0 ? walletRes.data[0].balance : 0
+  });
+
   if (walletRes.data.length === 0) {
     // 创建钱包
+    logger.info(`[充值处理] 创建新钱包`, { openid: _openid, initialBalance: totalAmount });
     await db.collection(WALLETS_COLLECTION).add({
       data: {
         _openid: _openid,
@@ -938,6 +978,15 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
       }
     });
   } else {
+    const currentBalance = walletRes.data[0].balance;
+    const newBalance = currentBalance + totalAmount;
+    logger.info(`[充值处理] 更新钱包余额`, {
+      openid: _openid,
+      currentBalance,
+      increment: totalAmount,
+      newBalance
+    });
+
     // 更新钱包余额
     await db.collection(WALLETS_COLLECTION).doc(walletRes.data[0]._id).update({
       data: {
@@ -954,6 +1003,12 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
     ? `充值¥${(amount / 100).toFixed(0)}（赠¥${(giftAmount / 100).toFixed(0)}）`
     : `钱包充值`;
 
+  logger.info(`[充值处理] 记录交易日志`, {
+    openid: _openid,
+    title,
+    totalAmount
+  });
+
   await db.collection(TRANSACTIONS_COLLECTION).add({
     data: {
       _openid: _openid,
@@ -968,7 +1023,7 @@ async function handleRechargePaymentSuccess(rechargeOrder, db) {
     }
   });
 
-  console.log(`[充值成功] 钱包余额已更新，用户: ${_openid}, 新增余额: ${totalAmount}分`);
+  logger.info(`[充值处理] 完成，用户: ${_openid}, 新增余额: ${totalAmount}分`);
 }
 
 /**

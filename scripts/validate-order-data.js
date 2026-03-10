@@ -11,9 +11,7 @@
  * 7. 查看控制台输出
  */
 
-const cloud = require('wx-server-sdk');
-cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
-const db = cloud.database();
+const
 
 async function validateOrderData() {
   console.log('╔══════════════════════════════════════════════╗');
@@ -48,7 +46,9 @@ async function validateOrderData() {
     console.log('   订单ID:', order._id);
     console.log('   订单号:', order.orderNo);
     console.log('   订单状态:', order.status);
-    console.log('');
+    console.log(''); cloud = require('wx-server-sdk');
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const db = cloud.database();
 
     // ===== 第二步：验证订单字段 =====
     console.log('🔍 第二步：验证订单字段结构');
