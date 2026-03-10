@@ -2,6 +2,9 @@
  * 地址/店铺/钱包/配置/供应商模块
  */
 
+// 引入统一配置管理
+const { ensureSystemConfig, DEFAULT_COMMISSION_CONFIG } = require('../defaultConfig');
+
 // 获取用户地址列表
 async function getAddresses(db, data) {
   try {
@@ -74,33 +77,28 @@ async function getCommissionWallets(db, data) {
 // 获取系统配置
 async function getSystemConfig(db) {
   try {
-    const result = await db.collection('system_config')
-      .where({ type: 'commission_config' })
-      .limit(1)
-      .get();
+    // 确保配置已初始化（如果数据库中没有配置，自动创建默认配置）
+    const config = await ensureSystemConfig(db);
 
-    if (result.data.length === 0) {
-      return { code: 0, data: {} };
-    }
-
-    const config = result.data[0];
     // 扁平返回（去除 config 嵌套），同时转换分→元用于管理端显示
     const displayData = {
       _id: config._id,
       type: config.type,
-      level1Commission: config.level1Commission ?? 20,
-      level2Commission: config.level2Commission ?? 12,
-      level3Commission: config.level3Commission ?? 8,
-      level4Commission: config.level4Commission ?? 4,
+      level1Commission: config.level1Commission,
+      level2Commission: config.level2Commission,
+      level3Commission: config.level3Commission,
+      level4Commission: config.level4Commission,
       // 金额字段：分→元（除以100）
-      bronzeTotalSales: (config.bronzeTotalSales ?? 2000000) / 100,
-      silverMonthSales: (config.silverMonthSales ?? 5000000) / 100,
-      silverTeamCount: config.silverTeamCount ?? 50,
-      goldMonthSales: (config.goldMonthSales ?? 10000000) / 100,
-      goldTeamCount: config.goldTeamCount ?? 200,
-      minWithdrawAmount: (config.minWithdrawAmount ?? 10000) / 100,
-      withdrawFeeRate: config.withdrawFeeRate ?? 0,
-      rechargeOptions: config.rechargeOptions ?? [],
+      bronzeTotalSales: config.bronzeTotalSales / 100,
+      silverMonthSales: config.silverMonthSales / 100,
+      silverTeamCount: config.silverTeamCount,
+      goldMonthSales: config.goldMonthSales / 100,
+      goldTeamCount: config.goldTeamCount,
+      minWithdrawAmount: config.minWithdrawAmount / 100,
+      maxWithdrawAmount: config.maxWithdrawAmount / 100,
+      maxDailyWithdraws: config.maxDailyWithdraws,
+      withdrawFeeRate: config.withdrawFeeRate,
+      rechargeOptions: config.rechargeOptions || [],
       updateTime: config.updateTime
     };
 
@@ -117,10 +115,11 @@ async function updateSystemConfig(db, data) {
 
     // 金额字段列表（需要元→分转换）
     const amountFields = [
-      'bronzeTotalSales', 'silverMonthSales', 'goldMonthSales', 'minWithdrawAmount'
+      'bronzeTotalSales', 'silverMonthSales', 'goldMonthSales',
+      'minWithdrawAmount', 'maxWithdrawAmount'  // 新增字段
     ];
     // 整数字段列表
-    const intFields = ['silverTeamCount', 'goldTeamCount'];
+    const intFields = ['silverTeamCount', 'goldTeamCount', 'maxDailyWithdraws'];  // 新增字段
     // 百分比字段列表
     const percentFields = [
       'level1Commission', 'level2Commission', 'level3Commission', 'level4Commission', 'withdrawFeeRate'
