@@ -8,7 +8,16 @@ async function getOrders(db, data) {
     const { page = 1, limit = 20, status, keyword, startDate, endDate } = data || {};
     const { skip, limit: validLimit } = calcPagination(page, limit);
     let query = {};
-    if (status && status !== 'all') query.status = status;
+
+    // 支持数组状态查询（用于处理中、退款等分组）
+    if (status && status !== 'all') {
+      if (Array.isArray(status)) {
+        query.status = db.command.in(status);
+      } else {
+        query.status = status;
+      }
+    }
+
     if (keyword) query.orderNo = db.RegExp({ regexp: keyword, options: 'i' });
     if (startDate || endDate) {
       query.createTime = {};
@@ -93,34 +102,10 @@ async function updateOrderStatus(db, logOperation, data, wxContext) {
   }
 }
 
-async function searchOrderByExpress(db, data) {
-  try {
-    // 统一使用 expressNo 参数
-    const { expressNo } = data || {};
-    if (!expressNo) return { code: -2, msg: '缺少快递单号' };
-    const result = await db.collection('orders').where({ expressNo: db.RegExp({ regexp: expressNo, options: 'i' }) }).get();
-    return { code: 0, data: result.data };
-  } catch (error) {
-    console.error('Search order error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
-
-async function updateOrderExpress(db, logOperation, data, wxContext) {
-  try {
-    const adminInfo = wxContext.ADMIN_INFO || { id: 'system' };
-    // 统一使用 orderId, expressNo 参数
-    const { orderId, expressNo, expressCompany } = data || {};
-    if (!orderId) return { code: -2, msg: '缺少订单ID' };
-
-    await db.collection('orders').doc(orderId).update({ data: { expressNo, expressCompany, updateTime: db.serverDate() } });
-    await logOperation(adminInfo.id, 'updateOrderExpress', { orderId, expressNo, expressCompany });
-    return { code: 0, msg: '快递信息更新成功' };
-  } catch (error) {
-    console.error('Update express error:', error);
-    return { code: 500, msg: error.message };
-  }
-}
+// 快递相关功能已移除（2026年3月重构）
+// 不再支持快递单号查询和更新功能
+// async function searchOrderByExpress(db, data) { ... }
+// async function updateOrderExpress(db, logOperation, data, wxContext) { ... }
 
 async function deleteOrder(db, logOperation, data, wxContext) {
   try {
@@ -144,4 +129,4 @@ async function deleteOrder(db, logOperation, data, wxContext) {
   }
 }
 
-module.exports = { getOrders, getOrderDetail, updateOrderStatus, searchOrderByExpress, updateOrderExpress, deleteOrder };
+module.exports = { getOrders, getOrderDetail, updateOrderStatus, deleteOrder };

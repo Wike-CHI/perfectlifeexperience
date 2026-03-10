@@ -93,9 +93,9 @@
         <view class="card-title">退款商品</view>
         <view class="card-body">
           <view class="product-item" v-for="(product, index) in refund.products" :key="index">
-            <image class="product-img" :src="product.productImage || ''" mode="aspectFill" />
+            <image class="product-img" :src="product.image || product.productImage || ''" mode="aspectFill" />
             <view class="product-info">
-              <text class="product-name">{{ product.productName }}</text>
+              <text class="product-name">{{ product.name || product.productName }}</text>
               <text class="product-quantity">购买数量：{{ product.quantity }}</text>
               <text class="product-refund-quantity">退款数量：{{ product.refundQuantity }}</text>
             </view>
@@ -263,8 +263,10 @@ interface Refund {
   createTime: Date
   updateTime: Date
   products?: Array<{
-    productName: string
-    productImage: string
+    name?: string
+    productName?: string  // 兼容旧数据
+    image?: string
+    productImage?: string  // 兼容旧数据
     quantity: number
     price: number
   }>

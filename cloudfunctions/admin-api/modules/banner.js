@@ -371,29 +371,20 @@ async function uploadProductImage(db, data, wxContext) {
       fileContent: processedBuffer
     });
 
-    // 🔧 使用永久下载URL，而不是临时URL
-    // 临时URL有时效性限制（通常几小时），过期后返回403错误
-    let downloadURL = '';
-    try {
-      const urlResult = await cloud.getTempFileURL({
-        fileList: [result.fileID],
-        max_age: 7200  // 2小时（秒）
-      });
-      if (urlResult.fileList && urlResult.fileList[0]) {
-        // 优先使用 downloadURL（永久URL）
-        downloadURL = urlResult.fileList[0].downloadURL || urlResult.fileList[0].tempFileURL;
-      }
-    } catch (e) {
-      console.error('获取永久URL失败', e);
-      // 降级：直接使用fileID，前端需要时再获取临时URL
-      downloadURL = result.fileID;
-    }
+    // 🔥 直接返回 fileID（cloud:// 格式），不返回临时链接
+    // 原因：临时链接会过期（max_age: 7200秒 = 2小时），导致图片403
+    // 解决：前端显示图片时，使用 wx.cloud.getTempFileURL() 动态获取临时链接
+    console.log('✅ 图片上传成功:', {
+      fileID: result.fileID,
+      cloudPath: result.cloudPath
+    });
 
     return {
       code: 0,
       data: {
-        fileID: result.fileID,
-        url: downloadURL
+        fileID: result.fileID,        // cloud:// 格式的永久文件ID
+        url: result.fileID,            // 直接返回fileID，不返回临时链接
+        cloudPath: result.cloudPath
       },
       msg: '上传成功'
     };

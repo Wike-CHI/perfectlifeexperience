@@ -255,6 +255,14 @@ export interface CategoryDB {
  * orders 集合
  * 数据库集合名: orders
  * 描述: 订单信息表
+ *
+ * @更新日志:
+ * - 2026-03-10 15:00: 数据库验证后修正
+ *   - 验证发现：数据库同时存在 items 和 products 字段
+ *   - products 字段结构完整（包含 name, image, specs）
+ *   - items 字段结构不完整（只有 productName，缺少 image, specs）
+ *   - 决策：统一使用 products 字段（与实际数据一致）
+ *   - 2026-03-10 10:00: 初次字段标准化（错误，已修正）
  */
 export interface OrderDB {
   _id: string
@@ -265,8 +273,10 @@ export interface OrderDB {
   totalAmount: number
   /** 订单状态 */
   status: OrderStatus
-  /** 产品列表 */
+  /** 商品列表 (完整字段，实际使用) */
   products: OrderProduct[]
+  /** 商品列表 (过渡期兼容，结构不完整，建议未来删除) */
+  items?: OrderProduct[]
   /** 收货地址 */
   address: OrderAddress
   /** 用户备注 */
@@ -279,10 +289,6 @@ export interface OrderDB {
   shipTime?: DBDate
   /** 完成时间 */
   completeTime?: DBDate
-  /** 快递公司 */
-  expressCompany?: string
-  /** 快递单号 */
-  expressNo?: string
   /** 创建时间 */
   createTime: DBDate
   /** 更新时间 */
@@ -311,14 +317,23 @@ export enum OrderStatus {
 
 /**
  * 订单产品
+ *
+ * @更新日志:
+ * - 2026-03-10: 添加别名支持以兼容前端代码
+ *   - productName: name 的别名（后端可能返回）
+ *   - productImage: image 的别名（后端可能返回）
  */
 export interface OrderProduct {
   /** 产品ID */
   productId: string
   /** 产品名称 */
   name: string
+  /** 产品名称别名（兼容旧数据） */
+  productName?: string
   /** 产品图片 */
   image: string
+  /** 产品图片别名（兼容旧数据） */
+  productImage?: string
   /** 价格（分） */
   price: number
   /** 数量 */

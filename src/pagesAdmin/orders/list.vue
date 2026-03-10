@@ -27,9 +27,6 @@
         />
         <AdminIcon v-if="searchKeyword" name="close" size="small" class="clear-icon" @click="clearSearchHandle" />
       </view>
-      <button class="scan-btn" @click="handleScan">
-        <AdminIcon name="scan" size="small" variant="gold" />
-      </button>
     </view>
 
     <!-- 订单列表 -->
@@ -39,7 +36,7 @@
         :key="order.id"
         :order="order"
         @click="goToDetail"
-        @scan="handleScanOrder"
+        @detail="goToDetail"
         @update-status="handleUpdateStatus"
         @delete="handleDeleteOrder"
       />
@@ -74,21 +71,21 @@ import { callFunction } from '@/utils/cloudbase'
 import { useAdminList } from '@/composables/useAdmin'
 import OrderCard from './components/OrderCard.vue'
 import AdminIcon from '@/components/admin-icon.vue'
+import { ORDER_STATUS_GROUPS } from '@/constants/order'
 
 /**
  * 订单管理列表页面
  * 使用 useAdminList composable 简化代码
+ * 2026年3月重构：简化状态标签，移除快递单号功能
  */
 
-// 状态标签
+// 状态标签（简化为6个：全部、待付款、处理中、已完成、退款、已取消）
 const statusTabs = ref([
   { label: '全部', value: 'all', count: 0 },
   { label: '待付款', value: 'pending', count: 0 },
-  { label: '待发货', value: 'paid', count: 0 },
-  { label: '待收货', value: 'shipping', count: 0 },
+  { label: '处理中', value: 'processing', count: 0 },
   { label: '已完成', value: 'completed', count: 0 },
-  { label: '退款中', value: 'refunding', count: 0 },
-  { label: '已退款', value: 'refunded', count: 0 },
+  { label: '退款', value: 'refund', count: 0 },
   { label: '已取消', value: 'cancelled', count: 0 }
 ])
 
@@ -108,9 +105,13 @@ const {
   action: 'getOrders',
   cachePrefix: 'orders',
   pageSize: 20,
-  extraParams: computed(() => ({
-    status: currentStatus.value === 'all' ? undefined : currentStatus.value
-  })),
+  extraParams: computed(() => {
+    // 获取当前状态分组对应的状态数组
+    const statusGroup = ORDER_STATUS_GROUPS[currentStatus.value as keyof typeof ORDER_STATUS_GROUPS]
+    return {
+      status: statusGroup?.value === 'all' ? undefined : statusGroup?.statuses
+    }
+  }),
   onLoaded: (data) => {
     console.log('订单列表加载完成', data.length)
   },
@@ -141,94 +142,11 @@ const clearSearchHandle = () => {
   clearSearch()
 }
 
-// 扫码查找订单
-const handleScan = () => {
-  uni.scanCode({
-    success: async (res) => {
-      await searchOrderByCode(res.result)
-    },
-    fail: () => {
-      uni.showToast({
-        title: '扫码失败',
-        icon: 'none'
-      })
-    }
-  })
-}
-
-// 根据快递单号搜索订单
-const searchOrderByCode = async (code: string) => {
-  try {
-    uni.showLoading({ title: '搜索中...' })
-
-    const res = await callFunction('admin-api', {
-      action: 'searchOrderByExpress',
-      adminToken: AdminAuthManager.getToken(),
-      data: { expressNo: code }
-    })
-
-    uni.hideLoading()
-
-    if (res.code === 0 && res.data) {
-      uni.navigateTo({
-        url: `/pagesAdmin/orders/detail?id=${res.data.id}`
-      })
-    } else {
-      uni.showToast({
-        title: res.msg || '未找到该订单',
-        icon: 'none',
-        duration: 2000
-      })
-    }
-  } catch (error: any) {
-    uni.hideLoading()
-    uni.showToast({
-      title: error.message || '搜索失败',
-      icon: 'none'
-    })
-  }
-}
-
 // 跳转到订单详情
 const goToDetail = (order: any) => {
   const orderId = order.id || order._id
   uni.navigateTo({
     url: `/pagesAdmin/orders/detail?id=${orderId}`
-  })
-}
-
-// 处理扫码更新快递单
-const handleScanOrder = async (order: any) => {
-  uni.scanCode({
-    success: async (res) => {
-      try {
-        uni.showLoading({ title: '更新中...' })
-
-        await callFunction('admin-api', {
-          action: 'updateOrderExpress',
-          adminToken: AdminAuthManager.getToken(),
-          data: {
-            orderId: order.id || order._id,
-            expressNo: res.result
-          }
-        })
-
-        uni.hideLoading()
-        uni.showToast({
-          title: '更新成功',
-          icon: 'success'
-        })
-
-        // 刷新列表
-        refresh()
-      } catch (error: any) {
-        uni.hideLoading()
-        uni.showToast({
-          title: error.message || '更新失败',
-          icon: 'none'
-        })
-      }
-    }
   })
 }
 
@@ -388,17 +306,6 @@ onReachBottom(() => {
 
 .clear-icon {
   padding: 8rpx;
-}
-
-.scan-btn {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #C9A962 0%, #a8863d 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
 }
 
 .orders-list {

@@ -45,13 +45,13 @@
       <view class="section-card goods-card">
         <view class="card-header">
           <text class="card-title">购物清单</text>
-          <text class="goods-count">共 {{ (order.items || order.products)?.length || 0 }} 件</text>
+          <text class="goods-count">共 {{ order.products?.length || 0 }} 件</text>
         </view>
         <view class="goods-list">
-          <view class="goods-item" v-for="(item, index) in (order.items || order.products)" :key="index">
-            <image class="goods-img" :src="getDetailThumbnail(item.productImage || item.image)" mode="aspectFill" />
+          <view class="goods-item" v-for="(item, index) in order.products" :key="item.productId || index">
+            <image class="goods-img" :src="item.image" mode="aspectFill" />
             <view class="goods-meta">
-              <text class="goods-name">{{ item.productName || item.name }}</text>
+              <text class="goods-name">{{ item.name }}</text>
               <view class="goods-price-row">
                 <text class="goods-quantity">x{{ item.quantity }}</text>
                 <text class="goods-price">¥{{ formatPrice(item.price) }}</text>

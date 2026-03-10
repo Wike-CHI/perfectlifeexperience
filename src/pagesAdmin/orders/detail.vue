@@ -80,10 +80,10 @@
     <!-- 商品列表 -->
     <admin-card title="商品清单" class="section-card">
       <view class="product-list">
-        <view v-for="item in detail.items" :key="item.id || item.productId" class="product-item">
-          <image class="product-image" :src="item.productImage || item.image || '/static/logo.png'" mode="aspectFill" />
+        <view v-for="item in detail.products" :key="item.id || item.productId" class="product-item">
+          <image class="product-image" :src="item.image || '/static/logo.png'" mode="aspectFill" />
           <view class="product-details">
-            <text class="product-name">{{ item.productName || item.name }}</text>
+            <text class="product-name">{{ item.name }}</text>
             <view class="product-meta">
               <text class="product-spec">{{ item.spec || '' }}</text>
               <text class="product-price">¥{{ formatPrice(item.price) }}</text>
@@ -94,31 +94,13 @@
       </view>
     </admin-card>
 
-    <!-- 物流信息 -->
-    <admin-card v-if="detail.expressNo" title="物流信息" class="section-card">
-      <view class="express-info">
-        <view class="express-row">
-          <text class="express-label">快递公司</text>
-          <text class="express-value">{{ detail.expressCompany || '未知' }}</text>
-        </view>
-        <view class="express-row">
-          <text class="express-label">快递单号</text>
-          <text class="express-value">{{ detail.expressNo }}</text>
-        </view>
-        <button class="scan-express-btn" @click="scanExpress">
-          <AdminIcon name="scan" size="small" />
-          <text>重新扫描</text>
-        </button>
-      </view>
-    </admin-card>
-
     <!-- 操作按钮 -->
     <view class="action-buttons">
       <button class="action-btn primary" @click="handleUpdateStatus">
         更新状态
       </button>
-      <button v-if="detail.status === 'paid'" class="action-btn secondary" @click="handleAddExpress">
-        添加物流
+      <button class="action-btn danger" @click="handleDelete">
+        删除订单
       </button>
     </view>
 
@@ -158,7 +140,7 @@ const { detail, loading, loadDetail } = useAdminDetail({
     const userInfo = data.user || {}
     return {
       ...orderData,
-      items: orderData.items || orderData.products || [],
+      products: orderData.products || [],
       userName: orderData.userName || userInfo.nickName || userInfo.name || '未知用户',
       userPhone: orderData.userPhone || userInfo.phone || userInfo.mobile || '',
       userAvatar: userInfo.avatarUrl || userInfo.avatar || ''
@@ -250,42 +232,6 @@ const showLocation = () => {
   openLocation()
 }
 
-// 扫描快递单
-const scanExpress = () => {
-  uni.scanCode({
-    success: async (res) => {
-      try {
-        uni.showLoading({ title: '更新中...' })
-
-        await callFunction('admin-api', {
-          action: 'updateOrderExpress',
-          adminToken: AdminAuthManager.getToken(),
-          data: {
-            orderId: detail.value.id || detail.value._id,
-            expressNo: res.result
-          }
-        })
-
-        uni.hideLoading()
-        uni.showToast({
-          title: '更新成功',
-          icon: 'success'
-        })
-
-        // 刷新详情
-        const orderId = getOrderIdFromOptions()
-        loadDetail(orderId)
-      } catch (error: any) {
-        uni.hideLoading()
-        uni.showToast({
-          title: error.message || '更新失败',
-          icon: 'none'
-        })
-      }
-    }
-  })
-}
-
 // 更新状态
 const handleUpdateStatus = () => {
   const statusOptions = [
@@ -339,39 +285,35 @@ const handleUpdateStatus = () => {
   })
 }
 
-// 添加物流信息
-const handleAddExpress = () => {
+// 删除订单
+const handleDelete = () => {
   uni.showModal({
-    title: '添加物流信息',
-    editable: true,
-    placeholderText: '请输入快递单号',
+    title: '确认删除',
+    content: '删除后无法恢复，确定要删除该订单吗？',
+    confirmColor: '#C44536',
     success: async (res) => {
-      if (res.confirm && res.content) {
+      if (res.confirm) {
         try {
-          uni.showLoading({ title: '添加中...' })
+          uni.showLoading({ title: '删除中...' })
 
           await callFunction('admin-api', {
-            action: 'updateOrderExpress',
+            action: 'deleteOrder',
             adminToken: AdminAuthManager.getToken(),
             data: {
-              orderId: detail.value.id || detail.value._id,
-              expressNo: res.content
+              orderId: detail.value.id || detail.value._id
             }
           })
 
           uni.hideLoading()
-          uni.showToast({
-            title: '添加成功',
-            icon: 'success'
-          })
+          uni.showToast({ title: '删除成功', icon: 'success' })
 
-          // 刷新详情
-          const orderId = getOrderIdFromOptions()
-          loadDetail(orderId)
+          setTimeout(() => {
+            uni.navigateBack()
+          }, 1500)
         } catch (error: any) {
           uni.hideLoading()
           uni.showToast({
-            title: error.message || '添加失败',
+            title: error.message || '删除失败',
             icon: 'none'
           })
         }
@@ -618,39 +560,6 @@ const handleAddExpress = () => {
   color: rgba(245, 245, 240, 0.6);
 }
 
-/* 物流信息 */
-.express-info {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.express-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.express-label {
-  font-size: 26rpx;
-  color: rgba(245, 245, 240, 0.5);
-}
-
-.express-value {
-  font-size: 26rpx;
-  color: #F5F5F0;
-}
-
-.scan-express-btn {
-  margin-top: 8rpx;
-  padding: 16rpx;
-  background: rgba(201, 169, 98, 0.1);
-  border-radius: 8rpx;
-  font-size: 26rpx;
-  color: #C9A962;
-  border: none;
-}
-
 /* 操作按钮 */
 .action-buttons {
   display: flex;
@@ -675,9 +584,10 @@ const handleAddExpress = () => {
   color: #1A1A1A;
 }
 
-.action-btn.secondary {
-  background: rgba(122, 154, 142, 0.1);
-  color: #7A9A8E;
+.action-btn.danger {
+  background: rgba(196, 69, 54, 0.1);
+  color: #C44536;
+  border: 1px solid rgba(196, 69, 54, 0.3);
 }
 
 /* 安全区域 */

@@ -62,10 +62,10 @@
 
         <!-- 商品列表 -->
         <view class="order-goods" @click="goToDetail(order)">
-          <view class="goods-item" v-for="(item, idx) in (order.items || order.products)" :key="item._id || idx">
-            <image class="goods-image" :src="getListThumbnail(item.productImage || item.image)" mode="aspectFill" lazy-load />
+          <view class="goods-item" v-for="(item, idx) in order.products" :key="item.productId || idx">
+            <image class="goods-image" :src="item.image" mode="aspectFill" lazy-load />
             <view class="goods-info">
-              <text class="goods-name">{{ item.productName || item.name }}</text>
+              <text class="goods-name">{{ item.name }}</text>
               <view class="goods-bottom">
                 <text class="goods-price">¥{{ fp(item.price) }}</text>
                 <text class="goods-quantity">x{{ item.quantity }}</text>
@@ -158,8 +158,8 @@ const getStatusColor = (status: OrderStatus | string) => {
 
 // 获取商品总数
 const getTotalQuantity = (order: Order) => {
-  const items = order.items || order.products || [];
-  return items.reduce((total, item) => total + item.quantity, 0);
+  const products = order.products || [];
+  return products.reduce((total, item) => total + item.quantity, 0);
 };
 
 // 加载订单列表

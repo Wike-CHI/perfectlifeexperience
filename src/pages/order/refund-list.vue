@@ -55,11 +55,11 @@
         <view class="product-preview" v-if="item.products && item.products.length > 0">
           <image
             class="product-img"
-            :src="item.products[0].productImage || ''"
+            :src="item.products[0].image || item.products[0].productImage || ''"
             mode="aspectFill"
           />
           <view class="product-info">
-            <text class="product-name">{{ item.products[0].productName }}</text>
+            <text class="product-name">{{ item.products[0].name || item.products[0].productName }}</text>
             <text class="product-count" v-if="item.products.length > 1">
               等{{ item.products.length }}件商品
             </text>
@@ -105,8 +105,10 @@ interface Refund {
   createTime: Date
   updateTime: Date
   products?: Array<{
-    productName: string
-    productImage: string
+    name?: string
+    productName?: string  // 兼容旧数据
+    image?: string
+    productImage?: string  // 兼容旧数据
     quantity: number
     price: number
   }>

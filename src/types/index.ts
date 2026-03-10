@@ -52,8 +52,10 @@ export interface CartItem {
 export interface OrderItem {
   productId: string;
   name: string;
+  productName?: string;  // 别名兼容
   price: number;
   image: string;
+  productImage?: string;  // 别名兼容
   quantity: number;
   specs?: string;
 }
@@ -72,18 +74,24 @@ export interface Address {
 // 订单数据类型
 export interface Order {
   _id?: string;
+  id?: string;                     // 主键ID（后端兼容字段）
   _openid?: string;
   orderNo: string;
-  products: OrderItem[];
+  items: OrderItem[];              // 统一使用 items 字段（2026年3月重构）
+  products?: OrderItem[];          // 保留 products 字段以兼容旧数据（将在后续版本移除）
   totalAmount: number;
   shippingFee?: number;
   deliveryType?: 'delivery' | 'pickup';
   status: 'pending' | 'paid' | 'shipping' | 'completed' | 'refunding' | 'refunded' | 'cancelled';
+  userName?: string;               // 用户姓名
+  userPhone?: string;              // 用户电话
+  userAvatar?: string;             // 用户头像
   address?: Address;
   remark?: string;
   paymentMethod?: 'wechat' | 'balance';
   deliveryTime?: string;
   createTime: Date;
+  updateTime?: Date;
   payTime?: Date;
   shipTime?: Date;
   completeTime?: Date;

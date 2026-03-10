@@ -17,7 +17,7 @@
             v-for="(item, index) in orderItems.slice(0, 5)"
             :key="index"
             class="product-image"
-            :src="item.productImage || item.image || '/static/logo.png'"
+            :src="item.image || '/static/logo.png'"
             mode="aspectFill"
           />
           <view v-if="orderItems.length > 5" class="more-count">
@@ -50,9 +50,8 @@
 
     <!-- 卡片底部 -->
     <view class="card-footer" @click.stop>
-      <button class="action-btn scan-btn" @click="handleScan">
-        <AdminIcon name="camera" size="small" />
-        <text>扫快递单</text>
+      <button class="action-btn detail-btn" @click="handleDetail">
+        <text>详情</text>
       </button>
       <button class="action-btn update-btn" @click="handleUpdateStatus">
         <text>更新状态</text>
@@ -76,9 +75,7 @@ import { formatPrice } from '@/utils/format'
 
 interface OrderItem {
   image?: string
-  productImage?: string
   name?: string
-  productName?: string
   quantity: number
   price: number
 }
@@ -87,8 +84,8 @@ interface Order {
   _id: string
   orderNo: string
   status: string
-  items?: OrderItem[]
-  products?: OrderItem[]
+  products: OrderItem[]  // Primary field (complete structure)
+  items?: OrderItem[]    // Transition period (incomplete structure)
   userName?: string
   totalAmount: number
   createTime: string | Date
@@ -102,21 +99,21 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   click: [order: Order]
-  scan: [order: Order]
+  detail: [order: Order]
   updateStatus: [order: Order]
   delete: [order: Order]
 }>()
 
-// 兼容 items/products 字段
+// 统一使用 products 字段
 const orderItems = computed(() => {
-  return props.order.items || props.order.products || []
+  return props.order.products || []
 })
 
 // 商品名称摘要
 const productNames = computed(() => {
   const items = orderItems.value
   if (items.length === 0) return '暂无商品'
-  const names = items.slice(0, 2).map(item => item.productName || item.name || '商品').join('、')
+  const names = items.slice(0, 2).map(item => item.name || '商品').join('、')
   return items.length > 2 ? `${names}等` : names
 })
 
@@ -152,9 +149,9 @@ const handleClick = () => {
   emit('click', props.order)
 }
 
-// 处理扫码
-const handleScan = () => {
-  emit('scan', props.order)
+// 处理查看详情
+const handleDetail = () => {
+  emit('detail', props.order)
 }
 
 // 处理更新状态
@@ -353,22 +350,23 @@ const handleDelete = () => {
   transition: all 0.3s;
 }
 
-.scan-btn {
-  background: rgba(201, 169, 98, 0.1);
-  color: #C9A962;
+.detail-btn {
+  background: rgba(245, 245, 240, 0.1);
+  color: rgba(245, 245, 240, 0.7);
+  border: 1px solid rgba(245, 245, 240, 0.2);
 }
 
-.scan-btn:active {
-  background: rgba(201, 169, 98, 0.2);
+.detail-btn:active {
+  background: rgba(245, 245, 240, 0.15);
 }
 
 .update-btn {
-  background: rgba(122, 154, 142, 0.1);
-  color: #7A9A8E;
+  background: linear-gradient(135deg, #C9A962 0%, #B8984A 100%);
+  color: #1A1A1A;
 }
 
 .update-btn:active {
-  background: rgba(122, 154, 142, 0.2);
+  opacity: 0.8;
 }
 
 .delete-btn {

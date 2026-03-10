@@ -83,3 +83,45 @@ export const PAGINATION_CONFIG = {
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100
 } as const
+
+/**
+ * 订单状态分组配置
+ * 将7种原始状态简化为5种分组 + 全部
+ */
+export const ORDER_STATUS_GROUPS = {
+  all: {
+    label: '全部',
+    value: 'all',
+    statuses: ['pending', 'paid', 'shipping', 'completed', 'refunding', 'refunded', 'cancelled'] as OrderStatus[]
+  },
+  pending: {
+    label: '待付款',
+    value: 'pending',
+    statuses: ['pending'] as OrderStatus[]
+  },
+  processing: {
+    label: '处理中',
+    value: 'processing',
+    statuses: ['paid', 'shipping'] as OrderStatus[]
+  },
+  completed: {
+    label: '已完成',
+    value: 'completed',
+    statuses: ['completed'] as OrderStatus[]
+  },
+  refund: {
+    label: '退款',
+    value: 'refund',
+    statuses: ['refunding', 'refunded'] as OrderStatus[]
+  },
+  cancelled: {
+    label: '已取消',
+    value: 'cancelled',
+    statuses: ['cancelled'] as OrderStatus[]
+  }
+} as const
+
+/**
+ * 订单状态分组类型
+ */
+export type OrderStatusGroup = keyof typeof ORDER_STATUS_GROUPS
