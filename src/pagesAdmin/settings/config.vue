@@ -46,7 +46,7 @@
             class="form-input"
             v-model="config.level3Commission"
             type="digit"
-            placeholder="8"
+            placeholder="12"
           />
           <text class="input-unit">%</text>
         </view>
@@ -59,7 +59,7 @@
             class="form-input"
             v-model="config.level4Commission"
             type="digit"
-            placeholder="4"
+            placeholder="8"
           />
           <text class="input-unit">%</text>
         </view>
@@ -80,7 +80,7 @@
             class="form-input"
             v-model="config.bronzeTotalSales"
             type="number"
-            placeholder="1000"
+            placeholder="20000"
           />
           <text class="input-unit">元</text>
         </view>
@@ -94,7 +94,7 @@
             class="form-input"
             v-model="config.silverTeamCount"
             type="number"
-            placeholder="30"
+            placeholder="50"
           />
           <text class="input-unit">人</text>
         </view>
@@ -107,7 +107,7 @@
             class="form-input"
             v-model="config.silverMonthSales"
             type="number"
-            placeholder="5000"
+            placeholder="50000"
           />
           <text class="input-unit">元</text>
         </view>
@@ -121,7 +121,7 @@
             class="form-input"
             v-model="config.goldTeamCount"
             type="number"
-            placeholder="100"
+            placeholder="200"
           />
           <text class="input-unit">人</text>
         </view>
@@ -134,7 +134,7 @@
             class="form-input"
             v-model="config.goldMonthSales"
             type="number"
-            placeholder="20000"
+            placeholder="100000"
           />
           <text class="input-unit">元</text>
         </view>
@@ -202,10 +202,39 @@
             class="form-input"
             v-model="config.minWithdrawAmount"
             type="number"
-            placeholder="100"
+            placeholder="1"
           />
           <text class="input-unit">元</text>
         </view>
+        <text class="form-tip">用户单次提现的最低金额限制</text>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">最大提现金额</text>
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model="config.maxWithdrawAmount"
+            type="number"
+            placeholder="500"
+          />
+          <text class="input-unit">元</text>
+        </view>
+        <text class="form-tip">用户单次提现的最大金额限制</text>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">每日提现次数限制</text>
+        <view class="input-wrapper">
+          <input
+            class="form-input"
+            v-model="config.maxDailyWithdraws"
+            type="number"
+            placeholder="3"
+          />
+          <text class="input-unit">次</text>
+        </view>
+        <text class="form-tip">每个用户每天最多可申请提现的次数</text>
       </view>
 
       <view class="form-item">
@@ -249,19 +278,21 @@ import AdminIcon from '@/components/admin-icon.vue'
 
 // 配置数据
 const config = ref({
-  // 佣金比例
+  // 佣金比例（修正后的正确值）
   level1Commission: '20',
   level2Commission: '12',
-  level3Commission: '8',
-  level4Commission: '4',
-  // 晋升阈值
-  bronzeTotalSales: '1000',
-  silverTeamCount: '30',
-  silverMonthSales: '5000',
-  goldTeamCount: '100',
-  goldMonthSales: '20000',
-  // 其他
-  minWithdrawAmount: '100',
+  level3Commission: '12',  // 修正：8 → 12
+  level4Commission: '8',   // 修正：4 → 8
+  // 晋升阈值（修正后的正确值）
+  bronzeTotalSales: '20000',   // 修正：1000 → 20000
+  silverTeamCount: '50',       // 修正：30 → 50
+  silverMonthSales: '50000',   // 修正：5000 → 50000
+  goldTeamCount: '200',        // 修正：100 → 200
+  goldMonthSales: '100000',    // 修正：20000 → 100000
+  // 其他（修正后的正确值）
+  minWithdrawAmount: '1',      // 修正：100 → 1
+  maxWithdrawAmount: '500',    // 新增：最大提现金额
+  maxDailyWithdraws: '3',      // 新增：每日提现次数
   withdrawFeeRate: '0'
 })
 
@@ -315,14 +346,16 @@ const loadConfig = async () => {
       config.value = {
         level1Commission: String(res.data.level1Commission ?? 20),
         level2Commission: String(res.data.level2Commission ?? 12),
-        level3Commission: String(res.data.level3Commission ?? 8),
-        level4Commission: String(res.data.level4Commission ?? 4),
-        bronzeTotalSales: String(res.data.bronzeTotalSales ?? 1000),
-        silverTeamCount: String(res.data.silverTeamCount ?? 30),
-        silverMonthSales: String(res.data.silverMonthSales ?? 5000),
-        goldTeamCount: String(res.data.goldTeamCount ?? 100),
-        goldMonthSales: String(res.data.goldMonthSales ?? 20000),
-        minWithdrawAmount: String(res.data.minWithdrawAmount ?? 100),
+        level3Commission: String(res.data.level3Commission ?? 12),  // 修正：8 → 12
+        level4Commission: String(res.data.level4Commission ?? 8),   // 修正：4 → 8
+        bronzeTotalSales: String(res.data.bronzeTotalSales ?? 20000),   // 修正
+        silverTeamCount: String(res.data.silverTeamCount ?? 50),       // 修正
+        silverMonthSales: String(res.data.silverMonthSales ?? 50000),   // 修正
+        goldTeamCount: String(res.data.goldTeamCount ?? 200),        // 修正
+        goldMonthSales: String(res.data.goldMonthSales ?? 100000),    // 修正
+        minWithdrawAmount: String(res.data.minWithdrawAmount ?? 1),      // 修正：1元
+        maxWithdrawAmount: String(res.data.maxWithdrawAmount ?? 500),    // 新增
+        maxDailyWithdraws: String(res.data.maxDailyWithdraws ?? 3),      // 新增
         withdrawFeeRate: String(res.data.withdrawFeeRate ?? 0)
       }
 
@@ -383,7 +416,8 @@ const validateConfig = (): boolean => {
   // 验证数值字段
   const numberFields = [
     'bronzeTotalSales', 'silverTeamCount', 'silverMonthSales',
-    'goldTeamCount', 'goldMonthSales', 'minWithdrawAmount'
+    'goldTeamCount', 'goldMonthSales', 'minWithdrawAmount',
+    'maxWithdrawAmount', 'maxDailyWithdraws'  // 新增字段
   ]
 
   for (const field of numberFields) {
@@ -442,6 +476,8 @@ const handleSave = async () => {
             goldTeamCount: parseInt(config.value.goldTeamCount),
             goldMonthSales: parseInt(config.value.goldMonthSales),
             minWithdrawAmount: parseInt(config.value.minWithdrawAmount),
+            maxWithdrawAmount: parseInt(config.value.maxWithdrawAmount),  // 新增
+            maxDailyWithdraws: parseInt(config.value.maxDailyWithdraws),  // 新增
             withdrawFeeRate: parseFloat(config.value.withdrawFeeRate),
             // 充值配置
             rechargeOptions: rechargeOptions.value

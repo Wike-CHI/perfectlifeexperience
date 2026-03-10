@@ -26,6 +26,9 @@ const _ = db.command;
 const { createLogger } = require('./common/logger');
 const logger = createLogger('commission-wallet');
 
+// 引入统一配置管理
+const { getSystemConfigWithFallback } = require('../common/defaultConfig');
+
 // 集合名称
 const COMMISSION_WALLETS_COLLECTION = 'commission_wallets';
 const COMMISSION_TRANSACTIONS_COLLECTION = 'commission_transactions';
@@ -178,6 +181,28 @@ async function getBalance(openid) {
 }
 
 /**
+ * 从数据库读取提现配置
+ */
+async function getWithdrawConfig() {
+  try {
+    const config = await getSystemConfigWithFallback(db);
+    return {
+      minWithdraw: config.minWithdrawAmount || 100,
+      maxWithdraw: config.maxWithdrawAmount || 50000,
+      maxDailyWithdraws: config.maxDailyWithdraws || 3
+    };
+  } catch (error) {
+    logger.error('Failed to get withdraw config, using defaults', error);
+    // 出错时使用默认值（从 DEFAULT_COMMISSION_CONFIG）
+    return {
+      minWithdraw: 100,
+      maxWithdraw: 50000,
+      maxDailyWithdraws: 3
+    };
+  }
+}
+
+/**
  * 申请提现到微信余额
  */
 async function applyWithdraw(openid, data) {
@@ -191,24 +216,23 @@ async function applyWithdraw(openid, data) {
     };
   }
 
-  // 提现限制配置
-  const MIN_WITHDRAW = 100;        // 最小提现金额（1元）
-  const MAX_WITHDRAW = 50000;      // 最大提现金额（500元）
-  const MAX_DAILY_WITHDRAWS = 3;   // 每天最多提现次数
+  // 从数据库读取提现配置
+  const withdrawConfig = await getWithdrawConfig();
+  const { minWithdraw, maxWithdraw, maxDailyWithdraws } = withdrawConfig;
 
   // 最小提现金额验证
-  if (amount < MIN_WITHDRAW) {
+  if (amount < minWithdraw) {
     return {
       code: 400,
-      msg: `最小提现金额为${MIN_WITHDRAW / 100}元`
+      msg: `最小提现金额为${minWithdraw / 100}元`
     };
   }
 
   // 最大提现金额验证
-  if (amount > MAX_WITHDRAW) {
+  if (amount > maxWithdraw) {
     return {
       code: 400,
-      msg: `单次最大提现金额为${MAX_WITHDRAW / 100}元`
+      msg: `单次最大提现金额为${maxWithdraw / 100}元`
     };
   }
 
@@ -224,10 +248,10 @@ async function applyWithdraw(openid, data) {
     })
     .count();
 
-  if (todayWithdraws.total >= MAX_DAILY_WITHDRAWS) {
+  if (todayWithdraws.total >= maxDailyWithdraws) {
     return {
       code: 400,
-      msg: `每天最多提现${MAX_DAILY_WITHDRAWS}次，请明天再试`
+      msg: `每天最多提现${maxDailyWithdraws}次，请明天再试`
     };
   }
 

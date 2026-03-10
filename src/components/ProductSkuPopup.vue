@@ -6,7 +6,9 @@
         <view class="popup-info">
           <view class="popup-price-row">
             <text class="popup-price">¥{{ formatPrice(currentPrice) }}</text>
-            <text class="popup-stock">库存: {{ product.stock }}</text>
+            <text class="popup-stock">
+              库存: {{ product.stock !== undefined ? product.stock : '充足' }}
+            </text>
           </view>
           <text class="popup-selected">已选: {{ currentSpec || '默认规格' }}</text>
         </view>
@@ -138,7 +140,8 @@ const decreaseQuantity = () => {
 };
 
 const increaseQuantity = () => {
-  if (quantity.value < props.product.stock) {
+  const maxStock = props.product.stock !== undefined ? props.product.stock : 999; // 默认上限999
+  if (quantity.value < maxStock) {
     quantity.value++;
   }
 };

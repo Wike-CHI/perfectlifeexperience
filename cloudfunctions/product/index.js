@@ -408,7 +408,8 @@ async function getHotProducts(data) {
         brewery: true,
         originalPrice: true,
         tags: true,
-        category: true
+        category: true,
+        stock: true
       })
       .limit(limit)
       .orderBy('createTime', 'desc')
@@ -465,7 +466,8 @@ async function getNewProducts(data) {
         brewery: true,
         originalPrice: true,
         tags: true,
-        category: true
+        category: true,
+        stock: true
       })
       .limit(limit)
       .orderBy('createTime', 'desc')
@@ -525,7 +527,8 @@ async function getHomePageData(data) {
           brewery: true,
           originalPrice: true,
           tags: true,
-          category: true
+          category: true,
+          stock: true
         })
         .limit(6)
         .orderBy('createTime', 'desc')
@@ -547,7 +550,8 @@ async function getHomePageData(data) {
           brewery: true,
           originalPrice: true,
           tags: true,
-          category: true
+          category: true,
+          stock: true
         })
         .limit(6)
         .orderBy('createTime', 'desc')
@@ -568,7 +572,8 @@ async function getHomePageData(data) {
           brewery: true,
           originalPrice: true,
           tags: true,
-          category: true
+          category: true,
+          stock: true
         })
         .limit(20)
         .get(),

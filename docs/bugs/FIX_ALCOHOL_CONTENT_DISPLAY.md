@@ -425,7 +425,67 @@ const queries = [
 
 ---
 
+## 🔧 额外修复：库存字段缺失
+
+**发现时间**: 2026-03-10
+**问题**: 点击 "+" 按钮后，库存显示为 "库存:"（没有数值）
+
+### 根本原因
+
+`stock` 字段在云函数查询时被遗漏，虽然数据库中存在 `stock: 999`，但前端接收到的数据中没有此字段。
+
+### 修复内容
+
+**文件**: `cloudfunctions/product/index.js`
+
+**修改位置**: 与酒精度数修复同步，在所有查询中添加 `stock: true`
+- ✅ `getHomePageData` - 所有3个查询（热销、新品、全部商品）
+- ✅ `getHotProducts`
+- ✅ `getNewProducts`
+
+**前端容错** (`src/components/ProductSkuPopup.vue`):
+```vue
+<!-- 显示层 -->
+<text class="popup-stock">
+  库存: {{ product.stock !== undefined ? product.stock : '充足' }}
+</text>
+
+<!-- 逻辑层 -->
+const increaseQuantity = () => {
+  const maxStock = props.product.stock !== undefined ? props.product.stock : 999;
+  if (quantity.value < maxStock) {
+    quantity.value++;
+  }
+};
+```
+
+### 验证结果
+
+**数据库验证** (CloudBase MCP):
+```javascript
+// 验证 stock 字段存在
+{
+  "name": "飞云江小麦",
+  "stock": 999,
+  "alcoholContent": 5,
+  "brewery": "大友元气精酿"
+}
+```
+
+**云函数验证** (清除缓存后):
+```javascript
+// getHomePageData 返回数据
+{
+  "stock": 999,  // ✅ 现在包含在返回结果中
+  "alcoholContent": 5,
+  "brewery": "大友元气精酿",
+  "enName": "Feiyunjiang wheat"
+}
+```
+
+---
+
 **修复完成时间**: 2026-03-10
 **修复人员**: Claude Code
-**测试状态**: ✅ 待验证
-**部署状态**: ⏳ 待部署
+**测试状态**: ✅ 已验证
+**部署状态**: ✅ 已部署并生效
