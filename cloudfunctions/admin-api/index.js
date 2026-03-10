@@ -141,6 +141,8 @@ exports.main = async (event, context) => {
     switch (action) {
       case 'adminLogin':
         return await adminLogin(data)
+      case 'adminQuickLogin':
+        return await adminQuickLogin(data, wxContext)
       case 'getDashboardData':
         return await dashboardModule.getDashboardData(db)
       case 'checkAuth':
@@ -512,6 +514,77 @@ async function adminLogin(data) {
     },
     msg: '登录成功'
   };
+}
+
+/**
+ * 快速管理员登录（用于隐蔽入口）
+ * 只需要密码，自动使用第一个超级管理员账户
+ */
+async function adminQuickLogin(data, wxContext) {
+  const { password } = data || {};
+
+  if (!password) {
+    return { code: 400, msg: '密码不能为空' };
+  }
+
+  try {
+    // 获取第一个超级管理员账户
+    const adminResult = await db.collection('admins')
+      .where({
+        role: 'super_admin',
+        status: 'active'
+      })
+      .orderBy('createTime', 'asc')
+      .limit(1)
+      .get();
+
+    if (adminResult.data.length === 0) {
+      return { code: 404, msg: '未找到管理员账户' };
+    }
+
+    const admin = adminResult.data[0];
+
+    // 验证密码
+    const bcrypt = require('bcryptjs');
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+
+    if (!isPasswordValid) {
+      return { code: 401, msg: '密码错误' };
+    }
+
+    // 生成JWT token
+    const token = jwt.sign(
+      {
+        adminId: admin._id,
+        username: admin.username,
+        role: admin.role
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // 记录登录操作（使用 OPENID 标识快速登录）
+    await logOperation(admin._id, 'quickLogin', {
+      username: admin.username,
+      loginMethod: 'quick',
+      openId: wxContext.OPENID
+    });
+
+    // 返回管理员信息（不包含密码）
+    const { password: _, ...adminInfo } = admin;
+
+    return {
+      code: 0,
+      data: {
+        ...adminInfo,
+        token
+      },
+      msg: '登录成功'
+    };
+  } catch (error) {
+    console.error('快速登录失败:', error);
+    return { code: 500, msg: '登录失败，请重试' };
+  }
 }
 
 async function getDashboardData(data) {
