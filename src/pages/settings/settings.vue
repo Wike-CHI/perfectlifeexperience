@@ -45,8 +45,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { logout } from '@/utils/api';
-import { callFunction } from '@/utils/cloudbase';
-import AdminAuthManager from '@/utils/admin-auth';
 
 const notificationsEnabled = ref(true);
 const cacheSize = ref('2.5MB'); // Mock size
@@ -105,57 +103,10 @@ const handleLogout = async () => {
 };
 
 // 长按版本号触发管理员入口
-const handleLongPressVersion = async () => {
-  uni.showModal({
-    title: '管理员验证',
-    content: '请输入管理员密码',
-    editable: true,
-    placeholderText: '请输入密码',
-    success: async (res) => {
-      if (res.confirm && res.content) {
-        try {
-          uni.showLoading({ title: '验证中...' });
-
-          // 调用云函数验证管理员密码
-          const result = await callFunction('admin-api', {
-            action: 'adminQuickLogin',
-            data: {
-              password: res.content.trim()
-            }
-          });
-
-          uni.hideLoading();
-
-          if (result.code === 0 && result.data) {
-            // 保存管理员信息
-            AdminAuthManager.saveToken(result.data.token);
-            AdminAuthManager.saveAdminInfo(result.data);
-
-            uni.showToast({ title: '验证成功', icon: 'success' });
-
-            setTimeout(() => {
-              uni.navigateTo({
-                url: '/pagesAdmin/dashboard/index'
-              });
-            }, 500);
-          } else {
-            uni.showToast({
-              title: result.msg || '密码错误',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-        } catch (error: any) {
-          uni.hideLoading();
-          console.error('验证失败:', error);
-          uni.showToast({
-            title: '验证失败，请重试',
-            icon: 'none',
-            duration: 2000
-          });
-        }
-      }
-    }
+const handleLongPressVersion = () => {
+  // 直接跳转到管理员登录页面
+  uni.navigateTo({
+    url: '/pagesAdmin/login/index'
   });
 };
 </script>
