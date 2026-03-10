@@ -68,6 +68,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AdminIcon from '@/components/admin-icon.vue'
+import { formatPrice } from '@/utils/format'
 
 /**
  * OrderCard - 订单卡片组件
@@ -130,14 +131,9 @@ const statusMap: Record<string, string> = {
   cancelled: '已取消'
 }
 
-// 格式化金额
+// 格式化金额（使用统一的 formatPrice 函数）
 const formatAmount = (amount: number) => {
-  if (!amount) return '0.00'
-  // 如果金额大于1000，可能是以分为单位
-  if (amount > 1000) {
-    return (amount / 100).toFixed(2)
-  }
-  return amount.toFixed(2)
+  return formatPrice(amount)
 }
 
 // 格式化时间

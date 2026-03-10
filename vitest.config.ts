@@ -17,6 +17,12 @@ export default defineConfig({
       'src/config/**/*.test.ts',
       // 类型测试
       'src/types/**/*.test.ts',
+      // 集成测试
+      'tests/integration/**/*.test.js',
+      'tests/integration/**/*.test.ts',
+      // 安全测试
+      'tests/security/**/*.test.js',
+      'tests/security/**/*.test.ts',
     ],
     // 针对不同文件的测试环境配置
     environmentMatchGlobs: [

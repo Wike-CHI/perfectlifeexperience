@@ -124,7 +124,9 @@
       "Bash(npm run:*)",
       "Bash(cat:*)",
       "Bash(wc:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "mcp__cloudbase__auth",
+      "Bash(mkdir:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

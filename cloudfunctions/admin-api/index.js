@@ -219,6 +219,8 @@ exports.main = async (event, context) => {
         return await withdrawalModule.approveWithdrawalAdmin(db, logOperation, data, wxContext)
       case 'rejectWithdrawal':
         return await withdrawalModule.rejectWithdrawalAdmin(db, logOperation, data, wxContext)
+      case 'getWithdrawalStats':
+        return await withdrawalModule.getWithdrawalStats(db)
       case 'getPromoters':
         return await promoterModule.getPromotersAdmin(db, data)
       case 'getCommissions':

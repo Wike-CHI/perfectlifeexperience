@@ -62,7 +62,7 @@
       <view class="product-card" v-if="refund.products && refund.products.length > 0">
         <view class="card-title">退款商品</view>
         <view class="product-item" v-for="(product, index) in refund.products" :key="index">
-          <image class="product-img" :src="product.productImage || ''" mode="aspectFill" />
+          <image class="product-img" :src="getDetailThumbnail(product.productImage || product.image || '')" mode="aspectFill" />
           <view class="product-info">
             <text class="product-name">{{ product.productName }}</text>
             <text class="product-quantity">购买数量：{{ product.quantity }}</text>
@@ -121,6 +121,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { getRefundDetail, cancelRefund, formatPrice } from '@/utils/api';
+import { getDetailThumbnail } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 const RefundStatusNames: Record<string, string> = {

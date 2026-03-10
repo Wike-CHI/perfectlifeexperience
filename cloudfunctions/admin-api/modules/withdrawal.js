@@ -219,8 +219,51 @@ async function rejectWithdrawalAdmin(db, logOperation, data, wxContext) {
   }
 }
 
+/**
+ * 获取提现统计数据
+ * @param {Object} db - 数据库实例
+ * @returns {Promise<Object>} 统计数据
+ */
+async function getWithdrawalStats(db) {
+  try {
+    // 待审核统计
+    const pendingResult = await db.collection('withdrawals')
+      .where({ status: 'pending' })
+      .get();
+
+    const pendingAmount = pendingResult.data.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    // 今日已批准统计
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayApprovedResult = await db.collection('withdrawals')
+      .where({
+        status: 'approved',
+        approvedTime: db.command.gte(today)
+      })
+      .get();
+
+    const todayAmount = todayApprovedResult.data.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    return {
+      code: 0,
+      data: {
+        pendingCount: pendingResult.data.length,
+        pendingAmount,
+        todayApproved: todayApprovedResult.data.length,
+        todayAmount
+      }
+    };
+  } catch (error) {
+    console.error('Get withdrawal stats error:', error);
+    return { code: 500, msg: error.message };
+  }
+}
+
 module.exports = {
   getWithdrawalsAdmin,
   approveWithdrawalAdmin,
-  rejectWithdrawalAdmin
+  rejectWithdrawalAdmin,
+  getWithdrawalStats
 };

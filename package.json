@@ -41,7 +41,15 @@
     "test:ui": "vitest --ui",
     "test:cf": "node scripts/run-cf-tests.js",
     "test:module-fix": "node test-module-fix.js",
-    "test:all": "npm run test:run && npm run test:cf"
+    "test:all": "npm run test:run && npm run test:cf",
+    "test:integration": "vitest run tests/integration",
+    "test:integration:unit": "vitest run tests/integration/system-integration.test.js",
+    "test:integration:cloud": "node tests/integration/cloud-integration.test.js",
+    "test:security": "vitest run tests/security",
+    "test:security:mock": "vitest run tests/security/layers/layer1-mock",
+    "test:security:sandbox": "vitest run tests/security/layers/layer2-sandbox",
+    "test:security:production": "vitest run tests/security/layers/layer3-production",
+    "test:security:all": "npm run test:security:mock && npm run test:security:sandbox"
   },
   "dependencies": {
     "@cloudbase/adapter-uni-app": "^1.0.0-beta.1",

@@ -26,7 +26,7 @@
         </view>
         <view class="info-item">
           <text class="info-label">订单金额</text>
-          <text class="info-value amount">¥{{ (detail.totalAmount / 100).toFixed(2) }}</text>
+          <text class="info-value amount">¥{{ formatPrice(detail.totalAmount) }}</text>
         </view>
         <view v-if="detail.payTime" class="info-item">
           <text class="info-label">支付时间</text>
@@ -86,7 +86,7 @@
             <text class="product-name">{{ item.productName || item.name }}</text>
             <view class="product-meta">
               <text class="product-spec">{{ item.spec || '' }}</text>
-              <text class="product-price">¥{{ item.price }}</text>
+              <text class="product-price">¥{{ formatPrice(item.price) }}</text>
             </view>
           </view>
           <text class="product-quantity">x{{ item.quantity }}</text>
@@ -134,6 +134,7 @@ import { callFunction } from '@/utils/cloudbase'
 import { useAdminDetail } from '@/composables/useAdmin'
 import AdminCard from '@/components/admin-card.vue'
 import AdminIcon from '@/components/admin-icon.vue'
+import { formatPrice } from '@/utils/format'
 
 /**
  * 订单详情页面

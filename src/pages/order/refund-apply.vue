@@ -57,7 +57,7 @@
               <text v-if="selectedProducts.has(index)">✓</text>
             </view>
           </view>
-          <image class="product-img" :src="product.image || ''" mode="aspectFill" />
+          <image class="product-img" :src="getDetailThumbnail(product.image || product.productImage || '')" mode="aspectFill" />
           <view class="product-info">
             <text class="product-name">{{ product.name }}</text>
             <text class="product-price">¥{{ formatPrice(product.price) }}</text>
@@ -121,6 +121,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { applyRefund, formatPrice } from '@/utils/api';
+import { getDetailThumbnail } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 interface Order {

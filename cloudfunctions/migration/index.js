@@ -1,3 +1,6 @@
+// 🔒 安全补丁迁移模块
+const securityPatches = require('./modules/security-patches');
+
 // 🔧 新增：统一推广分销体系配置迁移
 async function migrateSystemConfig() {
   try {
@@ -120,3 +123,44 @@ async function migrateSystemConfig() {
     };
   }
 }
+
+// ===== 云函数入口 =====
+const cloud = require('wx-server-sdk');
+
+cloud.init({
+  env: cloud.DYNAMIC_CURRENT_ENV
+});
+
+const db = cloud.database();
+
+exports.main = async (event, context) => {
+  const { action, data } = event;
+
+  console.log('[迁移] 收到请求:', { action, data });
+
+  switch (action) {
+    case 'migrateSystemConfig':
+      return await migrateSystemConfig();
+
+    case 'runSecurityPatches':
+      return await securityPatches.runAllMigrations();
+
+    case 'migrateOrdersSecurity':
+      return await securityPatches.migrateOrdersSecurity();
+
+    case 'migrateWalletsSecurity':
+      return await securityPatches.migrateWalletsSecurity();
+
+    case 'createDistributedLocksTable':
+      return await securityPatches.createDistributedLocksTable();
+
+    case 'createSecurityEventsTable':
+      return await securityPatches.createSecurityEventsTable();
+
+    default:
+      return {
+        code: -2,
+        msg: `未知操作: ${action}`
+      };
+  }
+};

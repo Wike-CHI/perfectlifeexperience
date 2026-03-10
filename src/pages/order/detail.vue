@@ -49,7 +49,7 @@
         </view>
         <view class="goods-list">
           <view class="goods-item" v-for="(item, index) in (order.items || order.products)" :key="index">
-            <image class="goods-img" :src="item.productImage || item.image" mode="aspectFill" />
+            <image class="goods-img" :src="getDetailThumbnail(item.productImage || item.image)" mode="aspectFill" />
             <view class="goods-meta">
               <text class="goods-name">{{ item.productName || item.name }}</text>
               <view class="goods-price-row">
@@ -150,6 +150,7 @@ import { ref, onMounted, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction, getWalletBalance } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
+import { getDetailThumbnail } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 interface Order {

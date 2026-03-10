@@ -60,7 +60,7 @@
       <view class="section-title">商品清单</view>
       <view class="goods-list">
         <view class="goods-item" v-for="(item, index) in orderItems" :key="index">
-          <image class="goods-image" :src="item.image" mode="aspectFill" />
+          <image class="goods-image" :src="getListThumbnail(item.image)" mode="aspectFill" />
           <view class="goods-info">
             <text class="goods-name">{{ item.name }}</text>
             <text class="goods-specs" v-if="item.specs">{{ item.specs }}</text>
@@ -235,6 +235,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { getCartItems, createOrder, formatPrice, getUserInfo, getAvailableCoupons, calculateCouponDiscount, useCoupon, getWalletBalance, callFunction, getOrderDetail } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import { getDistanceToStore, formatDistance as formatDistanceUtil, calculateDeliveryFee, STORE_LOCATION } from '@/utils/distance';
+import { getListThumbnail } from '@/utils/image';
 
 // 类型定义（内联，避免分包导入问题）
 interface CartItem {
