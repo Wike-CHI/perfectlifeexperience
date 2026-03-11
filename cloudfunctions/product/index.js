@@ -510,7 +510,7 @@ async function getHomePageData(data) {
 
   try {
     // 并行获取所有首页数据
-    const [hotResult, newResult, allProducts, bannersResult] = await Promise.all([
+    const [hotResult, newResult, allProducts] = await Promise.all([
       // 热门商品
       db.collection('products')
         .where({ isHot: true })
@@ -576,29 +576,16 @@ async function getHomePageData(data) {
           stock: true
         })
         .limit(20)
-        .get(),
-
-      // 轮播图 - 获取激活的banner
-      db.collection('banners')
-        .where({ isActive: true })
-        .orderBy('sort', 'asc')
         .get()
     ]);
+
+    // 获取激活的 banner（独立函数处理）
+    const banners = await getActiveBanners(db);
 
     // 按销量排序取前4个
     const sortedBySales = allProducts.data
       .sort((a, b) => (b.sales || 0) - (a.sales || 0))
       .slice(0, 4);
-
-    // 处理banners数据，转换为前端需要的格式
-    const banners = (bannersResult.data || []).map(banner => ({
-      image: banner.image,
-      title: banner.title,
-      subtitle: banner.subtitle,
-      link: banner.link || '',
-      sort: banner.sort,
-      isActive: banner.isActive
-    }));
 
     const response = {
       code: 0,
@@ -729,6 +716,34 @@ function clearProductCache(productId = null) {
 
   // 如果分类更新了，也应该清除分类缓存
   categoryCache.delete('categories_list');
+}
+
+/**
+ * 获取激活的 Banner 列表
+ * @param {Object} db - 数据库实例
+ * @returns {Promise<Array>} Banner 数组
+ */
+async function getActiveBanners(db) {
+  try {
+    const result = await db.collection('banners')
+      .where({ isActive: true })
+      .orderBy('sort', 'asc')
+      .get();
+
+    logger.info('Active banners fetched', { count: result.data.length });
+
+    return result.data.map(banner => ({
+      image: banner.image,
+      title: banner.title,
+      subtitle: banner.subtitle,
+      link: banner.link || '',
+      sort: banner.sort,
+      isActive: banner.isActive
+    }));
+  } catch (error) {
+    logger.error('Failed to fetch active banners', error);
+    return [];
+  }
 }
 
 // 云函数入口

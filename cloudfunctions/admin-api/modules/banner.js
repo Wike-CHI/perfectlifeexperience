@@ -4,6 +4,7 @@
 
 const { calcPagination, calcPageInfo } = require('./common/pagination');
 const { checkRequired, validateType } = require('./common/validator');
+const { success, error, ErrorCodes, paginate } = require('../common/response');
 
 /**
  * 获取Banner列表
@@ -34,19 +35,13 @@ async function getBannersAdmin(db, data) {
       db.collection('banners').where(query).count()
     ]);
 
-    return {
-      code: 0,
-      data: {
-        list: bannersResult.data,
-        total: countResult.total,
-        page,
-        limit: validLimit,
-        totalPages: Math.ceil(countResult.total / validLimit)
-      }
-    };
-  } catch (error) {
-    console.error('Get banners error:', error);
-    return { code: 500, msg: error.message };
+    return success(
+      paginate(bannersResult.data, countResult.total, page, validLimit),
+      '获取Banner列表成功'
+    );
+  } catch (err) {
+    console.error('Get banners error:', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取Banner列表失败', err.message);
   }
 }
 
@@ -65,23 +60,24 @@ async function createBannerAdmin(db, logOperation, data, wxContext) {
     // 验证必填字段
     const validation = checkRequired(data, ['title', 'image']);
     if (!validation.valid) {
-      return { code: -2, msg: `缺少必填字段: ${validation.missing.join(', ')}` };
+      return error(ErrorCodes.INVALID_PARAMS, `缺少必填字段: ${validation.missing.join(', ')}`);
     }
 
     // 验证数据类型
     if (!validateType(data.sort, 'number') && data.sort !== undefined) {
-      return { code: -2, msg: 'sort必须是数字' };
+      return error(ErrorCodes.VALIDATION_ERROR, 'sort必须是数字');
     }
     if (!validateType(data.isActive, 'boolean') && data.isActive !== undefined) {
-      return { code: -2, msg: 'isActive必须是布尔值' };
+      return error(ErrorCodes.VALIDATION_ERROR, 'isActive必须是布尔值');
     }
 
     const bannerData = {
       title: data.title,
+      subtitle: data.subtitle || '',
       image: data.image,
       link: data.link || '',
       isActive: data.isActive !== undefined ? data.isActive : true,
-      sort: data.sort || 0,
+      sort: data.sort !== undefined ? data.sort : 0,
       createTime: db.serverDate(),
       updateTime: db.serverDate()
     };
@@ -95,14 +91,10 @@ async function createBannerAdmin(db, logOperation, data, wxContext) {
       title: data.title
     });
 
-    return {
-      code: 0,
-      data: { id: result.id },
-      msg: 'Banner创建成功'
-    };
-  } catch (error) {
-    console.error('Create banner error:', error);
-    return { code: 500, msg: error.message };
+    return success({ id: result.id }, 'Banner创建成功');
+  } catch (err) {
+    console.error('Create banner error:', err);
+    return error(ErrorCodes.DATABASE_ERROR, 'Banner创建失败', err.message);
   }
 }
 
@@ -121,15 +113,15 @@ async function updateBannerAdmin(db, logOperation, data, wxContext) {
     const { id, ...updateData } = data || {};
 
     if (!id) {
-      return { code: -2, msg: '缺少Banner ID' };
+      return error(ErrorCodes.INVALID_PARAMS, '缺少Banner ID');
     }
 
     // 验证数据类型
     if (updateData.sort !== undefined && !validateType(updateData.sort, 'number')) {
-      return { code: -2, msg: 'sort必须是数字' };
+      return error(ErrorCodes.VALIDATION_ERROR, 'sort必须是数字');
     }
     if (updateData.isActive !== undefined && !validateType(updateData.isActive, 'boolean')) {
-      return { code: -2, msg: 'isActive必须是布尔值' };
+      return error(ErrorCodes.VALIDATION_ERROR, 'isActive必须是布尔值');
     }
 
     updateData.updateTime = db.serverDate();
@@ -143,13 +135,10 @@ async function updateBannerAdmin(db, logOperation, data, wxContext) {
       ...updateData
     });
 
-    return {
-      code: 0,
-      msg: 'Banner更新成功'
-    };
-  } catch (error) {
-    console.error('Update banner error:', error);
-    return { code: 500, msg: error.message };
+    return success(null, 'Banner更新成功');
+  } catch (err) {
+    console.error('Update banner error:', err);
+    return error(ErrorCodes.DATABASE_ERROR, 'Banner更新失败', err.message);
   }
 }
 
@@ -168,20 +157,17 @@ async function deleteBannerAdmin(db, logOperation, data, wxContext) {
     const { id } = data || {};
 
     if (!id) {
-      return { code: -2, msg: '缺少Banner ID' };
+      return error(ErrorCodes.INVALID_PARAMS, '缺少Banner ID');
     }
 
     await db.collection('banners').doc(id).remove();
 
     await logOperation(adminInfo.id, 'deleteBanner', { bannerId: id });
 
-    return {
-      code: 0,
-      msg: 'Banner删除成功'
-    };
-  } catch (error) {
-    console.error('Delete banner error:', error);
-    return { code: 500, msg: error.message };
+    return success(null, 'Banner删除成功');
+  } catch (err) {
+    console.error('Delete banner error:', err);
+    return error(ErrorCodes.DATABASE_ERROR, 'Banner删除失败', err.message);
   }
 }
 
@@ -196,22 +182,19 @@ async function getBannerDetailAdmin(db, data) {
     const { id } = data || {};
 
     if (!id) {
-      return { code: -2, msg: '缺少Banner ID' };
+      return error(ErrorCodes.INVALID_PARAMS, '缺少Banner ID');
     }
 
     const bannerResult = await db.collection('banners').doc(id).get();
 
     if (!bannerResult.data) {
-      return { code: 404, msg: 'Banner不存在' };
+      return error(ErrorCodes.RESOURCE_NOT_FOUND, 'Banner不存在');
     }
 
-    return {
-      code: 0,
-      data: bannerResult.data
-    };
-  } catch (error) {
-    console.error('Get banner detail error:', error);
-    return { code: 500, msg: error.message };
+    return success(bannerResult.data, '获取Banner详情成功');
+  } catch (err) {
+    console.error('Get banner detail error:', err);
+    return error(ErrorCodes.DATABASE_ERROR, '获取Banner详情失败', err.message);
   }
 }
 
@@ -230,13 +213,15 @@ async function uploadBannerImage(db, data, wxContext) {
     const { base64Data, fileName } = data;
 
     if (!base64Data) {
-      return { code: -1, msg: '缺少图片数据' };
+      return error(ErrorCodes.INVALID_PARAMS, '缺少图片数据');
     }
 
-    // 验证 base64 数据大小
+    // 验证 base64 数据大小（估算）
     const estimatedSize = (base64Data.length * 3) / 4;
-    if (estimatedSize > 5 * 1024 * 1024) {
-      return { code: -1, msg: '图片大小不能超过5MB' };
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (estimatedSize > maxSize) {
+      return error(ErrorCodes.UPLOAD_ERROR, `图片大小不能超过5MB，当前大小约为${(estimatedSize / 1024 / 1024).toFixed(2)}MB`);
     }
 
     // 解码 base64
@@ -244,9 +229,9 @@ async function uploadBannerImage(db, data, wxContext) {
 
     // 如果超过 2MB，进行压缩
     let processedBuffer = buffer;
-    const maxSize = 2 * 1024 * 1024;
+    const compressionThreshold = 2 * 1024 * 1024;
 
-    if (buffer.length > maxSize) {
+    if (buffer.length > compressionThreshold) {
       try {
         const sharp = require('sharp');
         processedBuffer = await sharp(buffer)
@@ -254,15 +239,15 @@ async function uploadBannerImage(db, data, wxContext) {
           .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
           .toBuffer();
 
-        if (processedBuffer.length > maxSize) {
+        if (processedBuffer.length > compressionThreshold) {
           processedBuffer = await sharp(processedBuffer)
             .jpeg({ quality: 70 })
             .resize(1280, 720, { fit: 'inside', withoutEnlargement: true })
             .toBuffer();
         }
-        console.log(`图片压缩: ${buffer.length} -> ${processedBuffer.length}`);
+        console.log(`✅ Banner图片压缩: ${(buffer.length / 1024).toFixed(2)}KB -> ${(processedBuffer.length / 1024).toFixed(2)}KB`);
       } catch (e) {
-        console.error('图片压缩失败，使用原图', e);
+        console.error('⚠️  图片压缩失败，使用原图', e);
         processedBuffer = buffer;
       }
     }
@@ -279,32 +264,23 @@ async function uploadBannerImage(db, data, wxContext) {
       fileContent: processedBuffer
     });
 
-    // 获取临时访问URL
-    let tempFileURL = '';
-    try {
-      const urlResult = await cloud.getTempFileURL({
-        fileList: [result.fileID]
-      });
-      if (urlResult.fileList && urlResult.fileList[0] && urlResult.fileList[0].tempFileURL) {
-        tempFileURL = urlResult.fileList[0].tempFileURL;
-      }
-    } catch (e) {
-      console.error('获取临时URL失败', e);
-    }
+    // 直接返回 fileID（不返回临时URL，因为临时URL会过期）
+    console.log('✅ Banner图片上传成功:', {
+      fileID: result.fileID,
+      cloudPath: result.cloudPath,
+      size: `${(processedBuffer.length / 1024).toFixed(2)}KB`
+    });
 
-    return {
-      code: 0,
-      msg: '上传成功',
-      data: {
-        fileID: result.fileID,
-        tempFileURL: tempFileURL || result.fileID,
-        originalSize: buffer.length,
-        compressedSize: processedBuffer.length
-      }
-    };
-  } catch (error) {
-    console.error('上传Banner图片失败:', error);
-    return { code: 500, msg: error.message };
+    return success({
+      fileID: result.fileID,
+      url: result.fileID,
+      cloudPath: result.cloudPath,
+      originalSize: buffer.length,
+      compressedSize: processedBuffer.length
+    }, '图片上传成功');
+  } catch (err) {
+    console.error('❌ 上传Banner图片失败:', err);
+    return error(ErrorCodes.UPLOAD_ERROR, '图片上传失败', err.message);
   }
 }
 

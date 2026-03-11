@@ -18,14 +18,20 @@
       <!-- 图片上传 -->
       <view class="form-section">
         <text class="section-title">Banner图片</text>
-        <view class="image-uploader" @click="chooseImage">
+        <view class="image-uploader" @click="!uploading && chooseImage">
           <image v-if="formData.image" class="uploaded-image" :src="formData.image" mode="aspectFill" />
           <view v-else class="upload-placeholder">
-            <text class="upload-icon">+</text>
-            <text class="upload-text">选择图片</text>
+            <text v-if="!uploading" class="upload-icon">+</text>
+            <view v-else class="loading-spinner"></view>
+            <text class="upload-text">{{ uploading ? '上传中...' : '选择图片' }}</text>
+          </view>
+          <!-- 上传进度 -->
+          <view v-if="uploading && uploadProgress > 0" class="upload-progress">
+            <view class="progress-bar" :style="{ width: uploadProgress + '%' }"></view>
+            <text class="progress-text">{{ uploadProgress }}%</text>
           </view>
         </view>
-        <text class="section-hint">建议尺寸: 750x400，支持JPG/PNG，大小不超过2MB</text>
+        <text class="section-hint">建议尺寸: 750x400，支持JPG/PNG/WEBP，大小不超过5MB</text>
       </view>
 
       <!-- 标题 -->
@@ -110,6 +116,8 @@ import { callFunction } from '@/utils/cloudbase'
 const bannerId = ref('')
 const isEdit = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
+const uploadProgress = ref(0)
 
 const formData = ref({
   image: '',
@@ -196,25 +204,30 @@ const chooseImage = () => {
 }
 
 /**
- * 上传图片 - 使用云函数服务端上传（支持压缩）
+ * 上传图片 - 优化的上传流程，支持进度显示
  */
 const uploadImage = async (filePath: string) => {
-  uni.showLoading({ title: '上传中...' })
+  uploading.value = true
+  uploadProgress.value = 0
 
   try {
     // 1. 读取文件为 base64
     const base64 = await getFileBase64(filePath)
-    console.log('图片base64长度:', base64.length)
+    uploadProgress.value = 30
 
-    // 2. 调用云函数上传（服务端上传，不受客户端存储权限限制）
+    console.log('📷 图片base64长度:', base64.length)
+
+    // 2. 调用云函数上传（服务端上传，支持压缩）
     const res = await callFunction('admin-api', {
       action: 'uploadBannerImage',
       adminToken: AdminAuthManager.getToken(),
       data: {
         base64Data: base64,
-        fileName: 'banner.jpg'
+        fileName: `banner_${Date.now()}.jpg`
       }
     })
+
+    uploadProgress.value = 80
 
     // 3. 检查 token 过期
     if (res.code === 401 || res.msg?.includes('登录已过期')) {
@@ -227,23 +240,34 @@ const uploadImage = async (filePath: string) => {
     }
 
     if (res.code === 0 && res.data) {
-      // 使用临时访问 URL
-      formData.value.image = res.data.tempFileURL || res.data.fileID
-      uni.hideLoading()
+      // 直接使用 fileID（不再使用临时URL，避免过期）
+      formData.value.image = res.data.fileID
+      uploadProgress.value = 100
+
       uni.showToast({
         title: '上传成功',
-        icon: 'success'
+        icon: 'success',
+        duration: 2000
       })
+
+      // 压缩信息提示
+      if (res.data.compressedSize && res.data.originalSize) {
+        const ratio = ((1 - res.data.compressedSize / res.data.originalSize) * 100).toFixed(0)
+        console.log(`✅ 图片压缩: ${ratio}%`)
+      }
     } else {
       throw new Error(res.msg || '上传失败')
     }
   } catch (error: any) {
-    console.error('上传图片失败:', error)
-    uni.hideLoading()
+    console.error('❌ 上传图片失败:', error)
     uni.showToast({
       title: error.message || '上传失败',
-      icon: 'none'
+      icon: 'none',
+      duration: 2000
     })
+  } finally {
+    uploading.value = false
+    uploadProgress.value = 0
   }
 }
 
@@ -410,6 +434,7 @@ const goBack = () => {
 
 /* 图片上传 */
 .image-uploader {
+  position: relative;
   width: 100%;
   height: 360rpx;
   background: rgba(255, 255, 255, 0.03);
@@ -441,6 +466,41 @@ const goBack = () => {
 .upload-text {
   font-size: 26rpx;
   color: rgba(201, 169, 98, 0.5);
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid rgba(201, 169, 98, 0.3);
+  border-top-color: #C9A962;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 上传进度 */
+.upload-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8rpx;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #C9A962 0%, #7A9A8E 100%);
+  transition: width 0.3s;
+}
+
+.progress-text {
+  position: absolute;
+  bottom: 16rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24rpx;
+  color: #FFFFFF;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.8);
 }
 
 /* 表单输入 */
@@ -517,5 +577,11 @@ const goBack = () => {
 
 .switch.active .switch-dot {
   left: 44rpx;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

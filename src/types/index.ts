@@ -112,14 +112,37 @@ export interface UserInfo {
 }
 
 // 轮播图数据类型
+/**
+ * Banner 轮播图类型
+ * 用于首页轮播图、管理端 Banner 管理
+ */
 export interface Banner {
   _id?: string;
-  image: string;
-  link: string;
-  sort: number;
-  isActive: boolean;
-  title?: string;
-  subtitle?: string;
+  image: string;              // Banner图片URL（完整URL格式）
+  cloudPath?: string;         // 云存储路径（可选）
+  fileID?: string;            // 云存储fileID（可选）
+  imageType?: 'cloud' | 'url' | 'relative'; // 图片类型标识
+  link: string;               // 跳转链接
+  linkType?: 'page' | 'url' | 'product';    // 链接类型
+  sort: number;              // 排序字段，数字越小越靠前
+  isActive: boolean;         // 是否启用
+  title?: string;            // 标题
+  subtitle?: string;         // 副标题
+  startDate?: Date;          // 开始时间（定时显示）
+  endDate?: Date;            // 结束时间（定时显示）
+}
+
+/**
+ * Banner 表单数据类型
+ * 用于创建/编辑 Banner 的表单
+ */
+export interface BannerFormData {
+  title: string;             // 标题
+  subtitle: string;          // 副标题
+  image: string;             // 图片URL
+  link: string;              // 跳转链接
+  sort: number;              // 排序
+  isActive: boolean;         // 是否启用
 }
 
 // 钱包数据类型

@@ -18,18 +18,13 @@
       </view>
     </view>
 
-    <!-- 轮播图 - 沉浸式 -->
-    <swiper class="banner-swiper" indicator-dots autoplay circular indicator-active-color="#C8A464" indicator-color="rgba(200,164,100,0.3)">
-      <swiper-item v-for="(banner, index) in banners" :key="banner._id || index" @click="onBannerClick(banner)">
-        <image class="banner-image" :src="banner.image" mode="aspectFill" lazy-load />
-        <view class="banner-gradient"></view>
-        <view class="banner-content">
-          <text class="banner-tag">LIMITED</text>
-          <text class="banner-title">{{ banner.title }}</text>
-          <text class="banner-subtitle">{{ banner.subtitle }}</text>
-        </view>
-      </swiper-item>
-    </swiper>
+    <!-- 轮播图 - 使用独立组件 -->
+    <BannerSwiper
+      :banners="banners"
+      :autoplay="true"
+      :interval="5000"
+      @click="onBannerClick"
+    />
 
     <!-- 服务入口 - 非对称双卡片 -->
     <view class="service-section">
@@ -291,6 +286,7 @@ import { CDN_IMAGES } from '@/config/cdn';
 import { getListThumbnail } from '@/utils/image';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
+import BannerSwiper from '@/components/BannerSwiper.vue';
 
 // 类型定义（内联，避免分包导入问题）
 interface Product {
@@ -493,8 +489,21 @@ const goToProduct = (product: any) => {
   });
 };
 
+/**
+ * Banner 点击事件处理
+ * 注意：BannerSwiper 组件内部已经处理了跳转逻辑
+ * 此函数主要用于日志记录和后续扩展
+ */
 const onBannerClick = (banner: any) => {
-  uni.navigateTo({ url: banner.link });
+  console.log('Banner 点击:', banner);
+
+  // 组件内部已处理跳转，这里可以添加额外的逻辑
+  // 例如：统计点击次数、追踪用户行为等
+
+  // 如果需要自定义跳转逻辑，可以在这里实现
+  // if (banner.link) {
+  //   uni.navigateTo({ url: banner.link });
+  // }
 };
 
 // 生命周期

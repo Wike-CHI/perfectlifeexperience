@@ -33,10 +33,18 @@
         @click="goToEdit(banner._id)"
       >
         <!-- Banner图片 -->
-        <view class="banner-image-wrapper">
-          <image class="banner-image" :src="banner.image" mode="aspectFill" />
+        <view class="banner-image-wrapper" @click.stop="previewImage(banner.image)">
+          <image
+            class="banner-image"
+            :src="banner.image"
+            mode="aspectFill"
+            @error="handleImageError(banner, $event)"
+          />
           <view :class="['status-badge', banner.isActive ? 'active' : 'inactive']">
             <text class="status-text">{{ banner.isActive ? '启用' : '禁用' }}</text>
+          </view>
+          <view class="image-preview-hint">
+            <text class="hint-text">点击预览</text>
           </view>
         </view>
 
@@ -194,6 +202,31 @@ const formatLink = (link: string): string => {
   return link.length > 20 ? link.substring(0, 20) + '...' : link
 }
 
+// 预览图片
+const previewImage = (imageUrl: string) => {
+  uni.previewImage({
+    urls: [imageUrl],
+    current: imageUrl,
+    fail: (err) => {
+      console.error('预览图片失败', err)
+      uni.showToast({
+        title: '预览失败',
+        icon: 'none'
+      })
+    }
+  })
+}
+
+// 处理图片加载错误
+const handleImageError = (banner: any, event: any) => {
+  console.error('Banner图片加载失败', banner._id, event)
+  uni.showToast({
+    title: '图片加载失败',
+    icon: 'none',
+    duration: 2000
+  })
+}
+
 // 跳转到创建页面
 const goToCreate = () => {
   uni.navigateTo({
@@ -326,6 +359,26 @@ onReachBottom(() => {
 .banner-image {
   width: 100%;
   height: 100%;
+}
+
+.image-preview-hint {
+  position: absolute;
+  bottom: 16rpx;
+  left: 16rpx;
+  padding: 6rpx 16rpx;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8rpx;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.banner-image-wrapper:active .image-preview-hint {
+  opacity: 1;
+}
+
+.hint-text {
+  font-size: 22rpx;
+  color: #FFFFFF;
 }
 
 .status-badge {
