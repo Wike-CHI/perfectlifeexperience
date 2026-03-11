@@ -217,6 +217,10 @@ const canSubmit = computed(() => {
 // 选择退款类型
 const selectRefundType = (type: 'only_refund' | 'return_refund') => {
   refundType.value = type;
+  // 自动选中所有商品（参考美团体验）
+  if (orderItems.value.length > 0) {
+    toggleSelectAll();
+  }
 };
 
 // 切换商品选择

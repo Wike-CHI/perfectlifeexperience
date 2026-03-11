@@ -734,6 +734,25 @@ const payWithWechatProcess = async (orderId: string) => {
             }
           }
 
+          // 如果轮询未成功，尝试调用确认支付接口
+          if (!isPaid) {
+            try {
+              console.log('[支付调试] 尝试调用确认支付接口');
+              const confirmRes = await callFunction('wechatpay', {
+                action: 'confirmPayment',
+                data: { orderId }
+              });
+              if (confirmRes.code === 0) {
+                isPaid = true;
+                console.log('[支付调试] 确认支付成功');
+              } else {
+                console.log('[支付调试] 确认支付失败:', confirmRes.msg);
+              }
+            } catch (e) {
+              console.warn('[支付调试] 确认支付接口调用失败:', e);
+            }
+          }
+
           if (!isPaid) {
             console.log('[支付调试] 订单状态未更新，但支付已成功，跳转到订单详情');
           }

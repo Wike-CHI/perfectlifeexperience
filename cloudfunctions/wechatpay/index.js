@@ -8,7 +8,7 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { success, error, ErrorCodes } = require('../common/response');
+const { success, error, ErrorCodes } = require('./response');
 const { createLogger } = require('./logger');
 const logger = createLogger('wechatpay');
 
@@ -363,6 +363,10 @@ exports.main = async (event, context) => {
 
       case 'confirmRecharge':
         return await confirmRecharge(data, config);
+
+      case 'confirmPayment':
+        // 前端支付成功后确认订单状态
+        return await confirmPayment(data, config);
 
       case 'createRefund':
         return await createRefundHandler(data, config);
@@ -785,6 +789,78 @@ async function confirmRecharge(data, config) {
     }
   } catch (err) {
     logger.error('[充值确认] 处理失败', err);
+    return error(ErrorCodes.TRANSACTION_FAILED, err.message);
+  }
+}
+
+/**
+ * 确认订单支付状态（前端支付成功后调用）
+ * 主动查询微信支付订单状态并更新本地订单
+ */
+async function confirmPayment(data, config) {
+  const { orderId } = data;
+
+  if (!orderId) {
+    return error(ErrorCodes.INVALID_PARAMS, '缺少订单ID');
+  }
+
+  try {
+    // 1. 查询订单信息
+    const orderRes = await db.collection('orders').doc(orderId).get();
+
+    if (!orderRes.data) {
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+    }
+
+    const order = orderRes.data;
+
+    // 2. 如果订单已经支付成功，直接返回
+    if (order.paymentStatus === 'paid' || order.status === 'paid') {
+      logger.info('[订单确认] 订单已支付', { orderId });
+      return success({ status: 'paid' }, '订单已支付');
+    }
+
+    // 3. 查询微信支付订单状态
+    const orderNo = order.orderNo;
+    if (!orderNo) {
+      return error(ErrorCodes.ORDER_NOT_FOUND, '订单号不存在');
+    }
+
+    logger.info('[订单确认] 开始查询微信支付状态', { orderId, orderNo });
+
+    // 查询微信支付订单状态
+    const queryResult = await queryOrderByOutTradeNo(orderNo, config);
+
+    const tradeState = queryResult.trade_state;
+
+    if (tradeState === 'SUCCESS') {
+      // 支付成功，更新本地订单状态
+      logger.info('[订单确认] 微信支付成功，开始更新订单', { orderId, orderNo });
+
+      await db.collection('orders').doc(orderId).update({
+        data: {
+          status: 'paid',
+          paymentStatus: 'paid',
+          payTime: db.serverDate(),
+          transactionId: queryResult.transaction_id,
+          updateTime: db.serverDate()
+        }
+      });
+
+      logger.info('[订单确认] 订单状态已更新', { orderId, orderNo });
+      return success({ status: 'paid' }, '支付成功');
+    } else {
+      // 支付未成功
+      logger.warn('[订单确认] 支付未成功', {
+        orderId,
+        orderNo,
+        tradeState,
+        tradeStateDesc: queryResult.trade_state_desc
+      });
+      return error(ErrorCodes.TRANSACTION_FAILED, `支付状态: ${queryResult.trade_state_desc || tradeState}`);
+    }
+  } catch (err) {
+    logger.error('[订单确认] 处理失败', err);
     return error(ErrorCodes.TRANSACTION_FAILED, err.message);
   }
 }

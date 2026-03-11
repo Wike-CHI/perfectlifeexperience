@@ -27,6 +27,38 @@
         </view>
       </view>
 
+      <!-- 退款信息 (仅在退款相关状态显示) -->
+      <view class="section-card refund-card" v-if="order.status === 'refunding' || order.status === 'refunded'">
+        <view class="card-header">
+          <text class="card-title">退款信息</text>
+          <text class="refund-status-tag" :class="`status-${refundInfo?.refundStatus}`">
+            {{ getRefundStatusText(refundInfo?.refundStatus) }}
+          </text>
+        </view>
+        <view class="refund-info" v-if="refundInfo">
+          <view class="refund-row">
+            <text class="refund-label">退款类型</text>
+            <text class="refund-value">{{ getRefundTypeText(refundInfo.refundType) }}</text>
+          </view>
+          <view class="refund-row">
+            <text class="refund-label">退款金额</text>
+            <text class="refund-value refund-amount">¥{{ formatPrice(refundInfo.refundAmount) }}</text>
+          </view>
+          <view class="refund-row">
+            <text class="refund-label">退款原因</text>
+            <text class="refund-value">{{ refundInfo.refundReason || '用户申请退款' }}</text>
+          </view>
+          <view class="refund-row" v-if="refundInfo.rejectReason">
+            <text class="refund-label">拒绝原因</text>
+            <text class="refund-value refund-reject">{{ refundInfo.rejectReason }}</text>
+          </view>
+          <view class="refund-row" v-if="refundInfo.refundNo">
+            <text class="refund-label">退款单号</text>
+            <text class="refund-value">{{ refundInfo.refundNo }}</text>
+          </view>
+        </view>
+      </view>
+
       <!-- 收货地址 -->
       <view class="section-card address-card" v-if="order.address">
         <view class="card-header">
@@ -45,16 +77,46 @@
       <view class="section-card goods-card">
         <view class="card-header">
           <text class="card-title">购物清单</text>
-          <text class="goods-count">共 {{ order.products?.length || 0 }} 件</text>
+          <text class="goods-count" v-if="order.status === 'refunding' || order.status === 'refunded'">
+            退款金额: ¥{{ formatPrice(refundInfo?.refundAmount || order.totalAmount) }}
+          </text>
+          <text class="goods-count" v-else>共 {{ order.products?.length || 0 }} 件</text>
         </view>
         <view class="goods-list">
-          <view class="goods-item" v-for="(item, index) in order.products" :key="item.productId || index">
+          <view class="goods-item" v-for="(item, index) in order.products" :key="item.productId || index"
+            :class="{ 'is-refund': order.status === 'refunding' || order.status === 'refunded' }">
+            <!-- 退款标识 -->
+            <view class="refund-badge" v-if="order.status === 'refunding' || order.status === 'refunded'">
+              <text class="refund-icon">↩</text>
+              <text class="refund-text">退款商品</text>
+            </view>
+
             <image class="goods-img" :src="item.image" mode="aspectFill" />
             <view class="goods-meta">
               <text class="goods-name">{{ item.name }}</text>
-              <view class="goods-price-row">
+              <!-- 商品规格 -->
+              <text class="goods-specs" v-if="item.specs">{{ item.specs }}</text>
+
+              <!-- 非退款状态 -->
+              <view class="goods-price-row" v-if="order.status !== 'refunding' && order.status !== 'refunded'">
                 <text class="goods-quantity">x{{ item.quantity }}</text>
                 <text class="goods-price">¥{{ formatPrice(item.price) }}</text>
+              </view>
+
+              <!-- 退款中状态 - 美化版 -->
+              <view class="refund-details" v-else>
+                <view class="refund-row">
+                  <text class="refund-label">退款数量</text>
+                  <text class="refund-value highlight">x{{ getRefundQuantity(item.productId) }}</text>
+                </view>
+                <view class="refund-row">
+                  <text class="refund-label">单价</text>
+                  <text class="refund-value">¥{{ formatPrice(item.price) }}</text>
+                </view>
+                <view class="refund-row subtotal">
+                  <text class="refund-label">小计</text>
+                  <text class="refund-value money">¥{{ formatPrice(item.price * getRefundQuantity(item.productId)) }}</text>
+                </view>
               </view>
             </view>
           </view>
@@ -98,6 +160,7 @@
       <view class="action-btn primary" v-if="order.status === 'pending'" @click="payOrder">立即支付</view>
       <view class="action-btn primary" v-if="order.status === 'shipping'" @click="confirmReceive">确认收货</view>
       <view class="action-btn secondary" v-if="order.status === 'completed'" @click="buyAgain">再次购买</view>
+      <view class="action-btn secondary" v-if="order.status === 'refunding' && refundInfo?.refundStatus === 'pending'" @click="handleCancelRefund">取消退款</view>
       <view class="action-btn secondary refund-btn" v-if="canApplyRefund" @click="applyRefund">申请退款</view>
     </view>
 
@@ -148,7 +211,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, callFunction, getWalletBalance } from '@/utils/api';
+import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, getWalletBalance, cancelRefund, callFunction } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import { getDetailThumbnail } from '@/utils/image';
 
@@ -197,6 +260,9 @@ const order = ref<Partial<Order>>({
   createTime: new Date()
 });
 
+// 退款详情
+const refundInfo = ref<any>(null);
+
 // 支付方式选择
 const showPaymentPicker = ref(false);
 const paymentMethod = ref<'wechat' | 'balance'>('wechat');
@@ -233,7 +299,9 @@ const getStatusIcon = (status?: string) => {
     paid: '/static/icons/order-ship.svg',
     shipping: '/static/icons/order-receive.svg',
     completed: '/static/icons/order-done.svg',
-    cancelled: '/static/icons/order-done.svg'
+    cancelled: '/static/icons/order-done.svg',
+    refunding: '/static/icons/order-refund.svg',
+    refunded: '/static/icons/order-refund.svg'
   };
   return iconMap[status || 'pending'];
 };
@@ -245,7 +313,9 @@ const getStatusText = (status?: string) => {
     paid: '等待发货',
     shipping: '运输途中',
     completed: '订单完成',
-    cancelled: '已取消'
+    cancelled: '已取消',
+    refunding: '退款中',
+    refunded: '已退款'
   };
   return statusMap[status || 'pending'];
 };
@@ -257,7 +327,9 @@ const getStatusDesc = (status?: string) => {
     paid: '商家正在打包您的商品',
     shipping: '您的包裹正在飞奔向您',
     completed: '感谢您的信任与支持',
-    cancelled: '期待下次为您服务'
+    cancelled: '期待下次为您服务',
+    refunding: '退款申请正在处理中',
+    refunded: '退款已完成'
   };
   return descMap[status || 'pending'];
 };
@@ -275,6 +347,12 @@ const loadOrderDetail = async (id: string) => {
     uni.showLoading({ title: '加载中' });
     const res = await getOrderDetail(id);
     order.value = res;
+
+    // 如果订单是退款中或已退款，加载退款详情
+    if (res.status === 'refunding' || res.status === 'refunded') {
+      await loadRefundDetail(id);
+    }
+
     uni.hideLoading();
   } catch (error) {
     uni.hideLoading();
@@ -283,6 +361,53 @@ const loadOrderDetail = async (id: string) => {
       icon: 'none'
     });
   }
+};
+
+// 加载退款详情
+const loadRefundDetail = async (orderId: string) => {
+  try {
+    const res = await callFunction('order', {
+      action: 'getRefundList',
+      data: { orderId }
+    });
+    if (res?.result?.code === 0 && res?.result?.data?.refunds?.length > 0) {
+      refundInfo.value = res.result.data.refunds[0];
+    }
+  } catch (error) {
+    console.error('加载退款详情失败:', error);
+  }
+};
+
+// 获取退款状态文本
+const getRefundStatusText = (status?: string) => {
+  const statusMap: Record<string, string> = {
+    pending: '待审核',
+    approved: '已同意',
+    waiting_receive: '待收货',
+    processing: '退款中',
+    completed: '已完成',
+    rejected: '已拒绝',
+    cancelled: '已取消'
+  };
+  return statusMap[status || 'pending'] || '未知';
+};
+
+// 获取退款类型文本
+const getRefundTypeText = (type?: string) => {
+  const typeMap: Record<string, string> = {
+    only_refund: '仅退款',
+    return_refund: '退货退款'
+  };
+  return typeMap[type || 'only_refund'] || '仅退款';
+};
+
+// 获取退款商品数量
+const getRefundQuantity = (productId?: string) => {
+  if (!refundInfo?.products || !productId) {
+    return 1;
+  }
+  const product = refundInfo.products.find((p: any) => p.productId === productId);
+  return product?.refundQuantity || 1;
 };
 
 // 取消订单
@@ -506,8 +631,45 @@ const buyAgain = () => {
 
 // 申请退款
 const applyRefund = () => {
+  // 序列化订单数据，传递给退款页面
+  const orderData = encodeURIComponent(JSON.stringify(order.value));
   uni.navigateTo({
-    url: `/pages/order/refund-apply?orderId=${order.value._id}`
+    url: `/pages/order/refund-apply?orderId=${order.value._id}&orderData=${orderData}`
+  });
+};
+
+// 取消退款
+const handleCancelRefund = () => {
+  if (!refundInfo.value?._id) {
+    uni.showToast({
+      title: '退款记录不存在',
+      icon: 'none'
+    });
+    return;
+  }
+
+  uni.showModal({
+    title: '提示',
+    content: '确定要取消退款申请吗？',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          await cancelRefund(refundInfo.value._id);
+          uni.showToast({
+            title: '已取消退款',
+            icon: 'success'
+          });
+          // 刷新订单详情
+          loadOrderDetail(order.value._id!);
+          refundInfo.value = null;
+        } catch (error) {
+          uni.showToast({
+            title: '取消失败',
+            icon: 'none'
+          });
+        }
+      }
+    }
   });
 };
 
@@ -663,6 +825,93 @@ onLoad((options) => {
   font-family: monospace;
 }
 
+/* Refund Info */
+.refund-card {
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  padding: 30rpx;
+}
+
+.refund-status-tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  font-weight: 500;
+}
+
+.refund-status-tag.status-pending {
+  background: #FFF8E1;
+  color: #F57C00;
+}
+
+.refund-status-tag.status-approved {
+  background: #E8F5E9;
+  color: #4CAF50;
+}
+
+.refund-status-tag.status-processing {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.refund-status-tag.status-completed {
+  background: #E8F5E9;
+  color: #4CAF50;
+}
+
+.refund-status-tag.status-rejected {
+  background: #FFEBEE;
+  color: #F44336;
+}
+
+.refund-status-tag.status-cancelled {
+  background: #F5F5F5;
+  color: #9E9E9E;
+}
+
+.refund-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.refund-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.refund-label {
+  font-size: 26rpx;
+  color: #999999;
+  flex-shrink: 0;
+  width: 140rpx;
+}
+
+.refund-value {
+  font-size: 26rpx;
+  color: #333333;
+  flex: 1;
+  text-align: right;
+}
+
+.refund-amount {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #D9480F;
+}
+
+.refund-reject {
+  color: #F44336;
+}
+
+.refund-tag {
+  font-size: 20rpx;
+  color: #FF9800;
+  margin-left: 8rpx;
+}
+
 /* Address */
 .address-details {
   padding: 10rpx 0;
@@ -706,6 +955,93 @@ onLoad((options) => {
 .goods-item {
   display: flex;
   gap: 24rpx;
+  position: relative;
+  padding: 20rpx;
+  margin: -20rpx;
+  margin-bottom: 0;
+  border-radius: 12rpx;
+  transition: all 0.3s ease;
+}
+
+/* 退款商品特殊样式 */
+.goods-item.is-refund {
+  background: linear-gradient(135deg, #FFF7E6 0%, #FFF0D5 100%);
+  border: 2rpx solid #FFE4B5;
+  margin-bottom: 16rpx;
+}
+
+/* 退款标识 */
+.refund-badge {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+  padding: 6rpx 12rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 8rpx rgba(255, 152, 0, 0.3);
+}
+
+.refund-icon {
+  font-size: 20rpx;
+  color: #FFFFFF;
+}
+
+.refund-text {
+  font-size: 20rpx;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* 退款详情面板 */
+.refund-details {
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12rpx;
+  padding: 16rpx;
+  margin-top: 12rpx;
+  border: 1rpx solid #FFE4B5;
+}
+
+.refund-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8rpx 0;
+}
+
+.refund-row:not(:last-child) {
+  border-bottom: 1rpx dashed #FFE4B5;
+}
+
+.refund-row.subtotal {
+  padding-top: 12rpx;
+  margin-top: 4rpx;
+  border-top: 2rpx solid #FFE4B5;
+  border-bottom: none;
+}
+
+.refund-label {
+  font-size: 24rpx;
+  color: #999999;
+}
+
+.refund-value {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.refund-value.highlight {
+  color: #FF9800;
+  font-weight: 600;
+  font-size: 28rpx;
+}
+
+.refund-value.money {
+  color: #E64A19;
+  font-size: 32rpx;
+  font-weight: 700;
 }
 
 .goods-img {
@@ -745,6 +1081,12 @@ onLoad((options) => {
   font-size: 32rpx;
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.goods-specs {
+  font-size: 24rpx;
+  color: #999999;
+  margin-bottom: 8rpx;
 }
 
 /* Summary */

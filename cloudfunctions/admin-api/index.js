@@ -142,7 +142,7 @@ exports.main = async (event, context) => {
       case 'adminLogin':
         return await adminLogin(data)
       case 'getDashboardData':
-        return await dashboardModule.getDashboardData(db)
+        return await dashboardModule.getDashboardData(db, data)
       case 'checkAuth':
         return { success: true, message: 'Admin API connected', openId: wxContext.OPENID }
       case 'checkAdminStatus':
@@ -274,11 +274,11 @@ exports.main = async (event, context) => {
       case 'getRefundList':
         return await refundModule.getRefundList(db, data)
       case 'getRefundDetail':
-        return await refundModule.getRefundDetail(db, data)
+        return await getRefundDetailAdmin(data)
       case 'approveRefund':
-        return await refundModule.approveRefund(db, logOperation, data, wxContext)
+        return await refundModule.approveRefund(db, logOperation, data, wxContext, cloud.callFunction)
       case 'confirmReceipt':
-        return await refundModule.confirmReceipt(db, logOperation, data, wxContext)
+        return await refundModule.confirmReceipt(db, logOperation, data, wxContext, cloud.callFunction)
       case 'rejectRefund':
         return await refundModule.rejectRefund(db, logOperation, data, wxContext)
       case 'retryRefund':
@@ -1869,12 +1869,29 @@ async function getRefundDetailAdmin(data) {
       db.collection('orders').where({ _id: refund.orderId }).limit(1).get()
     ]);
 
+    const order = orderResult.data[0] || null;
+
+    // 补充商品详情（从订单商品中获取完整信息）
+    if (order && order.products && refund.products) {
+      refund.products = refund.products.map(refundProduct => {
+        const orderProduct = order.products.find(p => p.productId === refundProduct.productId);
+        return {
+          ...refundProduct,
+          name: orderProduct?.name || orderProduct?.productName || '未知商品',
+          image: orderProduct?.image || orderProduct?.productImage || '',
+          price: orderProduct?.price || 0,
+          specs: orderProduct?.specs || '',
+          quantity: orderProduct?.quantity || refundProduct.refundQuantity
+        };
+      });
+    }
+
     return {
       code: 0,
       data: {
         refund: refund,
         user: userResult.data[0] || null,
-        order: orderResult.data[0] || null
+        order: order
       }
     };
   } catch (error) {

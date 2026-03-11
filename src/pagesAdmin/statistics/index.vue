@@ -92,7 +92,7 @@
             <text class="product-name">{{ product.name }}</text>
             <text class="product-sales">销量: {{ product.sales }}</text>
           </view>
-          <text class="product-amount">¥{{ formatMoney(product.sales * product.price / 100) }}</text>
+          <text class="product-amount">¥{{ formatMoney(product.amount || 0) }}</text>
         </view>
 
         <view v-if="topProducts.length === 0 && !loading" class="empty-state">
@@ -138,8 +138,8 @@ const topProducts = ref<any[]>([])
 
 const loading = ref(false)
 const timeRange = ref('today')
-const salesTrend = ref('+12%')
-const ordersTrend = ref('+8%')
+const salesTrend = ref('')
+const ordersTrend = ref('')
 
 // 时间筛选选项
 const timeTabs = [
@@ -180,7 +180,10 @@ const loadStatistics = async () => {
 
     const res = await callFunction('admin-api', {
       action: 'getDashboardData',
-      adminToken: AdminAuthManager.getToken()
+      adminToken: AdminAuthManager.getToken(),
+      data: {
+        timeRange: timeRange.value
+      }
     })
 
     if (res.code === 0 && res.data) {
@@ -206,99 +209,33 @@ const updateStats = (data: any) => {
   stats.value = {
     todaySales: data.todaySales || 0,
     todayOrders: data.todayOrders || 0,
-    newUsers: data.newUsers || Math.floor(Math.random() * 20),
+    newUsers: data.newUsers || 0,
     totalPromoters: data.totalPromoters || 0
   }
 
-  // 生成模拟趋势数据（实际应从后端获取）
-  generateSalesData()
-  generateOrderData()
+  // 使用后端返回的真实增长率
+  salesTrend.value = data.salesTrend || '+0%'
+  ordersTrend.value = data.ordersTrend || '+0%'
 
-  // 商品排行（从recentOrders中提取）
-  topProducts.value = extractTopProducts(data.recentOrders || [])
-}
+  // 使用后端返回的销售趋势数据
+  salesData.value = data.salesTrendData || []
 
-/**
- * 生成销售趋势数据
- */
-const generateSalesData = () => {
-  const data: any[] = []
-  const baseValue = Math.floor(stats.value.todaySales / 10)
-
-  if (timeRange.value === 'today') {
-    // 今日按小时
-    for (let i = 0; i < 12; i++) {
-      data.push({
-        label: `${i * 2}:00`,
-        value: Math.floor(baseValue * (0.5 + Math.random()))
-      })
-    }
-  } else if (timeRange.value === 'week') {
-    // 本周按天
-    const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-    days.forEach(day => {
-      data.push({
-        label: day,
-        value: Math.floor(baseValue * (2 + Math.random() * 3))
-      })
-    })
-  } else {
-    // 本月按周
-    for (let i = 1; i <= 4; i++) {
-      data.push({
-        label: `第${i}周`,
-        value: Math.floor(baseValue * (5 + Math.random() * 5))
-      })
-    }
-  }
-
-  salesData.value = data
-}
-
-/**
- * 生成订单统计数据
- */
-const generateOrderData = () => {
-  const data: any[] = []
-  const baseValue = Math.floor(stats.value.todayOrders / 5)
-
-  const orderTypes = [
-    { label: '待付款', value: Math.floor(baseValue * 0.5) },
-    { label: '待发货', value: Math.floor(baseValue * 1.5) },
-    { label: '配送中', value: Math.floor(baseValue * 1.2) },
-    { label: '已完成', value: Math.floor(baseValue * 2) },
-    { label: '已取消', value: Math.floor(baseValue * 0.3) }
+  // 使用后端返回的订单状态统计数据
+  const orderStats = data.orderStats || {}
+  orderData.value = [
+    { label: '待付款', value: orderStats.pending || 0 },
+    { label: '待发货', value: orderStats.paid || 0 },
+    { label: '配送中', value: orderStats.shipping || 0 },
+    { label: '已完成', value: orderStats.completed || 0 },
+    { label: '已退款', value: orderStats.refunded || 0 },
+    { label: '已取消', value: orderStats.cancelled || 0 }
   ]
 
-  orderData.value = orderTypes
-}
-
-/**
- * 从订单中提取商品排行
- */
-const extractTopProducts = (orders: any[]) => {
-  const productMap = new Map()
-
-  orders.forEach(order => {
-    order.products?.forEach((product: any) => {
-      const existing = productMap.get(product.productId)
-      if (existing) {
-        existing.sales += product.quantity
-      } else {
-        productMap.set(product.productId, {
-          _id: product.productId,
-          name: product.name,
-          images: [product.image],
-          price: product.price,
-          sales: product.quantity
-        })
-      }
-    })
-  })
-
-  return Array.from(productMap.values())
-    .sort((a, b) => b.sales - a.sales)
-    .slice(0, 5)
+  // 使用后端返回的商品销量排行
+  topProducts.value = (data.topProducts || []).map((product: any) => ({
+    ...product,
+    images: product.image ? [product.image] : []
+  }))
 }
 
 // ==================== 工具函数 ====================
@@ -313,10 +250,9 @@ const formatMoney = (amount: number): string => {
 /**
  * 切换时间范围
  */
-const changeTimeRange = (range: string) => {
+const changeTimeRange = async (range: string) => {
   timeRange.value = range
-  // 重新加载数据（实际应调用不同API）
-  generateSalesData()
+  await loadStatistics()
 }
 
 /**

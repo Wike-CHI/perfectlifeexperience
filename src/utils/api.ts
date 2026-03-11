@@ -1560,7 +1560,7 @@ export const updateReturnLogistics = async (params: {
 /**
  * 获取退款列表
  */
-export const getRefundList = async (status?: string) => {
+export const getRefundList = async (status?: string, orderId?: string) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
     throw new Error('当前环境不支持云开发');
   }
@@ -1568,7 +1568,7 @@ export const getRefundList = async (status?: string) => {
   try {
     const res = await callFunction('order', {
       action: 'getRefundList',
-      data: { status }
+      data: { status, orderId }
     });
 
     if (res.code === 0) {

@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { getRefundList, formatPrice } from '@/utils/api';
 
 // 类型定义（内联，避免分包导入问题）
@@ -132,6 +133,9 @@ const RefundTypeNames: Record<string, string> = {
 
 // 当前tab
 const currentTab = ref<'all' | 'processing' | 'completed'>('all');
+
+// 订单ID（用于从订单列表进入时过滤）
+const orderId = ref<string>('');
 
 // 退款列表
 const refundList = ref<Partial<Refund>[]>([]);
@@ -196,7 +200,8 @@ const loadRefundList = async () => {
       status = 'success,rejected,failed';
     }
 
-    const res = await getRefundList(status);
+    // 传递 orderId 用于过滤
+    const res = await getRefundList(status, orderId.value || undefined);
 
     if (res.refunds) {
       if (page.value === 1) {
@@ -229,8 +234,19 @@ const loadMore = () => {
   loadRefundList();
 };
 
+// 页面加载
 onMounted(() => {
   loadRefundList();
+});
+
+// 接收参数
+onLoad((options) => {
+  if (options?.orderId) {
+    orderId.value = options.orderId;
+    // 强制显示全部tab并加载该订单的退款记录
+    currentTab.value = 'all';
+    loadRefundList();
+  }
 });
 
 // 触底加载

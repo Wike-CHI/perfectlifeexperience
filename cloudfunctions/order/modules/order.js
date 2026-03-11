@@ -643,6 +643,20 @@ async function payWithBalance(openid, data) {
 
     await transaction.commit();
 
+    // 支付成功后清除钱包缓存
+    try {
+      await cloud.callFunction({
+        name: 'wallet',
+        data: {
+          action: 'clearCache',
+          openid: openid
+        }
+      });
+      logger.debug('Wallet cache cleared after payment', { openid });
+    } catch (cacheError) {
+      logger.warn('Failed to clear wallet cache', { error: cacheError.message });
+    }
+
     return {
       success: true,
       message: '支付成功',

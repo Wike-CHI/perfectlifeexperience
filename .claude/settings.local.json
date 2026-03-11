@@ -128,7 +128,8 @@
       "mcp__cloudbase__auth",
       "Bash(mkdir:*)",
       "Bash(test-cloud-function.sh:*)",
-      "Bash(verify-config-optimization.sh:*)"
+      "Bash(verify-config-optimization.sh:*)",
+      "Bash(base64:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

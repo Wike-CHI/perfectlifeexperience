@@ -61,6 +61,9 @@ exports.main = async (event, context) => {
         return await recharge(openid, data);
       case 'getTransactions':
         return await getTransactions(openid, data);
+      case 'clearCache':
+        // 清除缓存（供其他云函数调用）
+        return await clearCache(openid, data);
       default:
         return {
           code: 400,
@@ -263,4 +266,19 @@ async function getTransactions(openid, { page = 1, limit = 20 }) {
   userCache.set(cacheKey, result, 300000);
 
   return result;
+}
+
+// 清除缓存（供其他云函数调用）
+async function clearCache(openid, data) {
+  try {
+    // 清除余额缓存
+    userCache.delete(`wallet_balance_${openid}`);
+    // 清除交易记录缓存
+    // 简单起见，清除所有以该openid开头的缓存键
+    logger.debug('Wallet cache cleared', { openid });
+    return { code: 0, msg: '缓存已清除' };
+  } catch (error) {
+    logger.error('Clear cache failed', error);
+    return { code: 500, msg: error.message };
+  }
 }

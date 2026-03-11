@@ -42,6 +42,14 @@
           >
             <text class="tab-text">已完成</text>
           </view>
+          <view
+            class="tab-item"
+            :class="{ active: currentStatus === 'refunding' }"
+            @click="switchStatus('refunding')"
+          >
+            <text class="tab-text">退款中</text>
+            <text v-if="statusCount.refunding > 0" class="badge">{{ statusCount.refunding }}</text>
+          </view>
         </view>
       </scroll-view>
     </view>
@@ -94,6 +102,12 @@
           <view class="btn-default" v-if="order.status === 'completed'" @click="buyAgain(order)">
             <text class="btn-text">再次购买</text>
           </view>
+          <view class="btn-default" v-if="order.status === 'refunding'" @click="viewRefundDetail(order)">
+            <text class="btn-text">查看退款</text>
+          </view>
+          <view class="btn-primary" v-if="order.status === 'refunding'" @click="handleCancelRefund(order)">
+            <text class="btn-text">取消退款</text>
+          </view>
         </view>
       </view>
 
@@ -121,7 +135,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice } from '@/utils/api';
+import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, cancelRefund, callFunction, getWalletBalance } from '@/utils/api';
 import { formatPrice as fp } from '@/utils/format';
 import { getListThumbnail } from '@/utils/image';
 import { ORDER_STATUS_TEXTS, ORDER_STATUS_COLORS, PAGINATION_CONFIG } from '@/constants/order';
@@ -143,7 +157,8 @@ const statusCount = ref({
   pending: 0,
   paid: 0,
   shipping: 0,
-  completed: 0
+  completed: 0,
+  refunding: 0
 });
 
 // 获取状态文本（使用常量）
@@ -182,7 +197,8 @@ const loadOrders = async (isRefresh = false) => {
       pending: res.filter(o => o.status === 'pending').length,
       paid: res.filter(o => o.status === 'paid').length,
       shipping: res.filter(o => o.status === 'shipping').length,
-      completed: res.filter(o => o.status === 'completed').length
+      completed: res.filter(o => o.status === 'completed').length,
+      refunding: res.filter(o => o.status === 'refunding').length
     };
 
     if (isRefresh) {
@@ -244,28 +260,122 @@ const cancelOrder = (order: Order) => {
 };
 
 // 支付订单
-const payOrder = (order: Order) => {
-  uni.showModal({
-    title: '模拟支付',
-    content: `支付金额: ¥${fp(order.totalAmount)}`,
-    success: async (res) => {
-      if (res.confirm) {
-        try {
-          await updateOrderStatus(order._id!, 'paid');
-          uni.showToast({
-            title: '支付成功',
-            icon: 'success'
-          });
-          loadOrders(true);
-        } catch (error) {
-          uni.showToast({
-            title: '支付失败',
-            icon: 'none'
-          });
+const payOrder = async (order: Order) => {
+  const paymentMethod = order.paymentMethod || 'wechat';
+
+  if (paymentMethod === 'balance') {
+    // 余额支付
+    uni.showModal({
+      title: '余额支付',
+      content: `支付金额: ¥${fp(order.totalAmount)}，将从余额扣除`,
+      success: async (res) => {
+        if (res.confirm) {
+          try {
+            uni.showLoading({ title: '支付中...' });
+            const payRes = await callFunction('order', {
+              action: 'payWithBalance',
+              data: { orderId: order._id }
+            });
+            uni.hideLoading();
+
+            if (payRes.code === 0) {
+              uni.showToast({
+                title: '支付成功',
+                icon: 'success'
+              });
+              loadOrders(true);
+            } else {
+              uni.showToast({
+                title: payRes.msg || '支付失败',
+                icon: 'none'
+              });
+            }
+          } catch (error) {
+            uni.hideLoading();
+            uni.showToast({
+              title: '支付失败',
+              icon: 'none'
+            });
+          }
         }
       }
-    }
-  });
+    });
+  } else {
+    // 微信支付
+    uni.showModal({
+      title: '微信支付',
+      content: `支付金额: ¥${fp(order.totalAmount)}`,
+      success: async (res) => {
+        if (res.confirm) {
+          try {
+            uni.showLoading({ title: '创建支付...' });
+
+            // 获取 openid
+            const userInfo = uni.getStorageSync('userInfo') || {};
+            const openid = userInfo.openid;
+
+            if (!openid) {
+              uni.hideLoading();
+              uni.showToast({
+                title: '请先登录',
+                icon: 'none'
+              });
+              return;
+            }
+
+            const payRes = await callFunction('wechatpay', {
+              action: 'createPayment',
+              data: {
+                orderId: order._id,
+                openid
+              }
+            });
+
+            uni.hideLoading();
+
+            if (payRes.code === 0 && payRes.data?.payParams) {
+              const payParams = payRes.data.payParams;
+              uni.requestPayment({
+                provider: 'wxpay',
+                orderInfo: '',
+                timeStamp: payParams.timeStamp,
+                nonceStr: payParams.nonceStr,
+                package: payParams.package,
+                signType: payParams.signType,
+                paySign: payParams.paySign,
+                success: () => {
+                  uni.showToast({
+                    title: '支付成功',
+                    icon: 'success'
+                  });
+                  loadOrders(true);
+                },
+                fail: (err) => {
+                  console.error('微信支付失败:', err);
+                  uni.showToast({
+                    title: '支付取消或失败',
+                    icon: 'none'
+                  });
+                }
+              });
+            } else {
+              uni.showToast({
+                title: payRes.msg || '创建支付失败',
+                icon: 'none'
+              });
+            }
+          } catch (error) {
+            uni.hideLoading();
+            console.error('支付失败:', error);
+            uni.showToast({
+              title: '支付失败',
+              icon: 'none'
+            });
+          }
+        }
+      }
+    });
+  }
 };
 
 // 确认收货
@@ -312,6 +422,53 @@ const goToDetail = (order: Order) => {
 const goToHome = () => {
   uni.switchTab({
     url: '/pages/index/index'
+  });
+};
+
+// 取消退款
+const handleCancelRefund = (order: Order) => {
+  uni.showModal({
+    title: '提示',
+    content: '确定要取消退款申请吗？',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          // 先获取退款记录ID
+          const res = await callFunction('order', {
+            action: 'getRefundList',
+            data: { status: 'pending' }
+          });
+          const refunds = res?.result?.data?.refunds || [];
+          const refund = refunds.find((r: any) => r.orderId === order._id);
+
+          if (refund) {
+            await cancelRefund(refund._id);
+            uni.showToast({
+              title: '已取消退款',
+              icon: 'success'
+            });
+            loadOrders(true);
+          } else {
+            uni.showToast({
+              title: '退款记录不存在',
+              icon: 'none'
+            });
+          }
+        } catch (error) {
+          uni.showToast({
+            title: '取消失败',
+            icon: 'none'
+          });
+        }
+      }
+    }
+  });
+};
+
+// 查看退款详情
+const viewRefundDetail = (order: Order) => {
+  uni.navigateTo({
+    url: `/pages/order/refund-list?orderId=${order._id}`
   });
 };
 

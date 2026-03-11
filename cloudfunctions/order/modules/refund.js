@@ -88,6 +88,7 @@ async function applyRefund(openid, data) {
       refundNo: generateRefundNo(),
       orderId: orderId,
       orderNo: order.orderNo,
+      originalStatus: order.status, // 保存原订单状态，用于拒绝退款时恢复
       refundType,
       refundReason,
       refundAmount,
@@ -99,6 +100,14 @@ async function applyRefund(openid, data) {
 
     const res = await db.collection('refunds').add({
       data: refundRecord
+    });
+
+    // 更新订单状态为"退款中"
+    await db.collection('orders').doc(orderId).update({
+      data: {
+        status: 'refunding',
+        updateTime: db.serverDate()
+      }
     });
 
     logger.info('Refund applied', { refundId: res._id, orderId });
@@ -140,6 +149,10 @@ async function cancelRefund(openid, data) {
       return error(ErrorCodes.INVALID_STATUS, '当前状态不允许取消');
     }
 
+    // 获取原订单状态
+    const originalStatus = refund.originalStatus || 'paid';
+
+    // 更新退款记录状态
     await db.collection('refunds')
       .doc(refundId)
       .update({
@@ -149,7 +162,15 @@ async function cancelRefund(openid, data) {
         }
       });
 
-    logger.info('Refund cancelled', { refundId });
+    // 恢复订单状态为原状态
+    await db.collection('orders').doc(refund.orderId).update({
+      data: {
+        status: originalStatus,
+        updateTime: db.serverDate()
+      }
+    });
+
+    logger.info('Refund cancelled', { refundId, orderId: refund.orderId, originalStatus });
 
     return success(null, '取消退款成功');
   } catch (err) {
@@ -215,9 +236,14 @@ async function updateReturnLogistics(openid, data) {
  */
 async function getRefundList(openid, data) {
   try {
-    const { status } = data || {};
+    const { status, orderId } = data || {};
 
     const query = { _openid: openid };
+
+    // 支持按订单ID过滤
+    if (orderId) {
+      query.orderId = orderId;
+    }
 
     if (status) {
       const statuses = status.split(',').map(s => s.trim());
