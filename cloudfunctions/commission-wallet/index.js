@@ -27,7 +27,7 @@ const { createLogger } = require('./common/logger');
 const logger = createLogger('commission-wallet');
 
 // 引入统一配置管理
-const { getSystemConfigWithFallback } = require('../common/defaultConfig');
+const { getSystemConfigWithFallback } = require('./common/defaultConfig');
 
 // 集合名称
 const COMMISSION_WALLETS_COLLECTION = 'commission_wallets';
