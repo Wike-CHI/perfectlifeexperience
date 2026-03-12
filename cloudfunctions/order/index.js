@@ -77,7 +77,11 @@ exports.main = async (event, context) => {
         return await orderModule.createOrder(openid, data);
 
       case 'getOrders':
-        return await orderModule.getOrders(openid, data ? data.status : null);
+        return await orderModule.getOrders(
+          openid,
+          data ? data.status : null,
+          data ? data : {} // 传递完整 data 对象，包含 page, pageSize
+        );
 
       case 'getOrderDetail':
         return await orderModule.getOrderDetail(openid, data.orderId);

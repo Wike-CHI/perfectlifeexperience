@@ -273,16 +273,31 @@ async function createOrder(openid, orderData) {
  * @param {string} openid - 用户openid
  * @param {string} status - 订单状态
  */
-async function getOrders(openid, status) {
-  const cacheKey = `orders_${openid}_${status || 'all'}`;
+async function getOrders(openid, status, options = {}) {
+  const {
+    page = 1,
+    pageSize = 10
+  } = options;
 
-  const cached = userCache.get(cacheKey);
-  if (cached !== null) {
-    logger.debug('Orders cache hit', { openid, status });
-    return cached;
+  // 参数验证
+  if (page < 1 || pageSize < 1 || pageSize > 50) {
+    return error(ErrorCodes.INVALID_PARAMS, '分页参数无效');
   }
 
-  logger.debug('Orders cache miss, querying...', { openid, status });
+  const cacheKey = page === 1
+    ? `orders_${openid}_${status || 'all'}`
+    : null; // 仅第一页使用缓存
+
+  // 第一页尝试使用缓存
+  if (cacheKey) {
+    const cached = userCache.get(cacheKey);
+    if (cached !== null) {
+      logger.debug('Orders cache hit', { openid, status, page });
+      return cached;
+    }
+  }
+
+  logger.debug('Orders cache miss, querying...', { openid, status, page, pageSize });
 
   try {
     const query = { _openid: openid };
@@ -291,14 +306,35 @@ async function getOrders(openid, status) {
       query.status = status;
     }
 
+    // 多查1条判断hasMore
     const res = await db.collection('orders')
       .where(query)
       .orderBy('createTime', 'desc')
+      .skip((page - 1) * pageSize)
+      .limit(pageSize + 1)
       .get();
 
-    const result = success({ orders: res.data }, '获取订单成功');
+    // 判断是否有更多数据
+    const hasMore = res.data.length > pageSize;
+    const orders = hasMore ? res.data.slice(0, pageSize) : res.data;
 
-    userCache.set(cacheKey, result, 300000);
+    logger.info('Orders fetched', {
+      count: orders.length,
+      hasMore,
+      page
+    });
+
+    const result = success({
+      orders,
+      hasMore,
+      page,
+      pageSize
+    }, '获取订单成功');
+
+    // 仅第一页缓存（5分钟）
+    if (cacheKey) {
+      userCache.set(cacheKey, result, 300000);
+    }
 
     return result;
   } catch (err) {
