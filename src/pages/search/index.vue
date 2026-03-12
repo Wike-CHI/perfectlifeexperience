@@ -183,6 +183,9 @@ import { debounce } from '@/utils/debounce';
 import { SEARCH_PERFORMANCE_CONFIG } from '@/config/performance';
 import type { Product, SearchHistory, HotKeyword } from '@/types';
 
+// 渲染ID追踪（用于防止竞态条件）
+let renderId = 0;
+
 // 搜索状态
 const keyword = ref('');
 const hasSearched = ref(false);
@@ -294,27 +297,29 @@ async function handleSearch() {
 const debouncedHandleSearch = debounce(handleSearch, SEARCH_PERFORMANCE_CONFIG.debounceDelay);
 
 /**
- * 分批渲染商品列表
+ * 分批调度渲染商品列表（并发而非串行）
  * @param productsToRender 要渲染的商品列表
  */
-async function renderProductsInBatches(productsToRender: Product[]) {
+function scheduleBatchRendering(productsToRender: Product[]) {
+  const currentRenderId = ++renderId;
   const batchSize = SEARCH_PERFORMANCE_CONFIG.renderBatchSize;
   const delay = SEARCH_PERFORMANCE_CONFIG.renderBatchDelay;
 
   // 清空现有列表
   products.value = [];
 
-  // 分批渲染
+  // 分批调度渲染（并发而非串行）
   for (let i = 0; i < productsToRender.length; i += batchSize) {
     const batch = productsToRender.slice(i, i + batchSize);
+    const batchDelay = (i / batchSize) * delay;
 
-    // 使用 setTimeout 异步添加每一批
-    await new Promise<void>((resolve) => {
-      setTimeout(() => {
-        products.value.push(...batch);
-        resolve();
-      }, (i / batchSize) * delay);
-    });
+    setTimeout(() => {
+      // 检查是否已被新的搜索取消（防止竞态条件）
+      if (currentRenderId === renderId) {
+        // 批量更新减少响应式触发
+        products.value = [...products.value, ...batch];
+      }
+    }, batchDelay);
   }
 }
 
@@ -336,7 +341,7 @@ async function doSearch() {
 
     // 使用分批渲染
     try {
-      await renderProductsInBatches(result.products);
+      scheduleBatchRendering(result.products);
     } catch (renderError) {
       console.error('[分批渲染失败，降级到一次性渲染]', renderError);
       // 降级：一次性渲染所有商品
