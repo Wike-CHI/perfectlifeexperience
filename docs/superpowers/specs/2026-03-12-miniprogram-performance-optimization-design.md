@@ -314,7 +314,17 @@ async function loadOrders(refresh = false) {
 }
 
 // 后台静默刷新
+let backgroundRefreshInProgress = false; // 防止竞态条件
+
 async function refreshOrdersInBackground() {
+  // 如果已有后台刷新在进行，跳过
+  if (backgroundRefreshInProgress) {
+    console.log('[Cache] 后台刷新进行中，跳过本次刷新');
+    return;
+  }
+
+  backgroundRefreshInProgress = true;
+
   try {
     const result = await callFunction('order', {
       action: 'list',
@@ -329,6 +339,8 @@ async function refreshOrdersInBackground() {
   } catch (error) {
     // 后台刷新失败，不影响用户当前看到的内容
     console.warn('[Cache] 后台刷新失败:', error);
+  } finally {
+    backgroundRefreshInProgress = false;
   }
 }
 ```
@@ -784,23 +796,52 @@ const orderDetail = await callFunction('order', {
 // orderDetail 包含：info, items, logistics
 ```
 
-**后端实现：**
+**后端实现（带部分失败处理）：**
 ```javascript
 // cloudfunctions/order/index.js
 async function handleGetDetail(params, openid) {
   const { orderId } = params;
 
   // 并行查询订单信息、商品列表、物流信息
-  const [infoResult, itemsResult, logisticsResult] = await Promise.all([
+  // 使用单个Promise.allSettled处理部分失败
+  const results = await Promise.allSettled([
     db.collection('orders').doc(orderId).get(),
     db.collection('order_items').where({ orderId }).get(),
     db.collection('logistics').where({ orderId }).get()
   ]);
 
+  // 提取成功的结果,失败的使用默认值
+  const infoResult = results[0].status === 'fulfilled'
+    ? results[0].value
+    : { data: null }; // 订单信息失败是致命错误
+
+  const itemsResult = results[1].status === 'fulfilled'
+    ? results[1].value
+    : { data: [] }; // 商品列表失败可以降级为空列表
+
+  const logisticsResult = results[2].status === 'fulfilled'
+    ? results[2].value
+    : { data: null }; // 物流信息失败可以降级为null
+
+  // 检查关键数据
+  if (!infoResult.data) {
+    return error(ErrorCodes.ORDER_NOT_FOUND, '订单不存在');
+  }
+
+  // 记录部分失败
+  if (results[1].status === 'rejected') {
+    console.warn('[OrderDetail] 商品列表查询失败:', results[1].reason);
+  }
+  if (results[2].status === 'rejected') {
+    console.warn('[OrderDetail] 物流信息查询失败:', results[2].reason);
+  }
+
   return success({
     info: infoResult.data,
     items: itemsResult.data,
-    logistics: logisticsResult.data
+    logistics: logisticsResult.data,
+    // 添加降级标识
+    partialFailure: !results.every(r => r.status === 'fulfilled')
   });
 }
 ```
@@ -815,7 +856,7 @@ async function handleGetDetail(params, openid) {
 ```typescript
 // 在首页 onMounted 中
 onMounted(async () => {
-  // 加载首页数据
+  // 加载首页数据（loadHomeData 是首页现有函数）
   await loadHomeData();
 
   // 后台预加载热门分类数据
@@ -824,7 +865,7 @@ onMounted(async () => {
 
 // 预加载函数
 async function preloadCategories() {
-  const hotCategories = ['精酿啤酒', '进口啤酒', ' Saison'];
+  const hotCategories = ['精酿啤酒', '进口啤酒', 'Saison'];
 
   for (const category of hotCategories) {
     // 不等待，后台静默加载
@@ -837,6 +878,9 @@ async function preloadCategories() {
         `category_${category}`,
         JSON.stringify({ data: result, timestamp: Date.now() })
       );
+    }).catch(error => {
+      // 预加载失败不影响主流程
+      console.warn('[Preload] 分类预加载失败:', category, error);
     });
   }
 }
@@ -844,15 +888,19 @@ async function preloadCategories() {
 
 **使用预加载数据：**
 ```typescript
+// openCategory 是分类页面现有函数，此处展示集成逻辑
 async function openCategory(categoryName: string) {
   // 先尝试读取缓存
   const cached = uni.getStorageSync(`category_${categoryName}`);
   if (cached) {
     const { data, timestamp } = JSON.parse(cached);
     if (Date.now() - timestamp < 5 * 60 * 1000) {
-      // 使用缓存数据立即显示
+      // 使用缓存数据立即显示（setData 是现有函数）
       categoryProducts = data.products;
-      showPage();
+
+      // 触发页面渲染（showPage 是简化示例，实际使用 setData 或 ref 更新）
+      // 例如: this.setData({ categoryProducts, visible: true });
+
       return;
     }
   }
@@ -1296,68 +1344,98 @@ cloudfunctions/
       └── index.js                  # 数据库索引创建
 ```
 
-**修改页面：**
-```
-src/pages/
-  ├── order/
-  │   ├── list.vue                  # 订单列表（分页）
-  │   └── detail.vue                # 订单详情（骨架屏 + 接口合并）
-  └── category/
-      └── index.vue                 # 分类（虚拟列表）
-```
+### 9.2 性能云函数规格
 
-**云函数修改：**
-```
-cloudfunctions/
-  ├── order/
-  │   └── index.js                  # 添加 list, getDetail actions
-  └── product/
-      └── index.js                  # 添加分页支持
-```
+**performance 云函数：**
+```javascript
+// cloudfunctions/performance/index.js
+exports.main = async (event, context) => {
+  const { action, data } = event;
+  const wxContext = cloud.getWXContext();
 
-### 9.3 性能监控实现
+  switch (action) {
+    case 'reportSlowPage':
+      return await handleReportSlowPage(data, wxContext);
+    case 'getMetrics':
+      return await handleGetMetrics(data, wxContext);
+    default:
+      return { code: 400, msg: `Unknown action: ${action}` };
+  }
+};
 
-**性能指标收集：**
-```typescript
-// 性能指标收集
-interface PerformanceMetrics {
-  pageName: string;
-  loadTime: number;
-  renderTime: number;
-  apiTime: number;
-  cacheHit: boolean;
-  timestamp: number;
-}
+// 记录慢页面
+async function handleReportSlowPage(data, wxContext) {
+  const { metrics } = data;
+  const db = cloud.database();
 
-// 慢页面上报到云函数
-async function reportSlowPage(metrics: PerformanceMetrics) {
   try {
-    await callFunction('performance', {
-      action: 'reportSlowPage',
-      data: { metrics }
+    // 保存到performance_logs集合
+    await db.collection('performance_logs').add({
+      data: {
+        ...metrics,
+        _openid: wxContext.OPENID,
+        createTime: new Date()
+      }
     });
+
+    return { code: 0, msg: '上报成功' };
   } catch (error) {
-    // 上报失败，记录到本地
     console.error('[Performance] 上报失败:', error);
-    reportMetricsToLocal(metrics);
+    return { code: -1, msg: '上报失败' };
   }
 }
 
-// 本地日志记录
-function reportMetricsToLocal(metrics: PerformanceMetrics) {
-  const logs = uni.getStorageSync('perf_logs') || [];
-  logs.push({
-    ...metrics,
-    deviceInfo: uni.getSystemInfoSync()
-  });
+// 获取性能指标（管理员使用）
+async function handleGetMetrics(data, wxContext) {
+  const { pageName, startDate, endDate } = data;
+  const db = cloud.database();
 
-  // 只保留最近100条
-  if (logs.length > 100) {
-    logs.splice(0, logs.length - 100);
+  // TODO: 验证管理员权限
+
+  try {
+    const whereCondition = {};
+    if (pageName) whereCondition.pageName = pageName;
+    if (startDate || endDate) {
+      whereCondition.createTime = {};
+      if (startDate) whereCondition.createTime.$gte = new Date(startDate);
+      if (endDate) whereCondition.createTime.$lte = new Date(endDate);
+    }
+
+    const result = await db.collection('performance_logs')
+      .where(whereCondition)
+      .orderBy('createTime', 'desc')
+      .limit(1000)
+      .get();
+
+    return {
+      code: 0,
+      data: result.data,
+      msg: '获取成功'
+    };
+  } catch (error) {
+    console.error('[Performance] 获取失败:', error);
+    return { code: -1, msg: '获取失败' };
   }
-
-  uni.setStorageSync('perf_logs', logs);
 }
+```
+
+**数据库集合：**
+```
+集合：performance_logs
+字段：
+  - _openid: String (索引)
+  - pageName: String (索引)
+  - loadTime: Number
+  - renderTime: Number
+  - apiTime: Number
+  - cacheHit: Boolean
+  - timestamp: Number
+  - createTime: Date (索引)
+  - deviceInfo: Object
+
+索引：
+  { _openid: 1, createTime: -1 }
+  { pageName: 1, createTime: -1 }
 ```
 
 ---
@@ -1492,7 +1570,107 @@ try {
 - [ ] **快速滚动** - 虚拟列表快速滚动时的性能
 - [ ] **图片加载失败** - 骨架屏中图片加载失败的处理
 
-### 10.2 性能测试
+**边界情况测试模拟策略：**
+```typescript
+// 测试辅助函数
+
+// 1. 模拟网络中断
+function simulateNetworkInterrupt() {
+  // 方案A: 使用微信开发者工具的网络限制功能
+  // 打开微信开发者工具 -> 详情 -> 网络 -> Offline
+
+  // 方案B: 代码模拟（仅用于测试环境）
+  if (process.env.NODE_ENV === 'test') {
+    const originalCallFunction = wx.cloud.callFunction;
+    wx.cloud.callFunction = function() {
+      return Promise.reject({
+        errCode: 'NETWORK_ERROR',
+        errMsg: '网络连接失败'
+      });
+    };
+
+    // 测试完成后恢复
+    return () => {
+      wx.cloud.callFunction = originalCallFunction;
+    };
+  }
+}
+
+// 2. 模拟缓存损坏
+function simulateCorruptedCache() {
+  const corruptedData = {
+    data: 'invalid json{{{',
+    timestamp: Date.now()
+  };
+
+  uni.setStorageSync(CACHE_KEYS.ORDER_LIST, JSON.stringify(corruptedData));
+
+  // 验证是否能正确处理
+  const cached = getCachedOrders();
+  console.assert(cached === null, '应该返回null而不是崩溃');
+}
+
+// 3. 模拟超时
+function simulateTimeout() {
+  // 使用微信开发者工具的网络限速功能
+  // 详情 -> 网络 -> 选择 3G 或自定义速度
+
+  // 或代码模拟
+  if (process.env.NODE_ENV === 'test') {
+    const originalCallFunction = wx.cloud.callFunction;
+    wx.cloud.callFunction = function(name, config) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            result: { code: -1, msg: '请求超时' }
+          });
+        }, 30000); // 30秒超时
+      });
+    };
+
+    return () => {
+      wx.cloud.callFunction = originalCallFunction;
+    };
+  }
+}
+
+// 4. 模拟快速滚动
+function testFastScroll() {
+  const page = getCurrentPages().pop();
+  const startTime = Date.now();
+  let scrollCount = 0;
+
+  // 模拟快速滚动事件
+  const scrollInterval = setInterval(() => {
+    page?.setData({
+      scrollTop: scrollCount * 100
+    });
+    scrollCount++;
+
+    if (scrollCount > 50) {
+      clearInterval(scrollInterval);
+
+      // 测量FPS
+      const duration = Date.now() - startTime;
+      const fps = (scrollCount / duration) * 1000;
+
+      console.assert(fps > 30, `快速滚动FPS过低: ${fps}`);
+    }
+  }, 16); // 每16ms滚动一次（约60fps）
+}
+
+// 5. 模拟图片加载失败
+function simulateImageLoadError() {
+  // 在测试环境中使用无效图片URL
+  const testProduct = {
+    ...product,
+    images: ['https://invalid-url-that-will-fail.jpg']
+  };
+
+  // 验证骨架屏是否正确显示
+  // 验证错误处理是否触发
+}
+```
 
 **加载时间：**
 - [ ] 首次加载 < 1秒
@@ -1568,19 +1746,120 @@ async function measureBaselinePerformance() {
   return baselines;
 }
 
-// 页面加载等待
-async function waitForPageLoad() {
-  return new Promise<void>((resolve) => {
-    const timeout = setTimeout(() => resolve(), 5000); // 最多等待5秒
+// ===== 辅助函数实现 =====
 
-    // 监听页面加载完成事件
-    uni.onWindowMessage?.((data: any) => {
-      if (data?.type === 'pageLoadComplete') {
-        clearTimeout(timeout);
+// 导航到指定页面
+async function navigateToPage(pagePath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    uni.navigateTo({
+      url: `/${pagePath}`,
+      success: () => {
+        // 等待页面进入动画完成
+        setTimeout(() => resolve(), 300);
+      },
+      fail: (err) => {
+        console.error('[Navigate] 页面导航失败:', err);
+        reject(err);
+      }
+    });
+  });
+}
+
+// 返回上一页
+async function navigateBack(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    uni.navigateBack({
+      delta: 1,
+      success: () => {
+        setTimeout(() => resolve(), 300);
+      },
+      fail: () => {
+        // 已在首页，无需返回
         resolve();
       }
     });
   });
+}
+
+// 等待页面加载完成
+async function waitForPageLoad(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      console.warn('[PageLoad] 等待超时，假定页面已加载');
+      resolve();
+    }, 5000); // 最多等待5秒
+
+    // 方案1: 监听页面生命周期（推荐）
+    const app = getApp();
+    const originalOnLoad = app.globalData?.currentPage?.onLoad;
+
+    if (originalOnLoad) {
+      app.globalData.currentPage.onLoad = function(...args) {
+        originalOnLoad.apply(this, args);
+        clearTimeout(timeout);
+        setTimeout(() => resolve(), 100); // 额外等待渲染完成
+      };
+    } else {
+      // 方案2: 使用固定时间等待（降级方案）
+      setTimeout(() => {
+        clearTimeout(timeout);
+        resolve();
+      }, 1000); // 假设1秒内页面加载完成
+    }
+  });
+}
+
+// 加载页面（用于基线测量）
+async function loadPage(pageName: string): Promise<void> {
+  // 页面路径映射
+  const pageMap: Record<string, string> = {
+    'OrderList': 'pages/order/list',
+    'Category': 'pages/category/index',
+    'OrderDetail': 'pages/order/detail'
+  };
+
+  const pagePath = pageMap[pageName];
+  if (!pagePath) {
+    throw new Error(`Unknown page: ${pageName}`);
+  }
+
+  await navigateToPage(pagePath);
+  await waitForPageLoad();
+}
+
+// 测量当前页面性能
+function measureCurrentPage(pageName: string): number | null {
+  // 从性能日志中读取最近的加载时间
+  const logs = uni.getStorageSync('perf_logs') || [];
+  const recentLogs = logs.filter((log: PerformanceMetrics) =>
+    log.pageName === pageName && log.timestamp > Date.now() - 10000
+  );
+
+  if (recentLogs.length === 0) return null;
+
+  // 返回最近的加载时间
+  return recentLogs[0].loadTime;
+}
+
+// 测量滚动FPS
+function measureScrollFPS(): number {
+  // 简化的FPS测量
+  let frames = 0;
+  let startTime = Date.now();
+
+  const scrollListener = () => {
+    frames++;
+  };
+
+  // 监听滚动事件
+  uni.onPageScroll(scrollListener);
+
+  // 1秒后停止监听
+  setTimeout(() => {
+    uni.offPageScroll(scrollListener);
+  }, 1000);
+
+  return frames;
 }
 
 // 读取基线数据
@@ -1757,10 +2036,10 @@ function disableVirtualList() {
 2. 实现分类页面骨架屏
 3. 集成到各页面
 
-**回滚触发条件：**
-- 骨架屏显示异常
-- 加载体验无改善
-- 用户反馈不喜欢
+**回滚触发条件（量化指标）：**
+- 骨架屏显示异常（错误率 > 5%）
+- 加载体验无改善（用户感知速度提升 < 20%）
+- 用户负面反馈率 > 10%（通过反馈统计）
 
 **回滚步骤：**
 ```typescript
