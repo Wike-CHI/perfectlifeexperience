@@ -88,3 +88,66 @@ export const SEARCH_PERFORMANCE_CONFIG: SearchPerformanceConfig = {
     errorPlaceholder: '/static/placeholder.png'
   }
 } as const;
+
+/**
+ * 订单分页性能配置接口
+ */
+export interface OrderPaginationConfig {
+  /** 每页订单数量 */
+  pageSize: number;
+  /** 缓存有效期（毫秒） */
+  cacheTTL: number;
+  /** 最大分页数 */
+  maxPage: number;
+}
+
+/**
+ * 虚拟列表性能配置接口
+ */
+export interface VirtualListConfig {
+  /** 可见区域商品数量 */
+  visibleCount: number;
+  /** 缓冲区大小（上下各多少个） */
+  bufferSize: number;
+  /** 商品卡片固定高度（rpx） */
+  itemHeight: number;
+}
+
+/**
+ * 缓存配置接口
+ */
+export interface CacheConfig {
+  /** 订单列表缓存键 */
+  ORDER_LIST: string;
+  /** 分类商品缓存键前缀 */
+  CATEGORY_PRODUCTS: string;
+  /** 性能基线缓存键 */
+  PERFORMANCE_BASELINE: string;
+}
+
+/**
+ * 订单分页性能配置常量
+ */
+export const ORDER_PAGINATION_CONFIG: OrderPaginationConfig = {
+  pageSize: 10,              // 每页10条订单
+  cacheTTL: 5 * 60 * 1000,   // 缓存5分钟
+  maxPage: 50                // 最多加载50页
+} as const;
+
+/**
+ * 虚拟列表性能配置常量
+ */
+export const VIRTUAL_LIST_CONFIG: VirtualListConfig = {
+  visibleCount: 5,           // 可见区域5个商品
+  bufferSize: 3,             // 上下各缓冲3个
+  itemHeight: 240            // 商品卡片高度240rpx
+} as const;
+
+/**
+ * 缓存键配置常量
+ */
+export const CACHE_KEYS: CacheConfig = {
+  ORDER_LIST: 'perf_order_list_cache',
+  CATEGORY_PRODUCTS: 'perf_category_products_',
+  PERFORMANCE_BASELINE: 'perf_baseline'
+} as const;
