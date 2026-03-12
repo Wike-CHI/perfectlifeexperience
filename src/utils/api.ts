@@ -1,4 +1,4 @@
-import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon, CommissionV2Response } from '@/types';
+import type { Product, Category, CartItem, Order, UserInfo, Address, CouponTemplate, UserCoupon, CommissionV2Response, SearchParams, SearchResult, SearchHistory, HotKeyword } from '@/types';
 import { callFunction } from '@/utils/cloudbase';
 
 // 重新导出 callFunction 供外部使用
@@ -207,6 +207,132 @@ export const getNewProducts = async (limitCount = 6) => {
   } catch (error) {
     console.error('获取新品失败:', error);
     throw error;
+  }
+};
+
+// ==================== 搜索相关 API ====================
+
+/**
+ * 商品搜索
+ * @param params 搜索参数（关键词、分类、排序、分页）
+ */
+export const searchProducts = async (params: SearchParams) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('search', {
+      action: 'search',
+      data: params
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data as SearchResult;
+    }
+    throw new Error(res.msg || '搜索失败');
+  } catch (error) {
+    console.error('商品搜索失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 保存搜索历史
+ * @param keyword 搜索关键词
+ */
+export const saveSearchHistory = async (keyword: string) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('search', {
+      action: 'saveHistory',
+      data: { keyword }
+    });
+
+    if (res.code === 0) {
+      return true;
+    }
+    throw new Error(res.msg || '保存失败');
+  } catch (error) {
+    console.error('保存搜索历史失败:', error);
+    // 静默失败，不影响用户体验
+    return false;
+  }
+};
+
+/**
+ * 获取搜索历史
+ * @param limit 返回数量限制
+ */
+export const getSearchHistory = async (limit = 10) => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('search', {
+      action: 'getHistory',
+      data: { limit }
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data as SearchHistory[];
+    }
+    return [];
+  } catch (error) {
+    console.error('获取搜索历史失败:', error);
+    return [];
+  }
+};
+
+/**
+ * 清空搜索历史
+ */
+export const clearSearchHistory = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('search', {
+      action: 'clearHistory',
+      data: {}
+    });
+
+    if (res.code === 0) {
+      return true;
+    }
+    throw new Error(res.msg || '清空失败');
+  } catch (error) {
+    console.error('清空搜索历史失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取热门搜索
+ */
+export const getHotKeywords = async () => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  try {
+    const res = await callFunction('search', {
+      action: 'getHotKeywords',
+      data: {}
+    });
+
+    if (res.code === 0 && res.data) {
+      return res.data as HotKeyword[];
+    }
+    return [];
+  } catch (error) {
+    console.error('获取热门搜索失败:', error);
+    return [];
   }
 };
 
