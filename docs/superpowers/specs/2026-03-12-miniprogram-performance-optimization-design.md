@@ -60,6 +60,7 @@ interface OrderListState {
   pageSize: number;
   hasMore: boolean;
   loading: boolean;
+  error: string | null;
 }
 
 const state = reactive<OrderListState>({
@@ -67,7 +68,8 @@ const state = reactive<OrderListState>({
   currentPage: 1,
   pageSize: 10,
   hasMore: true,
-  loading: false
+  loading: false,
+  error: null
 });
 
 // 加载订单列表
@@ -77,6 +79,7 @@ async function loadOrders(refresh = false) {
   if (refresh) {
     state.currentPage = 1;
     state.orders = [];
+    state.error = null;
   }
 
   state.loading = true;
@@ -93,10 +96,34 @@ async function loadOrders(refresh = false) {
     state.orders = [...state.orders, ...result.orders];
     state.hasMore = result.orders.length === state.pageSize;
     state.currentPage++;
-  } catch (error) {
+    state.error = null;
+  } catch (error: any) {
     console.error('加载订单失败:', error);
+
+    // 错误处理
+    if (error.errCode === 'NETWORK_ERROR') {
+      state.error = '网络连接失败，请检查网络';
+      // 网络错误：提示用户重试
+    } else if (error.errCode === 'TIMEOUT') {
+      state.error = '请求超时，请重试';
+      // 超时：自动重试一次
+      if (!state.retryAttempted) {
+        state.retryAttempted = true;
+        await loadOrders(refresh);
+        return;
+      }
+    } else {
+      state.error = error.errMsg || '加载失败，请重试';
+    }
+
+    // 显示错误提示
+    uni.showToast({
+      title: state.error,
+      icon: 'none'
+    });
   } finally {
     state.loading = false;
+    state.retryAttempted = false;
   }
 }
 
@@ -114,22 +141,64 @@ function onReachBottom() {
 async function handleList(params, openid) {
   const { page = 1, pageSize = 10 } = params;
 
-  const result = await db.collection('orders')
-    .where({ _openid: openid })
-    .orderBy('createTime', 'desc')
-    .skip((page - 1) * pageSize)
-    .limit(pageSize + 1) // 多查1条判断hasMore
-    .get();
+  // 参数验证
+  if (page < 1 || pageSize < 1 || pageSize > 50) {
+    return error(ErrorCodes.INVALID_PARAMS, '分页参数无效');
+  }
 
-  const hasMore = result.data.length > pageSize;
-  const orders = hasMore ? result.data.slice(0, pageSize) : result.data;
+  try {
+    const result = await db.collection('orders')
+      .where({ _openid: openid })
+      .orderBy('createTime', 'desc')
+      .skip((page - 1) * pageSize)
+      .limit(pageSize + 1) // 多查1条判断hasMore
+      .get();
 
-  return success({
-    orders,
-    hasMore,
-    page,
-    pageSize
-  });
+    const hasMore = result.data.length > pageSize;
+    const orders = hasMore ? result.data.slice(0, pageSize) : result.data;
+
+    return success({
+      orders,
+      hasMore,
+      page,
+      pageSize,
+      total: result.data.length // 实际返回数量（含额外的一条）
+    });
+  } catch (error) {
+    console.error('[Order List] Error:', error);
+
+    // 错误分类处理
+    if (error.message.includes('quota')) {
+      return error(ErrorCodes.QUOTA_EXCEEDED, '请求过于频繁，请稍后再试');
+    }
+    throw error;
+  }
+}
+```
+
+**数据库索引优化：**
+```
+集合：orders
+索引：{ _openid: 1, createTime: -1 }
+说明：复合索引支持按照用户和时间排序的分页查询
+优先级：高（必须创建）
+```
+
+**索引创建脚本：**
+```javascript
+// cloudfunctions/migration/index.js
+async function createOrderListIndex() {
+  try {
+    await db.collection('orders').createIndex({
+      _openid: 1,
+      createTime: -1
+    });
+    console.log('[Migration] 订单列表索引创建成功');
+  } catch (error) {
+    if (error.errCode !== 'DUP_INDEX') {
+      console.error('[Migration] 索引创建失败:', error);
+    }
+  }
 }
 ```
 
@@ -145,7 +214,15 @@ function getCachedOrders(): Order[] | null {
   const cached = uni.getStorageSync(CACHE_KEY);
   if (!cached) return null;
 
-  const { data, timestamp } = JSON.parse(cached);
+  const { data, timestamp, version } = JSON.parse(cached);
+
+  // 检查缓存版本
+  if (version !== CACHE_VERSION) {
+    uni.removeStorageSync(CACHE_KEY);
+    return null;
+  }
+
+  // 检查是否过期
   if (Date.now() - timestamp > CACHE_DURATION) {
     uni.removeStorageSync(CACHE_KEY);
     return null;
@@ -158,9 +235,56 @@ function getCachedOrders(): Order[] | null {
 function setCachedOrders(orders: Order[]) {
   const cache = {
     data: orders,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    version: CACHE_VERSION
   };
   uni.setStorageSync(CACHE_KEY, JSON.stringify(cache));
+}
+
+const CACHE_VERSION = '1.0';
+```
+
+**缓存失效策略：**
+```typescript
+// 缓存键命名规范
+const CACHE_KEYS = {
+  ORDER_LIST: 'perf_order_list',
+  CATEGORY_PRODUCTS: 'perf_category_{categoryId}',
+  USER_INFO: 'perf_user_{userId}',
+  HOME_DATA: 'perf_home'
+};
+
+// 缓存失效触发
+function invalidateCache(cacheKey: string) {
+  uni.removeStorageSync(cacheKey);
+  console.log(`[Cache] Invalidated: ${cacheKey}`);
+}
+
+// 商品更新时清除相关缓存
+async function onProductUpdate(product: Product) {
+  // 清除分类缓存
+  const categories = product.categories || [];
+  for (const category of categories) {
+    invalidateCache(CACHE_KEYS.CATEGORY_PRODUCTS.replace('{categoryId}', category));
+  }
+
+  // 清除首页缓存
+  invalidateCache(CACHE_KEYS.HOME_DATA);
+}
+
+// 价格更新时清除订单缓存
+async function onPriceChange(orderId: string) {
+  invalidateCache(CACHE_KEYS.ORDER_LIST);
+}
+
+// 库存变化时清除商品缓存
+async function onInventoryChange(productId: string) {
+  // 查找包含该商品的所有分类缓存
+  // 清除这些缓存
+  const categories = await getProductCategories(productId);
+  for (const category of categories) {
+    invalidateCache(CACHE_KEYS.CATEGORY_PRODUCTS.replace('{categoryId}', category));
+  }
 }
 ```
 
@@ -172,6 +296,10 @@ async function loadOrders(refresh = false) {
     const cached = getCachedOrders();
     if (cached && cached.length > 0) {
       state.orders = cached;
+
+      // 后台静默刷新（不阻塞UI）
+      refreshOrdersInBackground();
+
       return; // 直接使用缓存
     }
   }
@@ -183,6 +311,25 @@ async function loadOrders(refresh = false) {
   // 更新缓存
   setCachedOrders(result.orders);
   state.orders = result.orders;
+}
+
+// 后台静默刷新
+async function refreshOrdersInBackground() {
+  try {
+    const result = await callFunction('order', {
+      action: 'list',
+      data: { page: 1, pageSize: state.orders.length }
+    });
+
+    // 如果数据有变化，更新缓存和显示
+    if (hasOrdersChanged(result.orders, state.orders)) {
+      setCachedOrders(result.orders);
+      state.orders = result.orders;
+    }
+  } catch (error) {
+    // 后台刷新失败，不影响用户当前看到的内容
+    console.warn('[Cache] 后台刷新失败:', error);
+  }
 }
 ```
 
@@ -239,11 +386,11 @@ async function loadOrders(refresh = false) {
 - 可见区域商品数：5 个
 - 缓冲区大小：上下各 3 个
 - 实际渲染：11 个商品
-- 商品固定高度：240rpx
+- 商品固定高度：240rpx（支持可变高度的降级方案见下文）
 
 #### 组件实现
 
-**虚拟列表组件：**
+**虚拟列表组件（固定高度版本）：**
 ```vue
 <template>
   <view
@@ -333,6 +480,37 @@ function onScroll(e: any) {
   will-change: transform;
 }
 </style>
+```
+
+**可变高度降级方案：**
+```vue
+<script setup lang="ts">
+// 检测是否支持可变高度虚拟列表
+const supportsVariableHeight = computed(() => {
+  // 检测设备性能和微信版本
+  const systemInfo = uni.getSystemInfoSync();
+  return systemInfo.platform === 'ios' ||
+         parseInt(systemInfo.SDKVersion.replace(/\./g, '')) >= 231;
+});
+
+// 如果不支持可变高度，降级到固定高度
+const actualComponent = computed(() =>
+  supportsVariableHeight.value ? VariableHeightVirtualList : FixedHeightVirtualList
+);
+</script>
+```
+
+**rpx 转换处理：**
+```typescript
+// 在实际渲染时，rpx 会自动转换为 px
+// 虚拟列表计算保持 rpx 单位，微信自动处理转换
+// 确保使用 uni.upx2px() 进行像素转换（如果需要手动计算）
+
+function rpxToPx(rpx: number): number {
+  const systemInfo = uni.getSystemInfoSync();
+  const screenWidth = systemInfo.screenWidth;
+  return (rpx / 750) * screenWidth;
+}
 ```
 
 #### 数据分页
@@ -856,15 +1034,229 @@ const formattedProducts = computed(() =>
 
 ---
 
-## 7. 技术实现细节
+## 7. 性能监控实现
 
-### 7.1 文件结构
+### 7.1 性能数据采集
+
+**性能监控函数：**
+```typescript
+// 性能指标收集
+interface PerformanceMetrics {
+  pageName: string;
+  loadTime: number;
+  renderTime: number;
+  apiTime: number;
+  cacheHit: boolean;
+  timestamp: number;
+}
+
+const PERFORMANCE_REPORT_URL = 'https://your-analytics.com/api/performance';
+
+// 页面性能跟踪
+function trackPagePerformance(pageName: string) {
+  const startTime = Date.now();
+  const apiStartTime = Date.now();
+
+  return () => {
+    const endTime = Date.now();
+    const loadTime = endTime - startTime;
+    const apiTime = apiTime ? Date.now() - apiStartTime : 0;
+
+    const metrics: PerformanceMetrics = {
+      pageName,
+      loadTime,
+      renderTime: 0, // 可通过 requestAnimationFrame 获取
+      apiTime,
+      cacheHit: false, // 根据实际情况设置
+      timestamp: Date.now()
+    };
+
+    console.log(`[Performance] ${pageName}: ${loadTime}ms (API: ${apiTime}ms)`);
+
+    // 上报性能数据
+    if (loadTime > 2000) {
+      reportSlowPage(metrics);
+    }
+
+    // 记录到本地日志
+    reportMetricsToLocal(metrics);
+  };
+}
+
+// 慢页面报告
+async function reportSlowPage(metrics: PerformanceMetrics) {
+  try {
+    // 方案1: 上报到云函数
+    await callFunction('performance', {
+      action: 'reportSlowPage',
+      data: { metrics }
+    });
+  } catch (error) {
+    // 上报失败，记录到本地
+    console.error('[Performance] 上报失败:', error);
+  }
+}
+
+// 本地日志记录
+function reportMetricsToLocal(metrics: PerformanceMetrics) {
+  const logs = uni.getStorageSync('perf_logs') || [];
+  logs.push({
+    ...metrics,
+    deviceInfo: uni.getSystemInfoSync()
+  });
+
+  // 只保留最近100条
+  if (logs.length > 100) {
+    logs.splice(0, logs.length - 100);
+  }
+
+  uni.setStorageSync('perf_logs', logs);
+}
+```
+
+**使用示例：**
+```typescript
+// 在订单列表页面
+onMounted(() => {
+  const track = trackPagePerformance('OrderList');
+
+  loadOrders().finally(() => {
+    track();
+  });
+});
+```
+
+### 7.2 性能基线测量
+
+**实施前基线测量工具：**
+```typescript
+// 性能基线测量脚本
+async function measureBaseline() {
+  const pages = ['OrderList', 'Category', 'OrderDetail'];
+
+  for (const page of pages) {
+    console.log(`\n=== 测量 ${page} 性能基线 ===`);
+
+    const startTime = Date.now();
+
+    // 模拟页面加载
+    await loadPage(page);
+
+    const duration = Date.now() - startTime;
+
+    console.log(`${page} 加载时间: ${duration}ms`);
+
+    // 记录基线数据
+    uni.setStorageSync(`baseline_${page}`, {
+      duration,
+      timestamp: Date.now()
+    });
+  }
+}
+
+// 执行基线测量
+measureBaseline();
+```
+
+---
+
+## 8. 回滚策略
+
+### 8.1 功能开关（Feature Flags）
+
+**实现功能开关：**
+```typescript
+// src/config/featureFlags.ts
+export const FEATURE_FLAGS = {
+  ORDER_PAGINATION: true,        // 订单分页
+  VIRTUAL_LIST: true,             // 虚拟列表
+  SKELETON_SCREEN: true,          // 骨架屏
+  API_OPTIMIZATION: true,         // 接口优化
+  CACHE_STRATEGY: true            // 缓存策略
+};
+
+// 检查功能开关
+function isFeatureEnabled(feature: keyof typeof FEATURE_FLAGS): boolean {
+  // 可以从远程配置读取，支持动态开关
+  return FEATURE_FLAGS[feature];
+}
+```
+
+**使用功能开关：**
+```typescript
+// 订单列表页面
+async function loadOrders() {
+  if (!isFeatureEnabled('ORDER_PAGINATION')) {
+    // 使用旧的全量加载逻辑
+    return loadAllOrders();
+  }
+
+  // 使用新的分页逻辑
+  return loadPaginatedOrders();
+}
+```
+
+### 8.2 渐式回滚
+
+**场景1：虚拟列表性能不如预期**
+```typescript
+// 检测虚拟列表性能
+function checkVirtualListPerformance() {
+  const fps = measureScrollFPS();
+
+  if (fps < 30) {
+    console.warn('[Rollback] 虚拟列表性能差，回退到普通列表');
+    disableVirtualList();
+  }
+}
+
+function disableVirtualList() {
+  FEATURE_FLAGS.VIRTUAL_LIST = false;
+  // 清除功能开关缓存
+  uni.removeStorageSync('feature_flags');
+}
+```
+
+**场景2：分页导致业务问题**
+```typescript
+// 临时禁用分页
+function rollbackPagination() {
+  FEATURE_FLAGS.ORDER_PAGINATION = false;
+
+  // 记录回滚原因
+  uni.setStorageSync('rollback_log', {
+    feature: 'ORDER_PAGINATION',
+    reason: '用户反馈分页后找不到旧订单',
+    timestamp: Date.now()
+  });
+}
+```
+
+**场景3：缓存导致数据不一致**
+```typescript
+// 清除所有缓存
+function clearAllCache() {
+  const cacheKeys = Object.values(CACHE_KEYS);
+  cacheKeys.forEach(key => {
+    uni.removeStorageSync(key);
+  });
+
+  console.log('[Rollback] 已清除所有缓存');
+}
+```
+
+---
+
+## 9. 技术实现细节
+
+### 9.1 文件结构
 
 **新增组件：**
 ```
 src/components/
   ├── VirtualList/
   │   ├── VirtualList.vue          # 虚拟列表组件
+  │   ├── VariableHeightVirtualList.vue  # 可变高度虚拟列表
   │   └── types.ts                 # 类型定义
   ├── Skeleton/
   │   ├── OrderSkeleton.vue        # 订单骨架屏
@@ -873,6 +1265,35 @@ src/components/
   └── ProductCard/
       ├── ProductCard.vue          # 商品卡片（固定高度）
       └── types.ts
+```
+
+**新增配置：**
+```
+src/config/
+  └── featureFlags.ts             # 功能开关配置
+```
+
+**修改页面：**
+```
+src/pages/
+  ├── order/
+  │   ├── list.vue                  # 订单列表（分页）
+  │   └── detail.vue                # 订单详情（骨架屏 + 接口合并）
+  └── category/
+      └── index.vue                 # 分类（虚拟列表）
+```
+
+**云函数修改：**
+```
+cloudfunctions/
+  ├── order/
+  │   └── index.js                  # 添加 list, getDetail actions
+  ├── product/
+  │   └── index.js                  # 添加分页支持
+  ├── performance/
+  │   └── index.js                  # 性能数据收集（新增）
+  └── migration/
+      └── index.js                  # 数据库索引创建
 ```
 
 **修改页面：**
@@ -894,34 +1315,49 @@ cloudfunctions/
       └── index.js                  # 添加分页支持
 ```
 
-### 7.2 性能监控
+### 9.3 性能监控实现
 
-**性能日志：**
+**性能指标收集：**
 ```typescript
-// 页面加载性能监控
-function trackPagePerformance(pageName: string) {
-  const startTime = Date.now();
-
-  return () => {
-    const duration = Date.now() - startTime;
-    console.log(`[Performance] ${pageName} loaded in ${duration}ms`);
-
-    // 上报性能数据
-    if (duration > 2000) {
-      // 慢请求告警
-      reportSlowPage(pageName, duration);
-    }
-  };
+// 性能指标收集
+interface PerformanceMetrics {
+  pageName: string;
+  loadTime: number;
+  renderTime: number;
+  apiTime: number;
+  cacheHit: boolean;
+  timestamp: number;
 }
 
-// 使用
-onMounted(() => {
-  const track = trackPagePerformance('OrderDetail');
+// 慢页面上报到云函数
+async function reportSlowPage(metrics: PerformanceMetrics) {
+  try {
+    await callFunction('performance', {
+      action: 'reportSlowPage',
+      data: { metrics }
+    });
+  } catch (error) {
+    // 上报失败，记录到本地
+    console.error('[Performance] 上报失败:', error);
+    reportMetricsToLocal(metrics);
+  }
+}
 
-  loadOrderData().finally(() => {
-    track(); // 记录性能
+// 本地日志记录
+function reportMetricsToLocal(metrics: PerformanceMetrics) {
+  const logs = uni.getStorageSync('perf_logs') || [];
+  logs.push({
+    ...metrics,
+    deviceInfo: uni.getSystemInfoSync()
   });
-});
+
+  // 只保留最近100条
+  if (logs.length > 100) {
+    logs.splice(0, logs.length - 100);
+  }
+
+  uni.setStorageSync('perf_logs', logs);
+}
 ```
 
 ---
@@ -1046,6 +1482,16 @@ try {
 - [ ] 数据加载完成后骨架屏消失
 - [ ] 骨架屏动画流畅
 
+**边界情况测试：**
+- [ ] **空订单列表** - 显示空状态提示
+- [ ] **单条订单** - 小于页面大小(10)的处理
+- [ ] **网络中断** - 分页加载中网络中断的恢复
+- [ ] **缓存损坏** - 缓存数据格式错误的处理
+- [ ] **超时处理** - 请求超时的重试机制
+- [ ] **数据不一致** - 缓存与服务器数据不一致的处理
+- [ ] **快速滚动** - 虚拟列表快速滚动时的性能
+- [ ] **图片加载失败** - 骨架屏中图片加载失败的处理
+
 ### 10.2 性能测试
 
 **加载时间：**
@@ -1063,25 +1509,380 @@ try {
 
 ## 11. 验收标准
 
-### 11.1 性能指标
+### 11.1 基线测量（实施前）
 
-- 订单列表首次加载：< 1秒
-- 页面切换时间：< 500ms
-- 滚动帧率：> 50fps
-- 白屏时间：< 300ms
+**测量工具：**
+```typescript
+// 性能基线测量工具
+async function measureBaselinePerformance() {
+  const pages = [
+    { name: 'OrderList', path: 'pages/order/list' },
+    { name: 'Category', path: 'pages/category/index' },
+    { name: 'OrderDetail', path: 'pages/order/detail' }
+  ];
 
-### 11.2 功能完整性
+  const baselines: Record<string, number[]> = {};
 
-- 所有现有功能正常工作
-- 无新增bug
-- 缓存机制正确工作
-- 降级策略有效
+  for (const page of pages) {
+    console.log(`\n=== 测量 ${page.name} 性能基线 ===`);
+    const measurements = [];
 
-### 11.3 用户体验
+    // 每个页面测量3次,取平均值
+    for (let i = 0; i < 3; i++) {
+      const startTime = Date.now();
 
-- 用户感知速度明显提升
+      // 导航到页面并等待加载完成
+      await navigateToPage(page.path);
+      await waitForPageLoad();
+
+      const loadTime = Date.now() - startTime;
+      measurements.push(loadTime);
+
+      console.log(`  第${i + 1}次测量: ${loadTime}ms`);
+
+      // 返回首页,准备下一次测量
+      await navigateBack();
+    }
+
+    // 计算平均值
+    const avg = measurements.reduce((a, b) => a + b, 0) / measurements.length;
+    baselines[page.name] = measurements;
+
+    // 保存基线数据
+    uni.setStorageSync(`baseline_${page.name}`, {
+      measurements,
+      average: avg,
+      timestamp: Date.now()
+    });
+
+    console.log(`  平均加载时间: ${avg}ms`);
+  }
+
+  // 保存所有基线数据
+  uni.setStorageSync('performance_baselines', {
+    pages: baselines,
+    timestamp: Date.now(),
+    deviceInfo: uni.getSystemInfoSync()
+  });
+
+  return baselines;
+}
+
+// 页面加载等待
+async function waitForPageLoad() {
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => resolve(), 5000); // 最多等待5秒
+
+    // 监听页面加载完成事件
+    uni.onWindowMessage?.((data: any) => {
+      if (data?.type === 'pageLoadComplete') {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  });
+}
+
+// 读取基线数据
+function getBaseline(pageName: string): number | null {
+  const baseline = uni.getStorageSync(`baseline_${pageName}`);
+  return baseline?.average || null;
+}
+
+// 对比优化前后性能
+function compareWithBaseline(pageName: string, currentTime: number) {
+  const baseline = getBaseline(pageName);
+  if (!baseline) return null;
+
+  const improvement = ((baseline - currentTime) / baseline) * 100;
+  return {
+    baseline,
+    current: currentTime,
+    improvement: improvement.toFixed(2) + '%'
+  };
+}
+```
+
+**测量记录表：**
+| 页面 | 第1次 | 第2次 | 第3次 | 平均值 | 优化目标 |
+|------|-------|-------|-------|--------|----------|
+| 订单列表 | ___ | ___ | ___ | ___ | < 1秒 |
+| 分类页面 | ___ | ___ | ___ | ___ | < 1秒 |
+| 订单详情 | ___ | ___ | ___ | ___ | < 1秒 |
+
+### 11.2 性能指标
+
+**与基线对比：**
+- 订单列表首次加载：< 1秒（相比基线提升 ___%）
+- 页面切换时间：< 500ms（相比基线提升 ___%）
+- 滚动帧率：> 50fps（相比基线提升 ___%）
+- 白屏时间：< 300ms（相比基线提升 ___%）
+
+**性能提升计算：**
+```typescript
+// 性能报告生成
+function generatePerformanceReport() {
+  const pages = ['OrderList', 'Category', 'OrderDetail'];
+  const report: any[] = [];
+
+  for (const page of pages) {
+    const baseline = getBaseline(page);
+    const current = measureCurrentPage(page);
+
+    if (baseline && current) {
+      const improvement = ((baseline - current) / baseline) * 100;
+      report.push({
+        page,
+        baseline: `${baseline}ms`,
+        current: `${current}ms`,
+        improvement: improvement.toFixed(2) + '%',
+        targetMet: current < 1000
+      });
+    }
+  }
+
+  console.table(report);
+  return report;
+}
+```
+
+### 11.3 功能完整性
+
+- [ ] 所有现有功能正常工作
+- [ ] 无新增bug
+- [ ] 缓存机制正确工作
+- [ ] 降级策略有效
+- [ ] 性能监控正常上报
+
+### 11.4 用户体验
+
+- 用户感知速度明显提升（通过用户反馈验证）
 - 骨架屏改善等待体验
 - 无数据丢失或显示错误
+- 滚动流畅无卡顿
+
+---
+
+## 12. 实施阶段与回滚计划
+
+### 12.1 阶段1：订单列表分页（1-2天）
+
+**实施内容：**
+1. 修改 `src/pages/order/list.vue`，添加分页逻辑
+2. 修改 `cloudfunctions/order/index.js`，添加分页支持
+3. 创建数据库索引
+4. 添加本地缓存
+
+**回滚触发条件：**
+- 用户反馈找不到旧订单
+- 分页加载异常缓慢
+- 订单数据显示错误
+
+**回滚步骤：**
+```typescript
+// 1. 禁用分页功能开关
+FEATURE_FLAGS.ORDER_PAGINATION = false;
+
+// 2. 清除缓存
+uni.removeStorageSync(CACHE_KEYS.ORDER_LIST);
+
+// 3. 记录回滚
+uni.setStorageSync('rollback_log', {
+  feature: 'ORDER_PAGINATION',
+  stage: 1,
+  reason: '用户反馈找不到旧订单',
+  timestamp: Date.now()
+});
+
+// 4. 恢复全量加载逻辑
+// 旧代码保留在注释中,可快速恢复
+```
+
+**验收标准：**
+- 首屏加载 < 500ms
+- 滚动加载流畅
+- 无订单丢失
+
+### 12.2 阶段2：分类虚拟列表（2-3天）
+
+**实施内容：**
+1. 创建虚拟列表组件
+2. 修改分类页面使用虚拟列表
+3. 添加商品分页加载
+
+**回滚触发条件：**
+- 滚动帧率 < 30fps
+- 商品显示异常
+- 兼容性问题（iOS/Android特定）
+
+**回滚步骤：**
+```typescript
+// 1. 检测虚拟列表性能
+function checkVirtualListPerformance() {
+  const fps = measureScrollFPS();
+  if (fps < 30) {
+    console.warn('[Rollback] 虚拟列表FPS过低:', fps);
+    disableVirtualList();
+    return true;
+  }
+  return false;
+}
+
+// 2. 禁用虚拟列表
+function disableVirtualList() {
+  FEATURE_FLAGS.VIRTUAL_LIST = false;
+
+  // 降级到普通列表
+  uni.setStorageSync('rollback_log', {
+    feature: 'VIRTUAL_LIST',
+    stage: 2,
+    reason: `滚动FPS过低: ${measureScrollFPS()}`,
+    timestamp: Date.now()
+  });
+}
+
+// 3. 恢复普通列表渲染
+// 在模板中添加 v-else 分支
+```
+
+**验收标准：**
+- 滚动帧率 > 50fps
+- 内存占用降低 > 40%
+- 商品显示正确
+
+### 12.3 阶段3：骨架屏优化（1天）
+
+**实施内容：**
+1. 实现订单详情骨架屏
+2. 实现分类页面骨架屏
+3. 集成到各页面
+
+**回滚触发条件：**
+- 骨架屏显示异常
+- 加载体验无改善
+- 用户反馈不喜欢
+
+**回滚步骤：**
+```typescript
+// 禁用骨架屏
+FEATURE_FLAGS.SKELETON_SCREEN = false;
+
+// 恢复loading动画
+// 模板中添加 v-else-if="!loading" 分支
+```
+
+**验收标准：**
+- 骨架屏正确显示
+- 用户感知速度提升 > 50%
+- 无视觉闪烁
+
+### 12.4 阶段4：接口优化（1-2天）
+
+**实施内容：**
+1. 合并订单详情接口
+2. 添加数据预加载
+3. 并行请求优化
+
+**回滚触发条件：**
+- 接口响应变慢
+- 数据加载错误
+- 接口调用失败率上升
+
+**回滚步骤：**
+```typescript
+// 禁用接口优化
+FEATURE_FLAGS.API_OPTIMIZATION = false;
+
+// 恢复串行请求
+async function loadOrderDetailOld(orderId: string) {
+  const orderInfo = await getOrderInfo(orderId);
+  const orderItems = await getOrderItems(orderId);
+  const logistics = await getLogistics(orderId);
+  return { info: orderInfo, items: orderItems, logistics };
+}
+```
+
+**验收标准：**
+- 接口响应时间 < 500ms
+- 数据完整性100%
+- 错误率 < 1%
+
+### 12.5 阶段5：渲染优化（1天）
+
+**实施内容：**
+1. 组件懒加载
+2. 页面预加载配置
+3. 性能监控添加
+
+**回滚触发条件：**
+- 组件加载失败
+- 预加载导致性能下降
+- 监控数据上报异常
+
+**回滚步骤：**
+```typescript
+// 1. 清除预加载配置
+// pages.json 中移除 preloadRule
+
+// 2. 恢复同步组件加载
+// import { recommendProducts } from './components';
+
+// 3. 禁用性能监控
+FEATURE_FLAGS.PERFORMANCE_MONITORING = false;
+```
+
+**验收标准：**
+- 首屏渲染时间 < 300ms
+- 组件加载成功率100%
+- 监控数据正常上报
+
+### 12.6 整体回滚方案
+
+**紧急回滚：**
+```typescript
+// 一键禁用所有优化
+function emergencyRollback() {
+  Object.keys(FEATURE_FLAGS).forEach(key => {
+    FEATURE_FLAGS[key] = false;
+  });
+
+  // 清除所有缓存
+  Object.values(CACHE_KEYS).forEach(key => {
+    uni.removeStorageSync(key);
+  });
+
+  // 记录紧急回滚
+  uni.setStorageSync('emergency_rollback', {
+    timestamp: Date.now(),
+    reason: '紧急回滚'
+  });
+
+  console.warn('[Emergency Rollback] 所有优化已禁用');
+}
+
+// 分阶段恢复优化
+async function gradualRestore() {
+  // 按优先级逐个启用
+  const stages = [
+    'ORDER_PAGINATION',
+    'SKELETON_SCREEN',
+    'API_OPTIMIZATION',
+    'VIRTUAL_LIST',
+    'CACHE_STRATEGY'
+  ];
+
+  for (const stage of stages) {
+    await new Promise(resolve => setTimeout(resolve, 3600000)); // 每阶段间隔1小时
+    FEATURE_FLAGS[stage] = true;
+    console.log(`[Restore] ${stage} 已启用`);
+  }
+}
+```
+
+**回滚监控：**
+- 记录每次回滚的原因和时间
+- 统计回滚后的性能数据
+- 分析回滚原因,优化方案
 
 ---
 
