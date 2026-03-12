@@ -131,10 +131,13 @@ async function handleSearch(params, openid) {
 
     // 如果使用近似总数且有更多数据，更新总数
     if (totalApproximate && hasMore) {
-      total = Math.min(total + pageSize, 1000); // 设置上限
-    } else if (!totalApproximate && result.data.length <= pageSize) {
+      total = total + pageSize; // 移除上限，让近似总数自然增长
+    } else if (totalApproximate && !hasMore) {
+      // 近似模式且到达最后一页，调整为精确总数
+      total = (page - 1) * pageSize + products.length;
+    } else if (!totalApproximate && !hasMore) {
       // 精确查询且没有更多数据，使用准确总数
-      total = (page - 1) * pageSize + result.data.length;
+      total = (page - 1) * pageSize + products.length;
     }
 
     console.log('[Search] Found products:', products.length, 'Total:', total, 'Approximate:', totalApproximate);

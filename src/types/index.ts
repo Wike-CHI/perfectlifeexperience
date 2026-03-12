@@ -519,6 +519,7 @@ export interface SearchParams {
 export interface SearchResult {
   products: Product[];
   total: number;
+  totalApproximate?: boolean;  // 标识是否为近似总数
   page: number;
   pageSize: number;
   totalPages: number;
