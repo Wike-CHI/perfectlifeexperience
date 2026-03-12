@@ -478,3 +478,48 @@ export const RefundTypeNames: Record<RefundType, string> = {
   only_refund: '仅退款',
   return_refund: '退货退款'
 };
+
+// ==================== 搜索相关类型 ====================
+
+/**
+ * 搜索历史记录
+ */
+export interface SearchHistory {
+  _id?: string;
+  _openid: string;
+  keyword: string;
+  searchCount: number;
+  lastSearchTime: Date;
+}
+
+/**
+ * 热门搜索关键词
+ */
+export interface HotKeyword {
+  _id?: string;
+  keyword: string;
+  rank: number;
+  status: 'active' | 'inactive';
+}
+
+/**
+ * 搜索参数
+ */
+export interface SearchParams {
+  keyword?: string;
+  category?: string;
+  sortBy?: 'default' | 'price_asc' | 'price_desc' | 'sales_desc';
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * 搜索结果
+ */
+export interface SearchResult {
+  products: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
