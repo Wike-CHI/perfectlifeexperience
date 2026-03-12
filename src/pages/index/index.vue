@@ -450,7 +450,7 @@ const onAddToCartSuccess = () => {
 
 // 页面跳转
 const goToSearch = () => {
-  uni.navigateTo({ url: '/pages/search/search' });
+  uni.navigateTo({ url: '/pages/search/index' });
 };
 
 const goToCategory = (category: any) => {
