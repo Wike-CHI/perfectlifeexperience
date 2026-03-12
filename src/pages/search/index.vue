@@ -121,7 +121,13 @@
           class="product-item"
           @click="goToProduct(product._id)"
         >
-          <image class="product-image" :src="product.images[0]" mode="aspectFill" />
+          <image
+            class="product-image"
+            :src="product.images[0]"
+            lazy-load
+            mode="aspectFill"
+            @error="handleImageError"
+          />
           <view class="product-info">
             <text class="product-name">{{ product.name }}</text>
             <text class="product-desc">{{ product.description }}</text>
@@ -379,6 +385,15 @@ function goToProduct(productId: string) {
   uni.navigateTo({
     url: `/pages/product/detail?id=${productId}`
   });
+}
+
+/**
+ * 图片加载错误处理
+ */
+function handleImageError(e: any) {
+  console.error('[图片加载失败]', e);
+  // 可以设置占位图（如果有的话）
+  // e.target.src = SEARCH_PERFORMANCE_CONFIG.image.errorPlaceholder;
 }
 </script>
 
