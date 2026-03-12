@@ -286,6 +286,24 @@ async function onInventoryChange(productId: string) {
     invalidateCache(CACHE_KEYS.CATEGORY_PRODUCTS.replace('{categoryId}', category));
   }
 }
+
+// 辅助函数：获取商品所属分类
+async function getProductCategories(productId: string): Promise<string[]> {
+  try {
+    // 从products集合查询商品的分类信息
+    const result = await callFunction('product', {
+      action: 'getDetail',
+      data: { productId }
+    });
+
+    // 返回商品所属的分类ID列表
+    // 假设商品数据中包含 categories 字段
+    return result.product?.categories || [];
+  } catch (error) {
+    console.error('[Cache] 获取商品分类失败:', error);
+    return [];
+  }
+}
 ```
 
 **使用缓存：**
@@ -343,6 +361,29 @@ async function refreshOrdersInBackground() {
     backgroundRefreshInProgress = false;
   }
 }
+
+// 辅助函数：检查订单列表是否有变化
+function hasOrdersChanged(newOrders: Order[], oldOrders: Order[]): boolean {
+  // 快速检查：数量不同
+  if (newOrders.length !== oldOrders.length) {
+    return true;
+  }
+
+  // 详细检查：比较订单ID和更新时间
+  const newOrderIds = new Map(newOrders.map(o => [o._id, o.updateTime]));
+  const oldOrderIds = new Map(oldOrders.map(o => [o._id, o.updateTime]));
+
+  // 检查是否有新订单或时间戳变化
+  for (const [id, newTime] of newOrderIds) {
+    const oldTime = oldOrderIds.get(id);
+    if (!oldTime || newTime !== oldTime) {
+      return true;
+    }
+  }
+
+  return false;
+}
+```
 ```
 
 ### 2.3 分页信息显示
@@ -886,20 +927,24 @@ async function preloadCategories() {
 }
 ```
 
-**使用预加载数据：**
+**使用预加载数据（Vue 3 Composition API）：**
 ```typescript
 // openCategory 是分类页面现有函数，此处展示集成逻辑
+// 使用 Vue 3 Composition API 的 ref/reactive
+
+const categoryProducts = ref<Product[]>([]); // 响应式商品列表
+
 async function openCategory(categoryName: string) {
   // 先尝试读取缓存
   const cached = uni.getStorageSync(`category_${categoryName}`);
   if (cached) {
     const { data, timestamp } = JSON.parse(cached);
     if (Date.now() - timestamp < 5 * 60 * 1000) {
-      // 使用缓存数据立即显示（setData 是现有函数）
-      categoryProducts = data.products;
+      // 使用缓存数据立即显示（Vue 3 Composition API）
+      categoryProducts.value = data.products;
 
-      // 触发页面渲染（showPage 是简化示例，实际使用 setData 或 ref 更新）
-      // 例如: this.setData({ categoryProducts, visible: true });
+      // 触发页面渲染（ref更新会自动触发视图更新）
+      // 无需手动调用 setData
 
       return;
     }
@@ -909,6 +954,8 @@ async function openCategory(categoryName: string) {
   await loadCategoryProducts(categoryName);
 }
 ```
+
+**注意：** 本项目使用 UniApp + Vue 3 Composition API，所有响应式数据使用 `ref`/`reactive`，不使用 Options API 的 `setData`。
 
 ### 5.3 并行请求独立数据
 
@@ -1390,7 +1437,14 @@ async function handleGetMetrics(data, wxContext) {
   const { pageName, startDate, endDate } = data;
   const db = cloud.database();
 
-  // TODO: 验证管理员权限
+  // 验证管理员权限
+  const adminResult = await db.collection('admins')
+    .where({ _openid: wxContext.OPENID })
+    .get();
+
+  if (adminResult.data.length === 0) {
+    return { code: -3, msg: '无权限访问' };
+  }
 
   try {
     const whereCondition = {};
@@ -1440,9 +1494,9 @@ async function handleGetMetrics(data, wxContext) {
 
 ---
 
-## 8. 实施计划概要
+## 10. 实施计划概要
 
-### 8.1 实施阶段
+### 10.1 实施阶段
 
 **阶段 1：订单列表分页（1-2天）**
 - 修改订单列表页面，添加分页加载
@@ -1476,7 +1530,7 @@ async function handleGetMetrics(data, wxContext) {
 
 **总工期：** 6-9 天
 
-### 8.2 优先级
+### 10.2 优先级
 
 **P0（必须）：**
 - 订单列表分页
@@ -1495,9 +1549,9 @@ async function handleGetMetrics(data, wxContext) {
 
 ---
 
-## 9. 风险与降级策略
+## 11. 风险与降级策略
 
-### 9.1 风险
+### 11.1 风险
 
 **技术风险：**
 - 虚拟列表实现复杂，可能有兼容性问题
@@ -1513,6 +1567,41 @@ async function handleGetMetrics(data, wxContext) {
 **虚拟列表降级：**
 ```typescript
 // 检测虚拟列表是否可用
+function checkVirtualListSupport(): boolean {
+  try {
+    const systemInfo = uni.getSystemInfoSync();
+
+    // 检查微信版本
+    const sdkVersion = systemInfo.SDKVersion; // 如 "2.30.0"
+    const versionNumber = parseInt(sdkVersion.replace(/\./g, ''));
+
+    // 检查平台
+    const isIOS = systemInfo.platform === 'ios';
+
+    // iOS 或微信版本 >= 2.30.0 支持虚拟列表
+    return isIOS || versionNumber >= 2300;
+  } catch (error) {
+    console.warn('[VirtualList] 检测失败，降级到普通列表:', error);
+    return false;
+  }
+}
+
+// 降级到普通列表
+function useNormalList() {
+  // 修改组件状态，禁用虚拟列表
+  state.useVirtualList = false;
+
+  // 记录降级原因
+  uni.setStorageSync('virtual_list_degraded', {
+    reason: '不支持虚拟列表',
+    timestamp: Date.now(),
+    deviceInfo: uni.getSystemInfoSync()
+  });
+
+  console.warn('[VirtualList] 已降级到普通列表');
+}
+
+// 使用示例
 const supportsVirtualList = checkVirtualListSupport();
 
 if (!supportsVirtualList) {
