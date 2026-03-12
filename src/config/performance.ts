@@ -1,13 +1,68 @@
 /**
  * 搜索性能配置
  *
- * 集中管理搜索系统相关的性能优化参数
+ * 集中管理搜索系统相关的性能优化参数，包括防抖延迟、分页大小、
+ * 分批渲染、缓存策略和图片加载等配置。
+ *
+ * @example
+ * ```typescript
+ * import { SEARCH_PERFORMANCE_CONFIG } from '@/config/performance';
+ *
+ * // 使用防抖延迟配置
+ * const delay = SEARCH_PERFORMANCE_CONFIG.debounceDelay; // 500ms
+ *
+ * // 使用缓存配置
+ * const cacheTTL = SEARCH_PERFORMANCE_CONFIG.cache.searchResultTTL; // 60000ms
+ *
+ * // 使用图片懒加载配置
+ * const enableLazyLoad = SEARCH_PERFORMANCE_CONFIG.image.lazy; // true
+ * ```
  */
 
 /**
- * 搜索性能配置
+ * 搜索性能配置接口
+ *
+ * 定义搜索系统中所有性能优化相关的配置参数
  */
-export const SEARCH_PERFORMANCE_CONFIG = {
+export interface SearchPerformanceConfig {
+  /** 防抖延迟（毫秒）- 用户输入后等待多久执行搜索 */
+  debounceDelay: number;
+
+  /** 初始每页大小 - 首次加载的搜索结果数量，从20降到12以减少初始加载量 */
+  initialPageSize: number;
+
+  /** 分批渲染时每批渲染的结果数量 */
+  renderBatchSize: number;
+
+  /** 分批渲染时每批之间的延迟（毫秒） */
+  renderBatchDelay: number;
+
+  /** 近似总数阈值 - 超过此数量的搜索结果将显示近似总数而非精确值 */
+  approximateTotalThreshold: number;
+
+  /** 缓存配置 */
+  cache: {
+    /** 热门关键词缓存有效期（毫秒）- 默认5分钟 */
+    hotKeywordsTTL: number;
+    /** 搜索结果缓存有效期（毫秒）- 默认1分钟 */
+    searchResultTTL: number;
+  };
+
+  /** 图片加载配置 */
+  image: {
+    /** 是否启用图片懒加载 */
+    lazy: boolean;
+    /** 图片加载失败时的占位图路径 */
+    errorPlaceholder: string;
+  };
+}
+
+/**
+ * 搜索性能配置常量
+ *
+ * 集中管理搜索系统相关的性能优化参数
+ */
+export const SEARCH_PERFORMANCE_CONFIG: SearchPerformanceConfig = {
   // 防抖延迟（毫秒）
   debounceDelay: 500,
 
@@ -32,4 +87,4 @@ export const SEARCH_PERFORMANCE_CONFIG = {
     lazy: true,
     errorPlaceholder: '/static/placeholder.png'
   }
-};
+} as const;
