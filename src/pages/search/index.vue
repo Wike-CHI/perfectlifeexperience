@@ -173,6 +173,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { searchProducts, saveSearchHistory, getSearchHistory, clearSearchHistory, getHotKeywords } from '@/utils/api';
+import { debounce } from '@/utils/debounce';
+import { SEARCH_PERFORMANCE_CONFIG } from '@/config/performance';
 import type { Product, SearchHistory, HotKeyword } from '@/types';
 
 // 搜索状态
@@ -218,10 +220,15 @@ async function loadSuggestions() {
 }
 
 /**
- * 输入变化
+ * 输入变化（带防抖）
  */
 function onInputChange(e: any) {
   keyword.value = e.detail.value;
+
+  // 使用防抖延迟搜索
+  if (keyword.value.trim()) {
+    debouncedHandleSearch();
+  }
 }
 
 /**
@@ -276,6 +283,9 @@ async function handleSearch() {
     console.error('保存搜索历史失败:', err);
   });
 }
+
+// 创建防抖版本的搜索函数
+const debouncedHandleSearch = debounce(handleSearch, SEARCH_PERFORMANCE_CONFIG.debounceDelay);
 
 /**
  * 执行搜索请求
