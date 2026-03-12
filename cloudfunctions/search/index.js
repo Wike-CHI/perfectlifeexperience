@@ -99,26 +99,50 @@ async function handleSearch(params, openid) {
   }
 
   try {
-    // 查询总数
-    const countResult = await db.collection('products')
-      .where(whereCondition)
-      .count();
+    // 智能count：只在前3页或估计总数<100时才精确count
+    let total = 0;
+    let totalApproximate = false;
 
-    const total = countResult.total;
+    if (page <= 3) {
+      // 前几页：精确count
+      const countResult = await db.collection('products')
+        .where(whereCondition)
+        .count();
 
-    // 查询商品列表
+      total = countResult.total;
+    } else {
+      // 后续页面：使用近似总数
+      // 假设至少有 (page-1)*pageSize 条数据
+      total = (page - 1) * pageSize + 1;
+      totalApproximate = true;
+    }
+
+    // 查询商品列表（多查1条用于判断是否有更多）
     const result = await db.collection('products')
       .where(whereCondition)
       .orderBy(orderBy, orderType)
       .skip((page - 1) * pageSize)
-      .limit(pageSize)
+      .limit(pageSize + 1)
       .get();
 
-    console.log('[Search] Found products:', result.data.length, 'Total:', total);
+    // 判断是否有更多
+    const hasMore = result.data.length > pageSize;
+    const products = hasMore ? result.data.slice(0, pageSize) : result.data;
+
+    // 如果使用近似总数且有更多数据，更新总数
+    if (totalApproximate && hasMore) {
+      total = Math.min(total + pageSize, 1000); // 设置上限
+    } else if (!totalApproximate && result.data.length <= pageSize) {
+      // 精确查询且没有更多数据，使用准确总数
+      total = (page - 1) * pageSize + result.data.length;
+    }
+
+    console.log('[Search] Found products:', products.length, 'Total:', total, 'Approximate:', totalApproximate);
 
     return success({
-      products: result.data,
+      products,
       total,
+      totalApproximate,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize)
