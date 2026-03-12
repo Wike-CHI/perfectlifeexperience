@@ -294,6 +294,31 @@ async function handleSearch() {
 const debouncedHandleSearch = debounce(handleSearch, SEARCH_PERFORMANCE_CONFIG.debounceDelay);
 
 /**
+ * 分批渲染商品列表
+ * @param productsToRender 要渲染的商品列表
+ */
+async function renderProductsInBatches(productsToRender: Product[]) {
+  const batchSize = SEARCH_PERFORMANCE_CONFIG.renderBatchSize;
+  const delay = SEARCH_PERFORMANCE_CONFIG.renderBatchDelay;
+
+  // 清空现有列表
+  products.value = [];
+
+  // 分批渲染
+  for (let i = 0; i < productsToRender.length; i += batchSize) {
+    const batch = productsToRender.slice(i, i + batchSize);
+
+    // 使用 setTimeout 异步添加每一批
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        products.value.push(...batch);
+        resolve();
+      }, (i / batchSize) * delay);
+    });
+  }
+}
+
+/**
  * 执行搜索请求
  */
 async function doSearch() {
@@ -309,7 +334,15 @@ async function doSearch() {
       pageSize: pageSize.value
     });
 
-    products.value = result.products;
+    // 使用分批渲染
+    try {
+      await renderProductsInBatches(result.products);
+    } catch (renderError) {
+      console.error('[分批渲染失败，降级到一次性渲染]', renderError);
+      // 降级：一次性渲染所有商品
+      products.value = result.products;
+    }
+
     total.value = result.total;
     totalPages.value = result.totalPages;
     hasMore.value = page.value < result.totalPages;
