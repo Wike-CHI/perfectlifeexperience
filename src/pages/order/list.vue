@@ -112,11 +112,16 @@
       </view>
 
       <!-- 加载状态 -->
-      <view class="load-more" v-if="loading">
-        <text class="load-text">加载中...</text>
-      </view>
-      <view class="no-more" v-else-if="!hasMore">
-        <text class="no-more-text">没有更多了</text>
+      <view class="load-more">
+        <view v-if="loading" class="loading">
+          <text class="load-text">加载中...</text>
+        </view>
+        <view v-else-if="!hasMore" class="no-more">
+          <text class="no-more-text">已加载全部订单</text>
+        </view>
+        <view v-else class="has-more" @click="loadMore">
+          <text class="load-more-text">已加载 {{ orders.length }} 条订单</text>
+        </view>
       </view>
     </scroll-view>
 
@@ -133,13 +138,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrders, updateOrderStatus, cancelOrder as apiCancelOrder, cancelRefund, callFunction, getWalletBalance } from '@/utils/api';
 import { formatPrice as fp } from '@/utils/format';
 import { getListThumbnail } from '@/utils/image';
 import { ORDER_STATUS_TEXTS, ORDER_STATUS_COLORS, PAGINATION_CONFIG } from '@/constants/order';
 import type { OrderDB, OrderStatus } from '@/types/database';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { ORDER_PAGINATION_CONFIG, CACHE_KEYS } from '@/config/performance';
 
 // 使用数据库类型定义
 type Order = OrderDB;
@@ -150,7 +157,9 @@ const currentStatus = ref('all');
 const loading = ref(false);
 const hasMore = ref(true);
 const page = ref(1);
-const pageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
+const pageSize = ref(ORDER_PAGINATION_CONFIG.pageSize);
+const error = ref<string | null>(null);
+const retryAttempted = ref(false);
 
 // 状态计数
 const statusCount = ref({
@@ -179,10 +188,28 @@ const getTotalQuantity = (order: Order) => {
 
 // 加载订单列表
 const loadOrders = async (isRefresh = false) => {
+  // 检查功能开关
+  if (!isFeatureEnabled('ORDER_PAGINATION')) {
+    // 降级：使用原有全量加载逻辑
+    return loadAllOrders();
+  }
+
   if (loading.value) return;
+
+  // 尝试读取缓存（仅首次加载）
+  if (!isRefresh && page.value === 1) {
+    const cached = getCachedOrders();
+    if (cached && cached.length > 0) {
+      orders.value = cached;
+      // 后台静默刷新
+      refreshOrdersInBackground();
+      return;
+    }
+  }
 
   try {
     loading.value = true;
+    error.value = null;
 
     if (isRefresh) {
       page.value = 1;
@@ -190,7 +217,210 @@ const loadOrders = async (isRefresh = false) => {
       hasMore.value = true;
     }
 
+    // 调用云函数
+    const result = await callFunction('order', {
+      action: 'getOrders',
+      data: {
+        status: currentStatus.value === 'all' ? undefined : currentStatus.value,
+        page: page.value,
+        pageSize: pageSize.value
+      }
+    });
+
+    if (result.code !== 0) {
+      throw new Error(result.msg);
+    }
+
+    const { orders: newOrders, hasMore: moreData } = result.data;
+
+    // 计算各状态数量（仅刷新时）
+    if (isRefresh) {
+      statusCount.value = {
+        pending: newOrders.filter(o => o.status === 'pending').length,
+        paid: newOrders.filter(o => o.status === 'paid').length,
+        shipping: newOrders.filter(o => o.status === 'shipping').length,
+        completed: newOrders.filter(o => o.status === 'completed').length,
+        refunding: newOrders.filter(o => o.status === 'refunding').length
+      };
+    }
+
+    // 追加订单列表
+    if (isRefresh) {
+      orders.value = newOrders;
+    } else {
+      orders.value.push(...newOrders);
+    }
+
+    hasMore.value = moreData;
+
+    // 更新缓存（仅第一页）
+    if (page.value === 1 && isRefresh) {
+      setCachedOrders(newOrders);
+    }
+
+    // 准备下一页
+    if (!isRefresh && moreData) {
+      page.value++;
+    }
+
+  } catch (err: any) {
+    console.error('加载订单失败:', err);
+
+    // 错误处理
+    if (err.errCode === 'NETWORK_ERROR') {
+      error.value = '网络连接失败，请检查网络';
+    } else if (err.errCode === 'TIMEOUT' || err.message?.includes('timeout')) {
+      error.value = '请求超时，请重试';
+      // 超时自动重试一次
+      if (!retryAttempted.value) {
+        retryAttempted.value = true;
+        await loadOrders(isRefresh);
+        return;
+      }
+    } else {
+      error.value = err.errMsg || err.message || '加载失败，请重试';
+    }
+
+    uni.showToast({
+      title: error.value,
+      icon: 'none'
+    });
+  } finally {
+    loading.value = false;
+    retryAttempted.value = false;
+  }
+};
+
+/**
+ * 读取缓存的订单列表
+ */
+function getCachedOrders(): Order[] | null {
+  try {
+    const cached = uni.getStorageSync(CACHE_KEYS.ORDER_LIST);
+    if (!cached) return null;
+
+    const { data, timestamp, version } = JSON.parse(cached);
+
+    // 检查缓存版本
+    if (version !== '1.0') {
+      uni.removeStorageSync(CACHE_KEYS.ORDER_LIST);
+      return null;
+    }
+
+    // 检查是否过期（5分钟）
+    if (Date.now() - timestamp > ORDER_PAGINATION_CONFIG.cacheTTL) {
+      uni.removeStorageSync(CACHE_KEYS.ORDER_LIST);
+      return null;
+    }
+
+    console.log('[Cache] 命中缓存:', cached.length, '条订单');
+    return data;
+  } catch (err) {
+    console.warn('[Cache] 读取缓存失败:', err);
+    return null;
+  }
+}
+
+/**
+ * 写入缓存
+ */
+function setCachedOrders(orderList: Order[]) {
+  try {
+    const cache = {
+      data: orderList,
+      timestamp: Date.now(),
+      version: '1.0'
+    };
+    uni.setStorageSync(CACHE_KEYS.ORDER_LIST, JSON.stringify(cache));
+    console.log('[Cache] 已缓存', orderList.length, '条订单');
+  } catch (err) {
+    console.warn('[Cache] 写入缓存失败:', err);
+  }
+}
+
+/**
+ * 后台静默刷新
+ */
+let backgroundRefreshInProgress = false;
+
+async function refreshOrdersInBackground() {
+  if (backgroundRefreshInProgress) {
+    return;
+  }
+
+  backgroundRefreshInProgress = true;
+
+  try {
+    const result = await callFunction('order', {
+      action: 'getOrders',
+      data: {
+        status: currentStatus.value === 'all' ? undefined : currentStatus.value,
+        page: 1,
+        pageSize: orders.value.length
+      }
+    });
+
+    if (result.code === 0) {
+      const newOrders = result.data.orders;
+
+      // 检查是否有变化
+      if (hasOrdersChanged(newOrders, orders.value)) {
+        setCachedOrders(newOrders);
+        orders.value = newOrders;
+
+        // 更新状态计数
+        statusCount.value = {
+          pending: newOrders.filter(o => o.status === 'pending').length,
+          paid: newOrders.filter(o => o.status === 'paid').length,
+          shipping: newOrders.filter(o => o.status === 'shipping').length,
+          completed: newOrders.filter(o => o.status === 'completed').length,
+          refunding: newOrders.filter(o => o.status === 'refunding').length
+        };
+      }
+    }
+  } catch (err) {
+    // 后台刷新失败不影响用户当前看到的内容
+    console.warn('[Cache] 后台刷新失败:', err);
+  } finally {
+    backgroundRefreshInProgress = false;
+  }
+}
+
+/**
+ * 检查订单列表是否有变化
+ */
+function hasOrdersChanged(newOrders: Order[], oldOrders: Order[]): boolean {
+  if (newOrders.length !== oldOrders.length) {
+    return true;
+  }
+
+  const newOrderIds = new Map(newOrders.map(o => [o._id, o.updateTime]));
+  const oldOrderIds = new Map(oldOrders.map(o => [o._id, o.updateTime]));
+
+  for (const [id, newTime] of newOrderIds) {
+    const oldTime = oldOrderIds.get(id);
+    if (!oldTime || newTime !== oldTime) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * 降级：加载所有订单（原有逻辑）
+ * 当功能开关关闭时使用此方法
+ */
+async function loadAllOrders() {
+  console.warn('[Fallback] 使用全量加载逻辑');
+
+  try {
     const res = await getOrders(currentStatus.value === 'all' ? undefined : currentStatus.value);
+
+    // 全量加载：一次性返回所有订单
+    orders.value = res;
+    hasMore.value = false; // 全量加载无更多数据
+    page.value = 1;
 
     // 计算各状态数量
     statusCount.value = {
@@ -201,31 +431,33 @@ const loadOrders = async (isRefresh = false) => {
       refunding: res.filter(o => o.status === 'refunding').length
     };
 
-    if (isRefresh) {
-      orders.value = res;
-    } else {
-      orders.value.push(...res);
-    }
-
-    if (res.length < pageSize) {
-      hasMore.value = false;
-    }
-  } catch (error) {
-    console.error('加载订单失败:', error);
     uni.showToast({
-      title: '加载失败',
+      title: '已加载全部订单',
+      icon: 'success'
+    });
+  } catch (err: any) {
+    console.error('[Fallback] 全量加载失败:', err);
+    error.value = err.errMsg || err.message || '加载失败';
+
+    uni.showToast({
+      title: error.value,
       icon: 'none'
     });
-  } finally {
-    loading.value = false;
   }
-};
+}
 
 // 加载更多
 const loadMore = () => {
   if (!hasMore.value || loading.value) return;
-  page.value++;
-  loadOrders();
+
+  // 使用新的分页加载逻辑
+  if (isFeatureEnabled('ORDER_PAGINATION')) {
+    loadOrders(false); // loadOrders 内部会自动增加 page
+  } else {
+    // 原有逻辑
+    page.value++;
+    loadOrders();
+  }
 };
 
 // 切换状态
