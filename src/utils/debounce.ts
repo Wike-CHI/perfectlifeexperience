@@ -1,29 +1,30 @@
 /**
- * 防抖和节流工具函数
- * 用于优化频繁触发的事件处理，提升性能
- */
-
-/**
- * 防抖函数 - 停止触发后才执行
- * @param fn 要执行的函数
- * @param delay 延迟时间（毫秒），默认 300ms
- * @returns 包装后的函数
+ * 防抖函数
+ *
+ * 在指定延迟时间内只执行最后一次调用
+ * 用于优化搜索输入，减少不必要的请求
+ *
+ * @param fn 要防抖的函数
+ * @param delay 延迟时间（毫秒）
+ * @returns 防抖后的函数
  */
 export function debounce<T extends (...args: any[]) => any>(
   fn: T,
-  delay: number = 300
+  delay: number
 ): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
 
-  return function (this: any, ...args: Parameters<T>) {
-    if (timer) {
+  return function(this: any, ...args: Parameters<T>) {
+    // 清除之前的定时器
+    if (timer !== null) {
       clearTimeout(timer);
     }
 
+    // 设置新的定时器
     timer = setTimeout(() => {
       fn.apply(this, args);
       timer = null;
-    }, delay);
+    }, delay) as unknown as number;
   };
 }
 
