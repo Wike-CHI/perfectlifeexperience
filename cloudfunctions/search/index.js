@@ -51,6 +51,7 @@ exports.main = async (event, context) => {
  * 处理商品搜索
  */
 async function handleSearch(params, openid) {
+  const startTime = Date.now();
   const { keyword, category, sortBy = 'default', page = 1, pageSize = 20 } = params;
 
   console.log('[Search] Search params:', { keyword, category, sortBy, page, pageSize });
@@ -141,6 +142,16 @@ async function handleSearch(params, openid) {
     }
 
     console.log('[Search] Found products:', products.length, 'Total:', total, 'Approximate:', totalApproximate);
+
+    const queryTime = Date.now() - startTime;
+    console.log('[Performance]', {
+      action: 'search',
+      page,
+      totalCountUsed: page <= 3,
+      queryTime,
+      resultCount: products.length,
+      totalApproximate
+    });
 
     return success({
       products,
