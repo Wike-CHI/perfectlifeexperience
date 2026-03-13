@@ -101,33 +101,77 @@
       </scroll-view>
 
       <!-- 右侧商品列表 -->
-      <scroll-view class="product-area" scroll-y @scrolltolower="loadMore">
+      <scroll-view class="product-area" scroll-y @scrolltolower="handleScrollToLower">
         <!-- 分类标题和排序 -->
         <view class="category-header">
           <view class="category-tag">
             <text class="tag-text">{{ currentCategoryName }}</text>
           </view>
           <view class="sort-bar">
-            <text 
-              class="sort-item" 
+            <text
+              class="sort-item"
               :class="{ active: sortBy === 'default' }"
               @click="changeSort('default')"
             >综合</text>
-            <text 
-              class="sort-item" 
+            <text
+              class="sort-item"
               :class="{ active: sortBy === 'sales' }"
               @click="changeSort('sales')"
             >销量</text>
-            <text 
-              class="sort-item" 
+            <text
+              class="sort-item"
               :class="{ active: sortBy === 'price' }"
               @click="changeSort('price')"
             >价格</text>
           </view>
         </view>
 
-        <!-- 商品列表 -->
-        <view class="product-list">
+        <!-- 虚拟列表模式 -->
+        <VirtualList
+          v-if="useVirtualList"
+          :items="products"
+          :itemHeight="VIRTUAL_LIST_CONFIG.itemHeight"
+          :visibleCount="VIRTUAL_LIST_CONFIG.visibleCount"
+          :bufferSize="VIRTUAL_LIST_CONFIG.bufferSize"
+          :loading="loading"
+          :hasMore="hasMore"
+          containerHeight="calc(100vh - 200rpx)"
+          @loadMore="loadMore"
+          class="virtual-list-wrapper"
+        >
+          <template #default="{ item, index }">
+            <view
+              class="product-item"
+              @click="goToDetail(item)"
+            >
+              <image class="product-image" :src="getProductImage(item)" mode="aspectFill" lazy-load />
+              <view class="product-info">
+                <text class="product-name">{{ item.name }}</text>
+                <text class="product-desc" v-if="item.description">{{ item.description }}</text>
+                <text class="product-brewery" v-else>{{ item.brewery }}</text>
+                <view class="product-meta">
+                  <text class="sales">销量{{ item.sales || 0 }}</text>
+                </view>
+                <view class="product-bottom">
+                  <view class="price-section">
+                    <text class="price-symbol">¥</text>
+                    <text class="price">{{ formatPrice(item.price) }}</text>
+                    <text class="price-suffix" v-if="item.priceList && item.priceList.length > 1">起</text>
+                  </view>
+                  <view class="add-cart" @click.stop="addToCart(item)">
+                    <view class="plus-icon">
+                      <view class="plus-h"></view>
+                      <view class="plus-v"></view>
+                    </view>
+                  </view>
+                </view>
+              </view>
+            </view>
+          </template>
+        </VirtualList>
+
+        <!-- 传统列表模式（降级） -->
+        <view v-else class="product-list">
           <view
             class="product-item"
             v-for="(product, index) in products"
@@ -159,8 +203,8 @@
           </view>
         </view>
 
-        <!-- 加载状态 -->
-        <view class="load-status">
+        <!-- 传统模式加载状态 -->
+        <view v-if="!useVirtualList" class="load-status">
           <text v-if="loading" class="status-text">加载中...</text>
           <text v-else-if="!hasMore && products.length > 0" class="status-text">没有更多了</text>
         </view>
@@ -198,6 +242,9 @@ import { getListThumbnail } from '@/utils/image';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import CategoryIcon from '@/components/CategoryIcon.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
+import VirtualList from '@/components/VirtualList.vue';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { VIRTUAL_LIST_CONFIG } from '@/config/performance';
 
 // 类型定义（内联，避免分包导入问题）
 interface Product {
@@ -272,6 +319,17 @@ const deliveryType = ref<'pickup' | 'delivery'>('pickup');
 // 弹窗状态
 const skuPopupVisible = ref(false);
 const currentProduct = ref<Product | null>(null);
+
+// 虚拟列表功能开关
+const useVirtualList = computed(() => isFeatureEnabled('VIRTUAL_LIST'));
+
+// 处理滚动到底部（兼容虚拟列表和传统列表）
+const handleScrollToLower = () => {
+  if (!useVirtualList.value) {
+    loadMore();
+  }
+  // 虚拟列表模式由 VirtualList 组件内部处理
+};
 
 // 获取商品图片（使用缩略图优化）
 const getProductImage = (product: any): string => {
