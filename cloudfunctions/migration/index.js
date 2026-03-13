@@ -215,6 +215,9 @@ exports.main = async (event, context) => {
     case 'addInviteCodeUniqueIndex':
       return await require('./addInviteCodeUniqueIndex').main(event, context);
 
+    case 'addLeaderFields':
+      return await require('./addLeaderFields').main(event, context);
+
     default:
       return {
         code: -2,

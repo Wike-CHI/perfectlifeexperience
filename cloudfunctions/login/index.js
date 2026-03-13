@@ -70,6 +70,8 @@ async function getOrCreateUser(openid, extraData = {}) {
     let parentId = null;
     let promotionPath = '';
     let agentLevel = AGENT_LEVEL.DEFAULT; // 默认为4级（普通会员）
+    let secondLeaderId = null; // 🔥 新增：第二级推广人 ID
+    let thirdLeaderId = null;  // 🔥 新增：第三级推广人 ID
 
     if (inviteCode) {
       bindAttempted = true;
@@ -85,8 +87,21 @@ async function getOrCreateUser(openid, extraData = {}) {
           promotionPath = parent.promotionPath ? `${parent.promotionPath}/${parentId}` : parentId;
           agentLevel = Math.min(AGENT_LEVEL.MAX, (parent.agentLevel || AGENT_LEVEL.DEFAULT) + 1);
 
+          // 🔥 新增：计算第二、三级推广人
+          if (parent.promotionPath) {
+            const pathParts = parent.promotionPath.split('/').filter(p => p);
+            if (pathParts.length >= 1) {
+              secondLeaderId = pathParts[0]; // 父用户的父用户
+            }
+            if (pathParts.length >= 2) {
+              thirdLeaderId = pathParts[1]; // 父用户的父用户的父用户
+            }
+          }
+
           console.log('找到上级用户:', {
             parentId,
+            secondLeaderId, // 🔥 新增日志
+            thirdLeaderId,  // 🔥 新增日志
             agentLevel,
             promotionPath
           });
@@ -116,6 +131,8 @@ async function getOrCreateUser(openid, extraData = {}) {
         parentId,
         promotionPath,
         agentLevel,
+        secondLeaderId, // 🔥 新增：第二级推广人 ID
+        thirdLeaderId,  // 🔥 新增：第三级推广人 ID
         performance: {
           totalSales: 0,
           monthSales: 0,
@@ -197,13 +214,29 @@ async function getOrCreateUser(openid, extraData = {}) {
             console.warn('不能绑定自己');
             bindError = '不能绑定自己';
           } else {
+            const oldPromotionPath = user.promotionPath || ''; // 🔥 保存旧路径用于更新下属
             const parentId = parent._openid;
             const promotionPath = parent.promotionPath ? `${parent.promotionPath}/${parentId}` : parentId;
             const agentLevel = Math.min(AGENT_LEVEL.MAX, (parent.agentLevel || AGENT_LEVEL.DEFAULT) + 1);
 
+            // 🔥 新增：计算第二、三级推广人
+            let secondLeaderId = null;
+            let thirdLeaderId = null;
+            if (parent.promotionPath) {
+              const pathParts = parent.promotionPath.split('/').filter(p => p);
+              if (pathParts.length >= 1) {
+                secondLeaderId = pathParts[0];
+              }
+              if (pathParts.length >= 2) {
+                thirdLeaderId = pathParts[1];
+              }
+            }
+
             updateData.parentId = parentId;
             updateData.promotionPath = promotionPath;
             updateData.agentLevel = agentLevel;
+            updateData.secondLeaderId = secondLeaderId; // 🔥 新增
+            updateData.thirdLeaderId = thirdLeaderId;   // 🔥 新增
 
             console.log('绑定推广人成功:', {
               parentId,
@@ -235,6 +268,24 @@ async function getOrCreateUser(openid, extraData = {}) {
 
               // 标记绑定成功
               bindSuccessFlag = true;
+
+              // 🔥 P0-1: 级联更新所有下属的关系链
+              await updateSubordinateRelations(
+                user._openid,
+                oldPromotionPath,
+                promotionPath
+              );
+
+              // 🔥 P1-2: 记录关系变更历史
+              await recordRelationChange({
+                userOpenid: user._openid,
+                oldParentId: user.parentId,
+                newParentId: parentId,
+                oldPromotionPath: oldPromotionPath,
+                newPromotionPath: promotionPath,
+                changeType: 'bind',
+                reason: '用户通过邀请码绑定推广人'
+              });
 
               // 更新完成后直接返回，避免重复更新
               return {
@@ -284,6 +335,119 @@ async function getOrCreateUser(openid, extraData = {}) {
     bindSuccess: bindAttempted && bindSuccessFlag,
     bindError: bindAttempted && !bindSuccessFlag ? bindError : null
   };
+}
+
+/**
+ * 更新用户的所有下属关系链
+ * 当用户绑定新推广人时，需要级联更新所有下属的 promotionPath
+ *
+ * @param {string} userOpenid - 当前用户的 openid
+ * @param {string} oldPromotionPath - 旧的推广路径
+ * @param {string} newPromotionPath - 新的推广路径
+ */
+async function updateSubordinateRelations(userOpenid, oldPromotionPath, newPromotionPath) {
+  try {
+    // 1. 查找所有 promotionPath 中包含当前用户ID的下级
+    // 修正：应该匹配 oldPromotionPath/（旧路径后加斜杠），这样能匹配所有下属
+    // 使用 MongoDB 标准的正则表达式语法
+    const subordinates = await db.collection('users')
+      .where({
+        promotionPath: {
+          $regex: `${oldPromotionPath}/`,
+          $options: 'i'
+        }
+      })
+      .field({
+        _openid: true,
+        promotionPath: true,
+        parentId: true
+      })
+      .get();
+
+    if (subordinates.data.length === 0) {
+      console.log('无下属需要更新关系链', { userOpenid });
+      return;
+    }
+
+    console.log('开始更新下属关系链', {
+      userOpenid,
+      subordinateCount: subordinates.data.length
+    });
+
+    // 2. 批量更新所有下属的 promotionPath
+    // 将 oldPromotionPath 替换为 newPromotionPath
+    const updates = [];
+    for (const sub of subordinates.data) {
+      const newPath = sub.promotionPath.replace(oldPromotionPath, newPromotionPath);
+
+      updates.push(
+        db.collection('users').doc(sub._id).update({
+          data: { promotionPath: newPath }
+        })
+      );
+    }
+
+    // 3. 执行批量更新
+    await Promise.all(updates);
+
+    console.log('下属关系链更新完成', {
+      userOpenid,
+      updatedCount: subordinates.data.length
+    });
+
+  } catch (error) {
+    console.error('更新下属关系链失败', {
+      userOpenid,
+      error: error.message
+    });
+    // 注意：这里不抛出错误，允许主流程继续
+    // 但记录日志便于后续修复
+  }
+}
+
+/**
+ * 记录推广关系变更历史
+ *
+ * @param {object} params - 变更参数
+ * @param {string} params.userOpenid - 用户 openid
+ * @param {string} params.oldParentId - 旧的推广人 ID
+ * @param {string} params.newParentId - 新的推广人 ID
+ * @param {string} params.oldPromotionPath - 旧的推广路径
+ * @param {string} params.newPromotionPath - 新的推广路径
+ * @param {string} params.changeType - 变更类型: 'bind' | 'unbind' | 'upgrade'
+ * @param {string} params.operator - 操作人 openid（可选）
+ * @param {string} params.reason - 变更原因（可选）
+ */
+async function recordRelationChange({
+  userOpenid,
+  oldParentId,
+  newParentId,
+  oldPromotionPath,
+  newPromotionPath,
+  changeType = 'bind',
+  operator = null,
+  reason = null
+}) {
+  try {
+    await db.collection('relation_history').add({
+      data: {
+        _openid: userOpenid,
+        oldParentId: oldParentId || null,
+        newParentId: newParentId || null,
+        oldPromotionPath: oldPromotionPath || '',
+        newPromotionPath: newPromotionPath || '',
+        changeType,
+        changeTime: new Date(),
+        operator: operator || null,
+        reason: reason || '用户绑定推广人'
+      }
+    });
+
+    console.log('关系变更历史已记录', { userOpenid, changeType });
+  } catch (error) {
+    console.error('记录关系变更历史失败:', error);
+    // 不抛出错误，避免影响主流程
+  }
 }
 
 /**

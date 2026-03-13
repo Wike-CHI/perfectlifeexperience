@@ -135,7 +135,8 @@
       "Bash(reg query:*)",
       "mcp__cloudbase__findFiles",
       "Bash(cd \"C:\\\\Users\\\\Administrator\\\\Documents\\\\HBuilderProjects\\\\perfectlifeexperience\" && if [ -d \"dist\" ]; then echo \"编译目录存在\"; find dist -name \"*.js\" -exec grep -l \"已加载全部商品\" {} \\\\; 2>/dev/null | head -5; else echo \"编译目录不存在\"; fi)",
-      "mcp__web-reader__webReader"
+      "mcp__web-reader__webReader",
+      "Bash(cd \"c:\\\\Users\\\\Administrator\\\\Documents\\\\HBuilderProjects\\\\perfectlifeexperience\" && rm -rf dist/ && npm run dev:mp-weixin 2>&1 | head -100)"
     ]
   },
   "enableAllProjectMcpServers": true,

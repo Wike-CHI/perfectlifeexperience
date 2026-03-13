@@ -30,6 +30,12 @@ exports.main = async (event, context) => {
         return await testBalancePayment(testData);
       case 'verifyMigration':
         return await verifyMigration();
+      case 'updateSubordinateRelations':
+        return await updateSubordinateRelations(testData);
+      case 'queryTestUsers':
+        return await queryTestUsers();
+      case 'simulateBindPromoter':
+        return await simulateBindPromoter(testData);
       default:
         return {
           code: -1,
@@ -41,7 +47,10 @@ exports.main = async (event, context) => {
             'checkRewardRecords',
             'getTestData',
             'testBalancePayment',
-            'verifyMigration'
+            'verifyMigration',
+            'updateSubordinateRelations',
+            'queryTestUsers',
+            'simulateBindPromoter'
           ]
         };
     }
@@ -368,4 +377,225 @@ async function getOpenIdFromOrder(orderId) {
     return orderRes.data[0]._openid;
   }
   return null;
+}
+
+/**
+ * 更新用户的所有下属关系链（P0-1 测试）
+ */
+async function updateSubordinateRelations({ userOpenid, oldPromotionPath, newPromotionPath }) {
+  try {
+    console.log('[P0-1测试] 更新下属关系链', { userOpenid, oldPromotionPath, newPromotionPath });
+
+    // 1. 查找所有 promotionPath 中包含当前用户ID的下级
+    // 修正：应该匹配 oldPromotionPath/（旧路径后加斜杠），这样能匹配所有下属
+    // 使用 MongoDB 标准的正则表达式语法
+    const subordinates = await db.collection('users')
+      .where({
+        promotionPath: {
+          $regex: `${oldPromotionPath}/`,
+          $options: 'i'
+        }
+      })
+      .field({
+        _openid: true,
+        promotionPath: true,
+        parentId: true
+      })
+      .get();
+
+    if (subordinates.data.length === 0) {
+      return {
+        code: 0,
+        msg: '无下属需要更新',
+        data: { updatedCount: 0, subordinates: [] }
+      };
+    }
+
+    console.log('[P0-1测试] 找到下属:', { count: subordinates.data.length });
+
+    // 2. 批量更新所有下属的 promotionPath
+    const updates = [];
+    const updateDetails = [];
+    for (const sub of subordinates.data) {
+      const oldPath = sub.promotionPath;
+      const newPath = sub.promotionPath.replace(oldPromotionPath, newPromotionPath);
+
+      updateDetails.push({
+        openid: sub._openid,
+        oldPath: oldPath,
+        newPath: newPath
+      });
+
+      updates.push(
+        db.collection('users').doc(sub._id).update({
+          data: { promotionPath: newPath }
+        })
+      );
+    }
+
+    // 3. 执行批量更新
+    await Promise.all(updates);
+
+    console.log('[P0-1测试] 更新完成:', { updatedCount: subordinates.data.length });
+
+    return {
+      code: 0,
+      msg: '更新成功',
+      data: {
+        updatedCount: subordinates.data.length,
+        updateDetails
+      }
+    };
+
+  } catch (error) {
+    console.error('[P0-1测试] 更新失败:', error);
+    return {
+      code: -1,
+      msg: error.message
+    };
+  }
+}
+
+/**
+ * 查询测试用户
+ */
+async function queryTestUsers() {
+  try {
+    const testUsers = await db.collection('users')
+      .where({
+        _openid: db.RegExp({
+          regexp: '^test_',
+          options: 'i'
+        })
+      })
+      .field({
+        _openid: true,
+        parentId: true,
+        promotionPath: true,
+        secondLeaderId: true,
+        thirdLeaderId: true,
+        inviteCode: true
+      })
+      .orderBy('createTime', 'desc')
+      .get();
+
+    return {
+      code: 0,
+      msg: '查询成功',
+      data: testUsers.data
+    };
+  } catch (error) {
+    return {
+      code: -1,
+      msg: error.message
+    };
+  }
+}
+
+/**
+ * 模拟用户绑定推广人（完整测试流程）
+ */
+async function simulateBindPromoter({ userOpenid, newPromoterInviteCode }) {
+  try {
+    console.log('[测试] 模拟绑定推广人', { userOpenid, newPromoterInviteCode });
+
+    // 1. 查找新推广人
+    const promoterRes = await db.collection('users')
+      .where({ inviteCode: newPromoterInviteCode })
+      .get();
+
+    if (promoterRes.data.length === 0) {
+      return { code: -1, msg: '推广人邀请码不存在' };
+    }
+
+    const promoter = promoterRes.data[0];
+    const newParentId = promoter._openid;
+
+    // 2. 查询当前用户
+    const userRes = await db.collection('users')
+      .where({ _openid: userOpenid })
+      .get();
+
+    if (userRes.data.length === 0) {
+      return { code: -1, msg: '用户不存在' };
+    }
+
+    const user = userRes.data[0];
+    const oldPromotionPath = user.promotionPath || '';
+    const oldParentId = user.parentId || null;
+
+    // 3. 计算新的推广路径
+    const newPromotionPath = promoter.promotionPath
+      ? `${promoter.promotionPath}/${newParentId}`
+      : newParentId;
+
+    // 4. 计算第二、三级推广人
+    let secondLeaderId = null;
+    let thirdLeaderId = null;
+    if (promoter.promotionPath) {
+      const pathParts = promoter.promotionPath.split('/').filter(p => p);
+      if (pathParts.length >= 1) {
+        secondLeaderId = pathParts[0];
+      }
+      if (pathParts.length >= 2) {
+        thirdLeaderId = pathParts[1];
+      }
+    }
+
+    // 5. 更新用户的推广信息
+    await db.collection('users').doc(user._id).update({
+      data: {
+        parentId: newParentId,
+        promotionPath: newPromotionPath,
+        secondLeaderId: secondLeaderId,
+        thirdLeaderId: thirdLeaderId
+      }
+    });
+
+    console.log('[测试] 用户推广信息已更新');
+
+    // 6. 调用下属关系链更新（P0-1 功能）
+    const updateResult = await updateSubordinateRelations({
+      userOpenid,
+      oldPromotionPath,
+      newPromotionPath
+    });
+
+    // 7. 记录关系变更历史（P1-2 功能）
+    await db.collection('relation_history').add({
+      data: {
+        _openid: userOpenid,
+        oldParentId: oldParentId,
+        newParentId: newParentId,
+        oldPromotionPath: oldPromotionPath,
+        newPromotionPath: newPromotionPath,
+        changeType: 'bind',
+        changeTime: new Date(),
+        operator: null,
+        reason: 'P0+P1优化测试：模拟绑定推广人'
+      }
+    });
+
+    console.log('[测试] 关系变更历史已记录');
+
+    return {
+      code: 0,
+      msg: '绑定成功',
+      data: {
+        userOpenid,
+        oldParentId,
+        newParentId,
+        oldPromotionPath,
+        newPromotionPath,
+        subordinateUpdateResult: updateResult.data
+      }
+    };
+
+  } catch (error) {
+    console.error('[测试] 绑定失败:', error);
+    return {
+      code: -1,
+      msg: error.message
+    };
+  }
 }

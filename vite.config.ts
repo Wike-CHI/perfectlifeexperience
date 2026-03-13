@@ -41,6 +41,22 @@ export default defineConfig({
     // 启用gzip压缩大小报告
     reportCompressedSize: true,
     // chunk大小警告限制
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // 🔧 排除类型定义文件（不打包到小程序）
+    rollupOptions: {
+      // 排除纯类型定义文件（因为小程序不需要运行时的类型信息）
+      external: ['**/*.d.ts', '**/types/*.ts'],
+      onwarn(warning, warn) {
+        // 忽略类型定义文件的警告
+        if (warning.code === 'UNUSED_EXTERNAL_IMPORT' && warning.message.includes('types/')) {
+          return;
+        }
+        // 忽略关于类型文件的模块警告
+        if (warning.message && warning.message.includes('types/')) {
+          return;
+        }
+        warn(warning);
+      }
+    }
   }
 });
