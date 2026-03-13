@@ -212,6 +212,9 @@ exports.main = async (event, context) => {
     case 'createOrderListIndex':
       return await createOrderListIndex();
 
+    case 'addInviteCodeUniqueIndex':
+      return await require('./addInviteCodeUniqueIndex').main(event, context);
+
     default:
       return {
         code: -2,

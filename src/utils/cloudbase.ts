@@ -39,6 +39,7 @@ declare const wx: {
 // 云开发环境ID - 从配置文件读取（支持环境变量回退）
 import { ENV_ID, checkEnvConfig } from '@/config/env';
 import { safeClone, safeStringify } from '@/utils/serialization';
+import * as inviteCodeStatus from '@/utils/inviteCodeStatus';
 
 // 存储用户登录凭证
 let userOpenid: string | null = null;
@@ -122,17 +123,59 @@ export const getUserOpenid = async (): Promise<string | null> => {
       }
     }
 
+    // 🔥 获取待处理的邀请码（从二维码扫描或手动输入缓存）
+    const pendingInviteCode = uni.getStorageSync('pendingInviteCode');
+    const inviteCodeSource = uni.getStorageSync('inviteCodeSource');
+
+    if (pendingInviteCode) {
+      console.log('检测到待处理邀请码:', pendingInviteCode, '来源:', inviteCodeSource);
+    }
+
     // 调用登录云函数进行静默登录
     console.log('调用登录云函数进行静默登录...');
 
+    const loginData: Record<string, unknown> = {};
+
+    // 🔥 如果有邀请码，传递给 login 云函数
+    if (pendingInviteCode) {
+      loginData.inviteCode = pendingInviteCode;
+      console.log('将邀请码传递给登录云函数:', pendingInviteCode);
+    }
+
     const result = await wx.cloud.callFunction({
       name: 'login',
-      data: {}
+      data: loginData
     });
 
     if (result.result && result.result.openid) {
       const openid = result.result.openid;
       console.log('静默登录成功，已获取OpenID');
+
+      // 🔥 登录成功后，检查是否有绑定失败的历史
+      if (pendingInviteCode) {
+        // 检查是否成功绑定了推广人
+        // 从云函数返回值中获取绑定状态
+        const bindSuccess = result.result.bindSuccess || false;
+        const bindError = result.result.bindError;
+
+        if (!bindSuccess) {
+          // 保存失败状态（如果有错误信息）
+          if (bindError) {
+            inviteCodeStatus.saveBindFailureStatus(bindError, pendingInviteCode);
+            console.log('邀请码绑定失败，已保存状态:', bindError);
+          }
+        } else {
+          // 绑定成功，清除失败状态并显示成功提示
+          inviteCodeStatus.clearBindFailureStatus();
+          inviteCodeStatus.showBindSuccessToast();
+          console.log('邀请码绑定成功，已清除失败状态');
+        }
+
+        // 清除邀请码缓存
+        uni.removeStorageSync('pendingInviteCode');
+        uni.removeStorageSync('inviteCodeSource');
+        console.log('邀请码已处理并清除缓存');
+      }
 
       // 缓存 OpenID 和登录时间
       uni.setStorageSync(OPENID_KEY, openid);

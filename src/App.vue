@@ -2,8 +2,41 @@
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { initCloudBase, checkEnvironment } from "./utils/cloudbase";
 
-onLaunch(async () => {
-  console.log("App Launch");
+onLaunch(async (options) => {
+  console.log("App Launch", options);
+
+  // 🔥 处理二维码邀请码参数
+  if (options && options.query) {
+    const { inviteCode, ref } = options.query;
+
+    // 优先处理 inviteCode（二维码扫描）
+    if (inviteCode) {
+      console.log('检测到邀请码:', inviteCode);
+      // 🔧 验证邀请码格式（8位大写字母+数字）
+      const isValidInviteCode = /^[A-Z0-9]{8}$/.test(inviteCode);
+      if (isValidInviteCode) {
+        uni.setStorageSync('pendingInviteCode', inviteCode);
+        uni.setStorageSync('inviteCodeSource', 'qrcode');
+        console.log('邀请码已缓存，将在登录时使用');
+      } else {
+        console.warn('邀请码格式无效:', inviteCode);
+      }
+    }
+
+    // 兼容 ref 参数（某些推广链接可能使用）
+    // 只有当没有 inviteCode 时才使用 ref
+    if (ref && !inviteCode) {
+      console.log('检测到推荐码:', ref);
+      const isValidRef = /^[A-Z0-9]{8}$/.test(ref);
+      if (isValidRef) {
+        uni.setStorageSync('pendingInviteCode', ref);
+        uni.setStorageSync('inviteCodeSource', 'link');
+        console.log('推荐码已缓存');
+      } else {
+        console.warn('推荐码格式无效:', ref);
+      }
+    }
+  }
 
   // 检查云开发环境配置
    if (checkEnvironment()) {

@@ -10,6 +10,19 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+// ==================== 常量定义 ====================
+const AGENT_LEVEL = {
+  MAX: 4,
+  MIN: 1,
+  DEFAULT: 4,
+  LEVEL_NAMES: ['金牌推广员', '银牌推广员', '铜牌推广员', '普通会员']
+};
+
+const INVITE_CODE_CONFIG = {
+  LENGTH: 8,
+  CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // 排除易混淆字符：0/O, 1/I/L
+};
+
 // 获取小程序配置 (从环境变量读取)
 function getAppConfig() {
   const appid = process.env.WX_APPID;
@@ -42,24 +55,120 @@ async function getOrCreateUser(openid, extraData = {}) {
 
   // 🔒 安全修复：移除 session_key 存储，避免敏感信息泄露
   // session_key 是微信敏感数据，不应存储到数据库
-  const { session_key, ...safeExtraData } = extraData;
+  const { session_key, inviteCode, ...safeExtraData } = extraData;
+
+  // 🔥 新增：绑定状态跟踪
+  let bindAttempted = false;
+  let bindSuccessFlag = false;
+  let bindError = null;
 
   if (userResult.data.length === 0) {
     // 新用户，创建记录
     isNewUser = true;
-    const createData = {
-      _openid: openid,
-      createTime: new Date(),
-      lastLoginTime: new Date(),
-      loginCount: 1,
-      platform: 'weixin_miniprogram',
-      ...safeExtraData
-    };
 
-    const createResult = await userCollection.add({
-      data: createData
+    // 🔥 处理邀请码：如果有邀请码，查找上级用户信息
+    let parentId = null;
+    let promotionPath = '';
+    let agentLevel = AGENT_LEVEL.DEFAULT; // 默认为4级（普通会员）
+
+    if (inviteCode) {
+      bindAttempted = true;
+      console.log('新用户注册，处理邀请码:', inviteCode);
+      try {
+        const parentResult = await userCollection.where({
+          inviteCode: inviteCode
+        }).limit(1).get();
+
+        if (parentResult.data.length > 0) {
+          const parent = parentResult.data[0];
+          parentId = parent._openid;
+          promotionPath = parent.promotionPath ? `${parent.promotionPath}/${parentId}` : parentId;
+          agentLevel = Math.min(AGENT_LEVEL.MAX, (parent.agentLevel || AGENT_LEVEL.DEFAULT) + 1);
+
+          console.log('找到上级用户:', {
+            parentId,
+            agentLevel,
+            promotionPath
+          });
+          bindSuccessFlag = true;
+        } else {
+          console.warn('邀请码无效:', inviteCode);
+          bindError = '邀请码无效';
+        }
+      } catch (error) {
+        console.error('处理邀请码失败:', error);
+        bindError = error.message || '邀请码处理失败';
+      }
+    }
+
+    // 🔥 使用事务包裹用户创建和团队更新
+    const transaction = await db.startTransaction();
+
+    try {
+      // 1. 在事务中创建用户
+      const createData = {
+        _openid: openid,
+        createTime: new Date(),
+        lastLoginTime: new Date(),
+        loginCount: 1,
+        platform: 'weixin_miniprogram',
+        inviteCode: generateInviteCode(), // 生成用户自己的邀请码
+        parentId,
+        promotionPath,
+        agentLevel,
+        performance: {
+          totalSales: 0,
+          monthSales: 0,
+          // 🔧 修复：使用本地时间的 YYYY-MM 格式，避免 UTC 时区问题
+          monthTag: (() => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+          })(),
+          teamCount: 0
+        },
+        totalReward: 0,
+        pendingReward: 0,
+        orderCount: 0,
+        ...safeExtraData
+      };
+
+      const createResult = await transaction.collection('users').add({
+        data: createData
+      });
+      user = { _id: createResult._id, ...createData };
+
+      // 2. 如果有上级，在事务中更新团队数
+      if (parentId) {
+        await transaction.collection('users').where({
+          _openid: parentId
+        }).update({
+          data: {
+            'performance.teamCount': _.inc(1),
+            teamCount: _.inc(1)
+          }
+        });
+
+        console.log('上级团队数已更新（事务中）:', parentId);
+      }
+
+      // 3. 提交事务
+      await transaction.commit();
+      console.log('用户创建事务提交成功', { openid, parentId });
+
+    } catch (err) {
+      // 回滚事务
+      await transaction.rollback();
+      console.error('用户创建事务回滚:', err);
+      throw new Error('用户创建失败: ' + err.message);
+    }
+
+    console.log('新用户创建成功:', {
+      openid,
+      agentLevel,
+      hasParent: !!parentId
     });
-    user = { _id: createResult._id, ...createData };
   } else {
     // 已存在用户，更新登录信息
     user = userResult.data[0];
@@ -67,10 +176,98 @@ async function getOrCreateUser(openid, extraData = {}) {
       lastLoginTime: new Date(),
       loginCount: _.inc(1)
     };
+
+    // 🔥 如果用户没有上级但传入了邀请码，尝试绑定
+    if (inviteCode && !user.parentId) {
+      bindAttempted = true;
+      console.log('已注册用户尝试绑定推广人:', inviteCode);
+      try {
+        const parentResult = await userCollection.where({
+          inviteCode: inviteCode
+        }).limit(1).get();
+
+        if (parentResult.data.length > 0) {
+          const parent = parentResult.data[0];
+
+          // 检查推荐人等级：4级不能发展下线
+          if (parent.agentLevel === 4) {
+            console.warn('推荐人等级为4，无法发展下线');
+            bindError = '推荐人等级为4，无法发展下线';
+          } else if (parent._openid === openid) {
+            console.warn('不能绑定自己');
+            bindError = '不能绑定自己';
+          } else {
+            const parentId = parent._openid;
+            const promotionPath = parent.promotionPath ? `${parent.promotionPath}/${parentId}` : parentId;
+            const agentLevel = Math.min(AGENT_LEVEL.MAX, (parent.agentLevel || AGENT_LEVEL.DEFAULT) + 1);
+
+            updateData.parentId = parentId;
+            updateData.promotionPath = promotionPath;
+            updateData.agentLevel = agentLevel;
+
+            console.log('绑定推广人成功:', {
+              parentId,
+              agentLevel,
+              promotionPath
+            });
+
+            // 🔥 使用事务更新用户和上级团队数
+            const transaction = await db.startTransaction();
+            try {
+              // 更新用户信息
+              await transaction.collection('users').doc(user._id).update({
+                data: updateData
+              });
+
+              // 更新上级的团队数量
+              await transaction.collection('users').where({
+                _openid: parentId
+              }).update({
+                data: {
+                  'performance.teamCount': _.inc(1),
+                  teamCount: _.inc(1)
+                }
+              });
+
+              // 提交事务
+              await transaction.commit();
+              console.log('用户绑定事务提交成功');
+
+              // 标记绑定成功
+              bindSuccessFlag = true;
+
+              // 更新完成后直接返回，避免重复更新
+              return {
+                success: true,
+                openid,
+                isNewUser: false,
+                userId: user._id,
+                userInfo: { ...user, ...updateData },
+                message: '绑定推广人成功',
+                bindSuccess: bindAttempted && bindSuccessFlag,
+                bindError: bindAttempted && !bindSuccessFlag ? bindError : null
+              };
+            } catch (err) {
+              // 回滚事务
+              await transaction.rollback();
+              console.error('用户绑定事务回滚:', err);
+              bindError = '绑定失败: ' + err.message;
+            }
+          }
+        } else {
+          console.warn('邀请码无效:', inviteCode);
+          bindError = '邀请码无效';
+        }
+      } catch (error) {
+        console.error('绑定推广人失败:', error);
+        bindError = error.message || '邀请码处理失败';
+      }
+    }
+
     // 🔒 安全修复：不再存储 session_key
-    // if (extraData.session_key) updateData.session_key = extraData.session_key;
     if (safeExtraData.unionid) updateData.unionid = safeExtraData.unionid;
 
+    // 更新用户数据
     await userCollection.doc(user._id).update({
       data: updateData
     });
@@ -82,8 +279,39 @@ async function getOrCreateUser(openid, extraData = {}) {
     isNewUser,
     userId: user._id,
     userInfo: user,
-    message: '登录成功'
+    message: '登录成功',
+    // 🔥 新增：邀请码绑定状态
+    bindSuccess: bindAttempted && bindSuccessFlag,
+    bindError: bindAttempted && !bindSuccessFlag ? bindError : null
   };
+}
+
+/**
+ * 生成8位邀请码（时间戳+随机+校验位）
+ * 算法：4位时间戳 + 3位随机 + 1位校验位
+ */
+function generateInviteCode() {
+  const { LENGTH, CHARS } = INVITE_CODE_CONFIG;
+  const timestamp = Date.now().toString(36).slice(-4); // 时间戳后4位（base36编码）
+  let randomPart = '';
+
+  // 生成随机部分（3位）
+  for (let i = 0; i < LENGTH - 5; i++) {
+    randomPart += CHARS.charAt(Math.floor(Math.random() * CHARS.length));
+  }
+
+  // 添加校验位（基于时间戳和随机部分的和）
+  const checkSum = (timestamp.charCodeAt(0) + randomPart.charCodeAt(0)) % CHARS.length;
+  const checkChar = CHARS.charAt(checkSum);
+
+  const code = timestamp + randomPart + checkChar;
+
+  // 🔍 验证格式：必须是8位
+  if (code.length !== LENGTH) {
+    throw new Error(`生成的邀请码长度不正确: ${code.length}`);
+  }
+
+  return code.toUpperCase();
 }
 
 // 云函数入口函数
@@ -98,9 +326,11 @@ exports.main = async (event, context) => {
   // 1. 尝试从 wxContext 获取 (原生调用)
   if (openid) {
     console.log('Native call detected, openid:', openid);
-    return await getOrCreateUser(openid, { unionid });
+    // 🔥 修复：原生调用时从 event 中读取 inviteCode
+    const inviteCode = event.inviteCode;
+    return await getOrCreateUser(openid, { unionid, inviteCode });
   }
-  
+
   // 2. 尝试使用 code 换取 (HTTP 调用或显式传 code)
   // 解析 body (如果是 HTTP 触发)
   let requestData = event;
@@ -111,8 +341,9 @@ exports.main = async (event, context) => {
       console.error('Parse body failed:', e);
     }
   }
-  
-  const { code } = requestData;
+
+  // 🔥 修复：解构 inviteCode 参数
+  const { code, inviteCode } = requestData;
   
   if (code) {
     try {

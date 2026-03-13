@@ -1200,13 +1200,19 @@ async function bindPromotionRelation(event, context) {
   });
 
   try {
-    // 防刷检查
-    const checkResult = await checkDuplicateRegistration(OPENID, deviceInfo);
-    if (!checkResult.valid) {
-      logger.warn('Anti-fraud check failed', {
-        reason: checkResult.reason
+    // 🔥 检查用户是否已经存在
+    const userRes = await db.collection('users')
+      .where({ _openid: OPENID })
+      .get();
+
+    const existingUser = userRes.data.length > 0 ? userRes.data[0] : null;
+
+    // 🔥 如果用户已存在且有上级，返回错误
+    if (existingUser && existingUser.parentId) {
+      logger.warn('User already has parent', {
+        existingParent: existingUser.parentId
       });
-      return { code: -1, msg: checkResult.reason };
+      return { code: -1, msg: '您已绑定过推广人，无法重复绑定' };
     }
 
     // 查找上级用户
@@ -1263,34 +1269,6 @@ async function bindPromotionRelation(event, context) {
       }
     }
 
-    // 生成邀请码
-    let inviteCode = generateInviteCode();
-    let codeExists = true;
-    let retryCount = 0;
-
-    logger.debug('Generating invite code', { maxRetries: INVITE_CODE_MAX_RETRY });
-
-    while (codeExists && retryCount < INVITE_CODE_MAX_RETRY) {
-      const existRes = await db.collection('users')
-        .where({ inviteCode })
-        .count();
-      if (existRes.total === 0) {
-        codeExists = false;
-        logger.debug('Invite code generated', {
-          code: inviteCode,
-          retries: retryCount
-        });
-      } else {
-        inviteCode = generateInviteCode();
-        retryCount++;
-      }
-    }
-
-    if (codeExists) {
-      logger.error('Failed to generate unique invite code');
-      return { code: -1, msg: '邀请码生成失败，请重试' };
-    }
-
     // 计算当前用户的代理层级
     // 子代理的层级 = 父代理层级 + 1，最大为4
     const currentAgentLevel = parentId ? Math.min(MAX_LEVEL, parentAgentLevel + 1) : MAX_LEVEL;
@@ -1302,27 +1280,104 @@ async function bindPromotionRelation(event, context) {
       path: currentPath
     });
 
-    // 创建用户记录
-    const userData = {
-      _openid: OPENID,
-      ...userInfo,
-      inviteCode,
-      parentId,
-      promotionPath: currentPath,
-      agentLevel: currentAgentLevel,
-      performance: getDefaultPerformance(),
-      totalReward: 0,
-      pendingReward: 0,
-      registerIP: deviceInfo.ip,
-      orderCount: 0,
-      isSuspicious: false,
-      createTime: db.serverDate(),
-      updateTime: db.serverDate()
-    };
+    // 🔥 如果用户已存在但没有上级，更新用户的推广关系
+    if (existingUser) {
+      logger.info('Updating existing user with promotion relation');
 
-    await db.collection('users').add({ data: userData });
+      const updateData = {
+        parentId,
+        promotionPath: currentPath,
+        agentLevel: currentAgentLevel,
+        updateTime: db.serverDate()
+      };
 
-    logger.info('User record created');
+      // 如果用户没有邀请码，生成一个
+      if (!existingUser.inviteCode) {
+        let inviteCode = generateInviteCode();
+        let codeExists = true;
+        let retryCount = 0;
+
+        while (codeExists && retryCount < INVITE_CODE_MAX_RETRY) {
+          const existRes = await db.collection('users')
+            .where({ inviteCode })
+            .count();
+          if (existRes.total === 0) {
+            codeExists = false;
+          } else {
+            inviteCode = generateInviteCode();
+            retryCount++;
+          }
+        }
+
+        if (!codeExists) {
+          updateData.inviteCode = inviteCode;
+        }
+      }
+
+      // 如果用户没有 performance 字段，初始化
+      if (!existingUser.performance) {
+        updateData.performance = getDefaultPerformance();
+      }
+
+      await db.collection('users')
+        .where({ _openid: OPENID })
+        .update({ data: updateData });
+
+      logger.info('Existing user updated with promotion relation');
+    } else {
+      // 🔥 用户不存在，创建新用户
+      logger.info('Creating new user with promotion relation');
+
+      // 生成邀请码
+      let inviteCode = generateInviteCode();
+      let codeExists = true;
+      let retryCount = 0;
+
+      logger.debug('Generating invite code', { maxRetries: INVITE_CODE_MAX_RETRY });
+
+      while (codeExists && retryCount < INVITE_CODE_MAX_RETRY) {
+        const existRes = await db.collection('users')
+          .where({ inviteCode })
+          .count();
+        if (existRes.total === 0) {
+          codeExists = false;
+          logger.debug('Invite code generated', {
+            code: inviteCode,
+            retries: retryCount
+          });
+        } else {
+          inviteCode = generateInviteCode();
+          retryCount++;
+        }
+      }
+
+      if (codeExists) {
+        logger.error('Failed to generate unique invite code');
+        return { code: -1, msg: '邀请码生成失败，请重试' };
+      }
+
+      // 创建用户记录
+      const userData = {
+        _openid: OPENID,
+        ...userInfo,
+        inviteCode,
+        parentId,
+        promotionPath: currentPath,
+        agentLevel: currentAgentLevel,
+        performance: getDefaultPerformance(),
+        totalReward: 0,
+        pendingReward: 0,
+        registerIP: deviceInfo?.ip || '',
+        orderCount: 0,
+        isSuspicious: false,
+        createTime: db.serverDate(),
+        updateTime: db.serverDate()
+      };
+
+      await db.collection('users').add({ data: userData });
+
+      logger.info('New user record created');
+    }
 
     // 更新上级的团队数量
     if (parentId) {
@@ -1354,23 +1409,25 @@ async function bindPromotionRelation(event, context) {
         });
       }
 
-      // 记录推广关系
-      await db.collection('promotion_relations').add({
-        data: {
-          userId: OPENID,
-          parentId,
-          level: 1,
-          path: currentPath,
-          createTime: db.serverDate()
-        }
-      });
+      // 记录推广关系（仅对新用户）
+      if (!existingUser) {
+        await db.collection('promotion_relations').add({
+          data: {
+            userId: OPENID,
+            parentId,
+            level: 1,
+            path: currentPath,
+            createTime: db.serverDate()
+          }
+        });
+      }
     }
 
     return {
       code: 0,
       msg: '绑定成功',
       data: {
-        inviteCode,
+        inviteCode: existingUser?.inviteCode || null,
         agentLevel: currentAgentLevel,
         agentLevelName: getAgentLevelDisplayName(currentAgentLevel)
       }
