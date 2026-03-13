@@ -37,7 +37,7 @@
     <!-- 版本信息 - 长按触发管理员入口 -->
     <view class="version-info" @longpress="handleLongPressVersion">
       <text class="version-text">大友元气精酿 v1.0.0</text>
-      <text class="copyright">© 2024 Dayou Energy</text>
+      <text class="copyright">© 2026 Dayou Energy</text>
     </view>
   </view>
 </template>
@@ -48,6 +48,9 @@ import { logout } from '@/utils/api';
 
 const notificationsEnabled = ref(true);
 const cacheSize = ref('2.5MB'); // Mock size
+
+// 管理员密码（建议在生产环境中从云函数获取）
+const ADMIN_PASSWORD = 'admin2024';
 
 const toggleNotifications = (e: any) => {
   notificationsEnabled.value = e.detail.value;
@@ -104,9 +107,29 @@ const handleLogout = async () => {
 
 // 长按版本号触发管理员入口
 const handleLongPressVersion = () => {
-  // 直接跳转到管理员登录页面
-  uni.navigateTo({
-    url: '/pagesAdmin/login/index'
+  uni.showModal({
+    title: '管理员验证',
+    content: '请输入管理员密码',
+    editable: true,
+    placeholderText: '请输入密码',
+    success: (res) => {
+      if (res.confirm) {
+        if (res.content === ADMIN_PASSWORD) {
+          uni.showToast({ title: '验证成功', icon: 'success' });
+          setTimeout(() => {
+            uni.navigateTo({
+              url: '/pagesAdmin/login/index'
+            });
+          }, 500);
+        } else {
+          uni.showToast({
+            title: '密码错误',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      }
+    }
   });
 };
 </script>
