@@ -124,6 +124,44 @@ async function migrateSystemConfig() {
   }
 }
 
+/**
+ * 创建订单列表索引
+ * 索引: { _openid: 1, createTime: -1 }
+ * 用途: 优化按照用户和时间排序的分页查询
+ */
+async function createOrderListIndex() {
+  try {
+    const result = await db.collection('orders').createIndex({
+      _openid: 1,
+      createTime: -1
+    });
+
+    console.log('[Migration] 订单列表索引创建成功:', result);
+
+    return {
+      code: 0,
+      msg: '索引创建成功',
+      data: result
+    };
+  } catch (error) {
+    // 如果是索引已存在错误，忽略
+    if (error.errCode === 'DUP_INDEX' || error.errMsg?.includes('duplicate')) {
+      console.log('[Migration] 索引已存在，跳过');
+      return {
+        code: 0,
+        msg: '索引已存在'
+      };
+    }
+
+    console.error('[Migration] 索引创建失败:', error);
+
+    return {
+      code: -1,
+      msg: error.errMsg || '索引创建失败'
+    };
+  }
+}
+
 // ===== 云函数入口 =====
 const cloud = require('wx-server-sdk');
 
@@ -156,6 +194,9 @@ exports.main = async (event, context) => {
 
     case 'createSecurityEventsTable':
       return await securityPatches.createSecurityEventsTable();
+
+    case 'createOrderListIndex':
+      return await createOrderListIndex();
 
     default:
       return {
