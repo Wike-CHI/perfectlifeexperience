@@ -125,39 +125,53 @@ async function migrateSystemConfig() {
 }
 
 /**
- * 创建订单列表索引
+ * 创建订单列表索引指引
  * 索引: { _openid: 1, createTime: -1 }
  * 用途: 优化按照用户和时间排序的分页查询
+ *
+ * 注意：CloudBase NoSQL 数据库索引需要在控制台手动创建
+ * 云函数环境不支持通过编程方式创建索引
  */
 async function createOrderListIndex() {
   try {
-    const result = await db.collection('orders').createIndex({
-      _openid: 1,
-      createTime: -1
-    });
+    // 检查索引是否已存在的简单查询测试
+    const testQuery = await db.collection('orders')
+      .where({ _openid: 'test_index_check' })
+      .orderBy('createTime', 'desc')
+      .limit(1)
+      .get();
 
-    console.log('[Migration] 订单列表索引创建成功:', result);
+    console.log('[Migration] 索引查询测试成功（可能已存在索引或查询较慢）');
 
     return {
       code: 0,
-      msg: '索引创建成功',
-      data: result
+      msg: '索引指引',
+      data: {
+        message: '索引需要在控制台手动创建',
+        indexDefinition: {
+          collection: 'orders',
+          keys: { _openid: 1, createTime: -1 },
+          name: 'openid_createTime_idx'
+        },
+        manualSteps: [
+          '1. 访问云开发控制台：https://tcb.cloud.tencent.com/dev?envId=cloud1-6gmp2q0y3171c353#/db/doc',
+          '2. 选择 orders 集合',
+          '3. 点击"索引管理"',
+          '4. 添加索引：_openid(升序) + createTime(降序)',
+          '5. 保存索引配置'
+        ]
+      }
     };
   } catch (error) {
-    // 如果是索引已存在错误，忽略
-    if (error.errCode === 'DUP_INDEX' || error.errMsg?.includes('duplicate')) {
-      console.log('[Migration] 索引已存在，跳过');
-      return {
-        code: 0,
-        msg: '索引已存在'
-      };
-    }
-
-    console.error('[Migration] 索引创建失败:', error);
+    console.error('[Migration] 索引指引生成失败:', error);
 
     return {
       code: -1,
-      msg: error.errMsg || '索引创建失败'
+      msg: error.errMsg || '索引指引生成失败',
+      data: {
+        note: '索引创建需要在云开发控制台手动操作',
+        consoleUrl: 'https://tcb.cloud.tencent.com/dev?envId=cloud1-6gmp2q0y3171c353#/db/doc'
+      }
     };
   }
 }
