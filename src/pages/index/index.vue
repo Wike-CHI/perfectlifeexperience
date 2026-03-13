@@ -287,6 +287,8 @@ import { getListThumbnail } from '@/utils/image';
 import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
 import BannerSwiper from '@/components/BannerSwiper.vue';
+import { parallelRequest } from '@/utils/parallel-request';
+import { isFeatureEnabled } from '@/config/featureFlags';
 
 // 类型定义（内联，避免分包导入问题）
 interface Product {
@@ -377,11 +379,15 @@ const loadData = async () => {
   try {
     loading.value = true;
 
-    // 并行加载首页数据和充值配置，带10秒超时
-    const [homeData, rechargeOpts] = await Promise.all([
+    // 使用并行请求工具（性能优化）
+    const [homeData, rechargeOpts] = await parallelRequest([
       withTimeout(getHomePageData(), 10000, { topSalesProducts: [], newProducts: [], banners: [] }),
       withTimeout(loadRechargeConfig().catch(() => []), 10000, [])
-    ]);
+    ], {
+      timeout: 12000,  // 12秒总超时
+      logPerformance: isFeatureEnabled('PERFORMANCE_MONITORING'),
+      label: 'HomePage'
+    });
 
     // 热销商品（已按销量排序）- 限制数量
     hotProducts.value = (homeData.topSalesProducts || []).slice(0, 6).map((p: any) => ({
