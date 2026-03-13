@@ -9,6 +9,7 @@
             :class="{ active: currentStatus === 'all' }"
             @click="switchStatus('all')"
           >
+            <image class="tab-icon" src="/static/icons/icon-order.svg" mode="aspectFit" />
             <text class="tab-text">全部</text>
           </view>
           <view
@@ -16,6 +17,7 @@
             :class="{ active: currentStatus === 'pending' }"
             @click="switchStatus('pending')"
           >
+            <image class="tab-icon" src="/static/icons/order-pay.svg" mode="aspectFit" />
             <text class="tab-text">待付款</text>
             <text v-if="statusCount.pending > 0" class="badge">{{ statusCount.pending }}</text>
           </view>
@@ -24,6 +26,7 @@
             :class="{ active: currentStatus === 'paid' }"
             @click="switchStatus('paid')"
           >
+            <image class="tab-icon" src="/static/icons/order-ship.svg" mode="aspectFit" />
             <text class="tab-text">待发货</text>
             <text v-if="statusCount.paid > 0" class="badge">{{ statusCount.paid }}</text>
           </view>
@@ -32,6 +35,7 @@
             :class="{ active: currentStatus === 'shipping' }"
             @click="switchStatus('shipping')"
           >
+            <image class="tab-icon" src="/static/icons/order-receive.svg" mode="aspectFit" />
             <text class="tab-text">待收货</text>
             <text v-if="statusCount.shipping > 0" class="badge">{{ statusCount.shipping }}</text>
           </view>
@@ -40,6 +44,7 @@
             :class="{ active: currentStatus === 'completed' }"
             @click="switchStatus('completed')"
           >
+            <image class="tab-icon" src="/static/icons/order-done.svg" mode="aspectFit" />
             <text class="tab-text">已完成</text>
           </view>
           <view
@@ -47,6 +52,7 @@
             :class="{ active: currentStatus === 'refunding' }"
             @click="switchStatus('refunding')"
           >
+            <image class="tab-icon" src="/static/icons/order-refund.svg" mode="aspectFit" />
             <text class="tab-text">退款中</text>
             <text v-if="statusCount.refunding > 0" class="badge">{{ statusCount.refunding }}</text>
           </view>
@@ -60,12 +66,15 @@
         <!-- 订单头部 -->
         <view class="order-header">
           <text class="order-no">订单号: {{ order.orderNo }}</text>
-          <text
-            class="order-status"
-            :style="{ color: getStatusColor(order.status) }"
-          >
-            {{ getStatusText(order.status) }}
-          </text>
+          <view class="order-status-badge" :style="{ backgroundColor: getStatusBgColor(order.status) }">
+            <image class="status-icon" :src="getStatusIcon(order.status)" mode="aspectFit" />
+            <text
+              class="order-status"
+              :style="{ color: getStatusColor(order.status) }"
+            >
+              {{ getStatusText(order.status) }}
+            </text>
+          </view>
         </view>
 
         <!-- 商品列表 -->
@@ -178,6 +187,34 @@ const getStatusText = (status: OrderStatus | string) => {
 // 获取状态颜色（使用常量）
 const getStatusColor = (status: OrderStatus | string) => {
   return ORDER_STATUS_COLORS[status as keyof typeof ORDER_STATUS_COLORS] || '#6B5B4F';
+};
+
+// 获取状态背景颜色
+const getStatusBgColor = (status: OrderStatus | string) => {
+  const bgMap: Record<string, string> = {
+    pending: 'rgba(255, 152, 0, 0.1)',
+    paid: 'rgba(33, 150, 243, 0.1)',
+    shipping: 'rgba(76, 175, 80, 0.1)',
+    completed: 'rgba(158, 158, 158, 0.1)',
+    refunding: 'rgba(244, 67, 54, 0.1)',
+    refunded: 'rgba(158, 158, 158, 0.1)',
+    cancelled: 'rgba(158, 158, 158, 0.1)'
+  };
+  return bgMap[status as keyof typeof bgMap] || 'rgba(107, 91, 79, 0.1)';
+};
+
+// 获取状态图标
+const getStatusIcon = (status: OrderStatus | string) => {
+  const iconMap: Record<string, string> = {
+    pending: '/static/icons/order-pay.svg',
+    paid: '/static/icons/order-ship.svg',
+    shipping: '/static/icons/order-receive.svg',
+    completed: '/static/icons/order-done.svg',
+    cancelled: '/static/icons/icon-close.svg',
+    refunding: '/static/icons/order-refund.svg',
+    refunded: '/static/icons/order-refund.svg'
+  };
+  return iconMap[status as keyof typeof iconMap] || '/static/icons/order-pay.svg';
 };
 
 // 获取商品总数
@@ -735,9 +772,23 @@ onShow(() => {
 .tab-item {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 0 32rpx;
+  justify-content: center;
+  padding: 0 24rpx;
   height: 100%;
+  gap: 4rpx;
+}
+
+.tab-icon {
+  width: 36rpx;
+  height: 36rpx;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+.tab-item.active .tab-icon {
+  opacity: 1;
 }
 
 .tab-item.active::after {
@@ -753,8 +804,9 @@ onShow(() => {
 }
 
 .tab-text {
-  font-size: 28rpx;
+  font-size: 24rpx;
   color: #6B5B4F;
+  white-space: nowrap;
 }
 
 .tab-item.active .tab-text {
@@ -764,8 +816,8 @@ onShow(() => {
 
 .badge {
   position: absolute;
-  top: 16rpx;
-  right: 8rpx;
+  top: 8rpx;
+  right: 12rpx;
   min-width: 32rpx;
   height: 32rpx;
   background: #C44536;
@@ -776,6 +828,7 @@ onShow(() => {
   align-items: center;
   justify-content: center;
   padding: 0 8rpx;
+  z-index: 1;
 }
 
 /* 订单列表 */
@@ -803,6 +856,20 @@ onShow(() => {
 .order-no {
   font-size: 26rpx;
   color: #9B8B7F;
+}
+
+.order-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.status-icon {
+  width: 28rpx;
+  height: 28rpx;
+  margin-right: 8rpx;
 }
 
 .order-status {

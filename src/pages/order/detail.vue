@@ -170,32 +170,34 @@
       <view class="popup-content" @click.stop>
         <view class="popup-header">
           <text class="popup-title">选择支付方式</text>
-          <text class="popup-close" @click="showPaymentPicker = false">&#xe6b1;</text>
+          <image class="popup-close" src="/static/icons/icon-close.svg" mode="aspectFit" @click="showPaymentPicker = false" />
         </view>
         <view class="popup-body">
           <view class="payment-item" @click="selectPaymentMethod('wechat')" :class="{ active: paymentMethod === 'wechat' }">
             <view class="payment-left">
-              <text class="payment-icon wechat">&#xe6cb;</text>
+              <view class="payment-tag wechat-tag">微信</view>
               <text class="payment-name">微信支付</text>
             </view>
-            <text class="check-icon" v-if="paymentMethod === 'wechat'">&#xe6ad;</text>
-            <text class="uncheck-circle" v-else></text>
+            <view class="check-circle" :class="{ checked: paymentMethod === 'wechat' }">
+              <view class="check-dot" v-if="paymentMethod === 'wechat'"></view>
+            </view>
           </view>
           <view class="payment-item" @click="selectPaymentMethod('balance')" :class="{ active: paymentMethod === 'balance', disabled: !isBalanceSufficient }">
             <view class="payment-left">
-              <text class="payment-icon balance">&#xe6b8;</text>
+              <view class="payment-tag balance-tag">余额</view>
               <view class="payment-info">
                 <text class="payment-name">余额支付</text>
                 <text class="balance-amount" v-if="!balanceLoading">
-                  可用余额: ¥{{ formatPrice(walletBalance) }}
+                  可用: ¥{{ formatPrice(walletBalance) }}
                 </text>
                 <text class="balance-tip" v-if="!isBalanceSufficient">
-                  余额不足（还差 ¥{{ formatPrice((order.totalAmount || 0) - walletBalance) }}）
+                  不足 ¥{{ formatPrice((order.totalAmount || 0) - walletBalance) }}
                 </text>
               </view>
             </view>
-            <text class="check-icon" v-if="paymentMethod === 'balance'">&#xe6ad;</text>
-            <text class="uncheck-circle" v-else></text>
+            <view class="check-circle" :class="{ checked: paymentMethod === 'balance' }">
+              <view class="check-dot" v-if="paymentMethod === 'balance'"></view>
+            </view>
           </view>
         </view>
         <view class="popup-footer">
@@ -1226,8 +1228,8 @@ onLoad((options) => {
 }
 
 .popup-close {
-  font-family: "iconfont";
-  font-size: 40rpx;
+  width: 32rpx;
+  height: 32rpx;
   color: #999;
   padding: 10rpx;
 }
@@ -1259,20 +1261,25 @@ onLoad((options) => {
 .payment-left {
   display: flex;
   align-items: center;
+  gap: 16rpx;
 }
 
-.payment-icon {
-  font-family: "iconfont";
-  font-size: 40rpx;
-  margin-right: 20rpx;
+.payment-tag {
+  padding: 6rpx 16rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
-.payment-icon.wechat {
-  color: #09BB07;
+.wechat-tag {
+  background: #09BB07;
+  color: #FFFFFF;
 }
 
-.payment-icon.balance {
-  color: #D4A574;
+.balance-tag {
+  background: #D4A574;
+  color: #FFFFFF;
 }
 
 .payment-name {
@@ -1296,17 +1303,27 @@ onLoad((options) => {
   color: #ff4d4f;
 }
 
-.uncheck-circle {
+.check-circle {
   width: 36rpx;
   height: 36rpx;
   border: 2rpx solid #E0E0E0;
   border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.check-icon {
-  font-family: "iconfont";
-  font-size: 36rpx;
-  color: #D4A574;
+.check-circle.checked {
+  border-color: #D4A574;
+  background: #D4A574;
+}
+
+.check-dot {
+  width: 16rpx;
+  height: 16rpx;
+  background: #FFFFFF;
+  border-radius: 50%;
 }
 
 .popup-footer {

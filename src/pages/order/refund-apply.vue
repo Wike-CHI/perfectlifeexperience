@@ -2,14 +2,20 @@
   <view class="container">
     <!-- 订单信息 -->
     <view class="order-card" v-if="order">
-      <view class="card-title">订单信息</view>
+      <view class="card-title">
+        <image class="title-icon" src="/static/icons/icon-order.svg" mode="aspectFit" />
+        订单信息
+      </view>
       <view class="order-no">订单号：{{ order.orderNo }}</view>
       <view class="order-amount">订单金额：¥{{ formatPrice(order.totalAmount) }}</view>
     </view>
 
     <!-- 退款类型选择 -->
     <view class="section-card">
-      <view class="card-title">退款类型</view>
+      <view class="card-title">
+        <image class="title-icon" src="/static/icons/order-refund.svg" mode="aspectFit" />
+        退款类型
+      </view>
       <view class="type-options">
         <view
           class="type-option"
@@ -19,6 +25,7 @@
           <view class="type-radio">
             <view class="radio-dot" v-if="refundType === 'only_refund'"></view>
           </view>
+          <image class="type-icon" src="/static/icons/icon-wallet.svg" mode="aspectFit" />
           <view class="type-info">
             <text class="type-name">仅退款</text>
             <text class="type-desc">无需退货，直接退款</text>
@@ -32,6 +39,7 @@
           <view class="type-radio">
             <view class="radio-dot" v-if="refundType === 'return_refund'"></view>
           </view>
+          <image class="type-icon" src="/static/icons/icon-box.svg" mode="aspectFit" />
           <view class="type-info">
             <text class="type-name">退货退款</text>
             <text class="type-desc">需要寄回商品后退款</text>
@@ -43,6 +51,7 @@
     <!-- 选择商品 -->
     <view class="section-card" v-if="order && orderItems.length > 0">
       <view class="card-title">
+        <image class="title-icon" src="/static/icons/icon-check-circle.svg" mode="aspectFit" />
         选择退款商品
         <text class="select-all" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</text>
       </view>
@@ -74,7 +83,10 @@
 
     <!-- 退款原因 -->
     <view class="section-card">
-      <view class="card-title">退款原因</view>
+      <view class="card-title">
+        <image class="title-icon" src="/static/icons/icon-alert.svg" mode="aspectFit" />
+        退款原因
+      </view>
       <view class="reason-list">
         <view
           class="reason-item"
@@ -99,7 +111,10 @@
 
     <!-- 退款金额预览 -->
     <view class="section-card">
-      <view class="card-title">退款金额</view>
+      <view class="card-title">
+        <image class="title-icon" src="/static/icons/menu-wallet.svg" mode="aspectFit" />
+        退款金额
+      </view>
       <view class="amount-preview">
         <text class="amount-label">退款总额</text>
         <text class="amount-value">¥{{ formatPrice(calculatedRefundAmount) }}</text>
@@ -355,11 +370,18 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8rpx;
+}
+
+.title-icon {
+  width: 32rpx;
+  height: 32rpx;
 }
 
 .select-all {
   font-size: 24rpx;
   color: #D4A574;
+  margin-left: auto;
 }
 
 .order-no {
@@ -382,11 +404,18 @@ onMounted(() => {
 
 .type-option {
   display: flex;
-  gap: 20rpx;
+  gap: 16rpx;
   padding: 20rpx;
   border: 2rpx solid #E0E0E0;
   border-radius: 12rpx;
   transition: all 0.3s;
+  align-items: center;
+}
+
+.type-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 
 .type-option.active {

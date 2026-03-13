@@ -13,25 +13,30 @@
     <!-- 距离提示 (外卖模式) -->
     <view class="distance-info-section" v-if="deliveryType === 'delivery' && distance !== null">
       <view v-if="loadingDistance" class="distance-loading">
+        <image class="distance-icon" src="/static/icons/icon-map-pin.svg" mode="aspectFit" />
         <text class="loading-text">获取距离中...</text>
       </view>
       <view v-else-if="distance > 0" class="distance-info-content">
+        <image class="distance-icon" src="/static/icons/icon-map-pin.svg" mode="aspectFit" />
         <view class="distance-main">
           <text class="distance-label">距离门店</text>
           <text class="distance-value">{{ formatDistance }}</text>
         </view>
         <view class="delivery-info">
+          <image class="truck-icon" src="/static/icons/icon-truck.svg" mode="aspectFit" />
           <text class="delivery-fee">配送费: ¥{{ formatPrice(dynamicShippingFee) }}</text>
           <text class="delivery-time">预计{{ estimatedTime }}分钟送达</text>
         </view>
       </view>
       <view v-else class="distance-error" @click="loadDistance">
+        <image class="error-icon" src="/static/icons/icon-alert.svg" mode="aspectFit" />
         <text class="error-text">点击重新获取位置</text>
       </view>
     </view>
 
     <!-- 地址选择 (外卖模式) -->
     <view class="address-section" @click="selectAddress" v-if="deliveryType === 'delivery'">
+      <image class="address-icon" src="/static/icons/menu-address.svg" mode="aspectFit" />
       <view class="address-content" v-if="selectedAddress">
         <view class="address-top">
           <text class="address-name">{{ selectedAddress.name }}</text>
@@ -42,17 +47,18 @@
       <view class="address-empty" v-else>
         <text class="empty-text">请选择收货地址</text>
       </view>
-      <text class="arrow">&#xe6a7;</text>
+      <image class="arrow" src="/static/icons/arrow-right.svg" mode="aspectFit" />
     </view>
 
     <!-- 自提门店信息 (自提模式) -->
     <view class="store-section" v-if="deliveryType === 'pickup'" @click="openStoreLocation">
+      <image class="store-icon" src="/static/icons/icon-map-pin.svg" mode="aspectFit" />
       <view class="store-info">
         <text class="store-name">{{ STORE_LOCATION.name }}</text>
         <text class="store-address">{{ STORE_LOCATION.address }}</text>
         <text class="store-time">营业时间：10:00-22:00</text>
       </view>
-      <text class="arrow">&#xe6a7;</text>
+      <image class="arrow" src="/static/icons/arrow-right.svg" mode="aspectFit" />
     </view>
 
     <!-- 商品列表 -->
@@ -73,14 +79,17 @@
 
     <!-- 优惠券选择 -->
     <view class="coupon-section" @click="showCouponSelector">
-      <view class="section-title">优惠券</view>
+      <view class="section-title">
+        <image class="coupon-section-icon" src="/static/icons/menu-coupon.svg" mode="aspectFit" />
+        优惠券
+      </view>
       <view class="coupon-content">
         <view class="coupon-info" v-if="selectedCoupon">
           <text class="coupon-tag">-{{ formatPrice(discountAmount) }}</text>
           <text class="coupon-name">{{ selectedCoupon.template?.name }}</text>
         </view>
         <text class="coupon-placeholder" v-else>{{ availableCoupons.length > 0 ? `${availableCoupons.length}张可用` : '暂无可用优惠券' }}</text>
-        <text class="arrow">&#xe6a7;</text>
+        <image class="arrow" src="/static/icons/arrow-right.svg" mode="aspectFit" />
       </view>
     </view>
 
@@ -90,11 +99,12 @@
       <view class="payment-options">
         <view class="payment-item" @click="paymentMethod = 'wechat'" :class="{ active: paymentMethod === 'wechat' }">
           <view class="payment-left">
-            <text class="payment-icon wechat">&#xe6cb;</text>
+            <view class="payment-tag wechat-tag">微信</view>
             <text class="payment-name">微信支付</text>
           </view>
-          <text class="check-icon" v-if="paymentMethod === 'wechat'">&#xe6ad;</text>
-          <text class="uncheck-circle" v-else></text>
+          <view class="check-circle" :class="{ checked: paymentMethod === 'wechat' }">
+            <view class="check-dot" v-if="paymentMethod === 'wechat'"></view>
+          </view>
         </view>
         <view
           class="payment-item"
@@ -105,29 +115,34 @@
           }"
         >
           <view class="payment-left">
-            <text class="payment-icon balance">&#xe6b8;</text>
+            <view class="payment-tag balance-tag">余额</view>
             <view class="payment-info">
               <text class="payment-name">余额支付</text>
               <text class="balance-amount" v-if="!balanceLoading">
-                可用余额: ¥{{ formatPrice(walletBalance) }}
+                可用: ¥{{ formatPrice(walletBalance) }}
               </text>
               <text class="balance-tip" v-if="!isBalanceSufficient && paymentMethod === 'balance'">
-                余额不足（还差 ¥{{ formatPrice(finalAmount - walletBalance) }}）
+                不足 ¥{{ formatPrice(finalAmount - walletBalance) }}
               </text>
             </view>
           </view>
-          <text class="check-icon" v-if="paymentMethod === 'balance'">&#xe6ad;</text>
-          <text class="uncheck-circle" v-else></text>
+          <view class="check-circle" :class="{ checked: paymentMethod === 'balance' }">
+            <view class="check-dot" v-if="paymentMethod === 'balance'"></view>
+          </view>
         </view>
       </view>
     </view>
 
     <!-- 配送信息 -->
     <view class="delivery-section">
-      <view class="section-title">配送信息</view>
+      <view class="section-title">
+        <image class="delivery-icon" src="/static/icons/icon-truck.svg" mode="aspectFit" />
+        配送信息
+      </view>
       <view class="info-cell">
         <text class="cell-label">配送方式</text>
         <view class="cell-content">
+          <image class="delivery-type-icon" :src="deliveryType === 'delivery' ? '/static/icons/icon-truck.svg' : '/static/icons/icon-box.svg'" mode="aspectFit" />
           <text>{{ deliveryType === 'delivery' ? '快递配送' : '门店自提' }}</text>
           <text class="free-shipping" v-if="shippingFee === 0">免运费</text>
         </view>
@@ -137,7 +152,7 @@
           <text class="cell-label">送货时间</text>
           <view class="cell-content">
             <text>{{ deliveryTimeOptions[deliveryTimeIndex] }}</text>
-            <text class="arrow">&#xe6a7;</text>
+            <image class="arrow" src="/static/icons/arrow-right.svg" mode="aspectFit" />
           </view>
         </view>
       </picker>
@@ -146,6 +161,7 @@
 
     <!-- 订单备注 -->
     <view class="remark-section">
+      <image class="remark-icon" src="/static/icons/icon-faq.svg" mode="aspectFit" />
       <text class="remark-label">订单备注</text>
       <input class="remark-input" type="text" placeholder="请输入备注信息（选填）" v-model="remark" />
     </view>
@@ -886,6 +902,13 @@ uni.$on('selectAddress', (address: Address) => {
   padding: 30rpx;
   margin: 20rpx;
   border-radius: 16rpx;
+  gap: 16rpx;
+}
+
+.store-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 
 .store-info {
@@ -893,7 +916,6 @@ uni.$on('selectAddress', (address: Address) => {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
-  margin-right: 20rpx;
 }
 
 .store-name {
@@ -916,13 +938,25 @@ uni.$on('selectAddress', (address: Address) => {
 .distance-info-section {
   display: flex;
   align-items: center;
-  justify-content: center;
   background: linear-gradient(145deg, #FFF8F0 0%, #FFF5E6 100%);
   border: 2rpx solid #D4A574;
   padding: 24rpx 30rpx;
   margin: 0 20rpx 20rpx;
   border-radius: 16rpx;
   min-height: 80rpx;
+  position: relative;
+}
+
+.distance-icon,
+.error-icon {
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 16rpx;
+}
+
+.error-icon {
+  width: 36rpx;
+  height: 36rpx;
 }
 
 .distance-loading,
@@ -931,6 +965,7 @@ uni.$on('selectAddress', (address: Address) => {
   justify-content: center;
   align-items: center;
   width: 100%;
+  gap: 12rpx;
 }
 
 .loading-text {
@@ -948,6 +983,13 @@ uni.$on('selectAddress', (address: Address) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16rpx;
+}
+
+.truck-icon {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 8rpx;
 }
 
 .distance-main {
@@ -993,6 +1035,13 @@ uni.$on('selectAddress', (address: Address) => {
   padding: 30rpx;
   margin: 20rpx;
   border-radius: 16rpx;
+  gap: 16rpx;
+}
+
+.address-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 
 .address-content {
@@ -1033,9 +1082,8 @@ uni.$on('selectAddress', (address: Address) => {
 }
 
 .arrow {
-  font-family: "iconfont";
-  font-size: 32rpx;
-  color: #9B8B7F;
+  width: 24rpx;
+  height: 24rpx;
   margin-left: 20rpx;
 }
 
@@ -1052,6 +1100,14 @@ uni.$on('selectAddress', (address: Address) => {
   font-weight: 600;
   color: #3D2914;
   margin-bottom: 24rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.delivery-icon {
+  width: 40rpx;
+  height: 40rpx;
 }
 
 .goods-list {
@@ -1103,6 +1159,13 @@ uni.$on('selectAddress', (address: Address) => {
   padding: 30rpx;
   margin: 0 20rpx 20rpx;
   border-radius: 16rpx;
+  gap: 16rpx;
+}
+
+.coupon-section-icon {
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 12rpx;
 }
 
 .coupon-content {
@@ -1177,20 +1240,25 @@ uni.$on('selectAddress', (address: Address) => {
 .payment-left {
   display: flex;
   align-items: center;
+  gap: 16rpx;
 }
 
-.payment-icon {
-  font-family: "iconfont";
-  font-size: 40rpx;
-  margin-right: 20rpx;
+.payment-tag {
+  padding: 6rpx 16rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
-.payment-icon.wechat {
-  color: #09BB07;
+.wechat-tag {
+  background: #09BB07;
+  color: #FFFFFF;
 }
 
-.payment-icon.balance {
-  color: #D4A574;
+.balance-tag {
+  background: #D4A574;
+  color: #FFFFFF;
 }
 
 .payment-name {
@@ -1214,10 +1282,38 @@ uni.$on('selectAddress', (address: Address) => {
   color: #ff4d4f;
 }
 
-.uncheck-circle {
+.check-circle {
   width: 36rpx;
   height: 36rpx;
-  border: 2rpx solid #9B8B7F;
+  border: 2rpx solid #E0E0E0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.check-circle.checked {
+  border-color: #D4A574;
+  background: #D4A574;
+}
+
+.check-dot {
+  width: 16rpx;
+  height: 16rpx;
+  background: #FFFFFF;
+  border-radius: 50%;
+}
+
+.check-circle.checked {
+  border-color: #D4A574;
+  background: #D4A574;
+}
+
+.check-dot {
+  width: 16rpx;
+  height: 16rpx;
+  background: #FFFFFF;
   border-radius: 50%;
 }
 
@@ -1256,6 +1352,13 @@ uni.$on('selectAddress', (address: Address) => {
   align-items: center;
   font-size: 28rpx;
   color: #6B5B4F;
+  gap: 8rpx;
+}
+
+.delivery-type-icon {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 8rpx;
 }
 
 .free-shipping {
@@ -1286,12 +1389,20 @@ uni.$on('selectAddress', (address: Address) => {
   padding: 30rpx;
   margin: 0 20rpx 20rpx;
   border-radius: 16rpx;
+  gap: 16rpx;
+}
+
+.remark-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 
 .remark-label {
   font-size: 28rpx;
   color: #3D2914;
   margin-right: 24rpx;
+  flex-shrink: 0;
 }
 
 .remark-input {
