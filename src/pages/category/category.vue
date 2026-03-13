@@ -128,7 +128,7 @@
 
         <!-- 虚拟列表模式 -->
         <VirtualList
-          v-if="useVirtualList"
+          v-if="useVirtualList && products.length > 0"
           :items="products"
           :itemHeight="VIRTUAL_LIST_CONFIG.itemHeight"
           :visibleCount="VIRTUAL_LIST_CONFIG.visibleCount"
@@ -169,6 +169,13 @@
             </view>
           </template>
         </VirtualList>
+
+        <!-- 虚拟列表骨架屏 -->
+        <VirtualListSkeleton
+          v-if="useVirtualList && loading && products.length === 0"
+          :count="VIRTUAL_LIST_CONFIG.visibleCount"
+          :itemHeight="VIRTUAL_LIST_CONFIG.itemHeight"
+        />
 
         <!-- 传统列表模式（降级） -->
         <view v-else class="product-list">
@@ -243,6 +250,7 @@ import ProductSkuPopup from '@/components/ProductSkuPopup.vue';
 import CategoryIcon from '@/components/CategoryIcon.vue';
 import DistanceBadge from '@/components/distance-badge.vue';
 import VirtualList from '@/components/VirtualList.vue';
+import VirtualListSkeleton from '@/components/VirtualListSkeleton.vue';
 import { isFeatureEnabled } from '@/config/featureFlags';
 import { VIRTUAL_LIST_CONFIG } from '@/config/performance';
 
