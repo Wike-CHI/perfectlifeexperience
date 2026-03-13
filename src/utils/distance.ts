@@ -156,8 +156,11 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5分钟缓存
 /**
  * 计算用户到门店的距离（米）
  * 使用缓存机制，5分钟内不重复请求位置
+ * 支持自动重试机制，最多重试3次
  */
-export async function getDistanceToStore(): Promise<number> {
+export async function getDistanceToStore(retryCount = 0): Promise<number> {
+  const MAX_RETRIES = 3
+  const RETRY_DELAY = 1000 // 1秒基础延迟
   const now = Date.now()
 
   // 检查缓存是否有效
@@ -172,7 +175,7 @@ export async function getDistanceToStore(): Promise<number> {
   }
 
   try {
-    console.log('🎯 开始获取用户位置...')
+    console.log(`🎯 开始获取用户位置...${retryCount > 0 ? `(重试 ${retryCount}/${MAX_RETRIES - 1})` : ''}`)
     const userLocation = await getUserLocation()
     // 更新缓存
     cachedLocation = userLocation
@@ -187,9 +190,25 @@ export async function getDistanceToStore(): Promise<number> {
 
     console.log('✅ 距离计算完成:', formatDistance(distance))
     return distance
-  } catch (error) {
-    console.error('❌ 计算距离失败:', error)
-    throw error
+  } catch (error: any) {
+    console.error(`❌ 获取距离失败 (尝试 ${retryCount + 1}/${MAX_RETRIES}):`, error)
+
+    // 重试逻辑
+    if (retryCount < MAX_RETRIES - 1) {
+      const delay = RETRY_DELAY * (retryCount + 1) // 指数退避: 1s, 2s, 3s
+      console.log(`⏳ ${delay}ms 后重试...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      return getDistanceToStore(retryCount + 1)
+    }
+
+    // 最终失败处理
+    if (error?.errMsg?.includes('authorize') || error?.errCode === 11) {
+      console.error('🚫 用户拒绝位置权限')
+      throw new Error('请授权位置权限以获取距离信息')
+    }
+
+    console.error('💥 所有重试均失败')
+    throw new Error('无法获取位置信息，请检查定位设置')
   }
 }
 

@@ -140,7 +140,7 @@ export const ORDER_PAGINATION_CONFIG: OrderPaginationConfig = {
 export const VIRTUAL_LIST_CONFIG: VirtualListConfig = {
   visibleCount: 5,           // 可见区域5个商品
   bufferSize: 3,             // 上下各缓冲3个
-  itemHeight: 240            // 商品卡片高度240rpx
+  itemHeight: 100            // 商品卡片高度100rpx (极度紧凑)
 } as const;
 
 /**

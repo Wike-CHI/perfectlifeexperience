@@ -30,11 +30,6 @@
     <view v-if="loading" class="virtual-list-loading">
       <text class="loading-text">加载中...</text>
     </view>
-
-    <!-- 没有更多数据 -->
-    <view v-else-if="!hasMore && visibleData.length > 0" class="virtual-list-nomore">
-      <text class="nomore-text">已加载全部商品</text>
-    </view>
   </view>
 </template>
 
@@ -197,8 +192,7 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.virtual-list-loading,
-.virtual-list-nomore {
+.virtual-list-loading {
   position: absolute;
   left: 0;
   right: 0;
@@ -207,8 +201,7 @@ onMounted(() => {
   background-color: #fff;
 }
 
-.loading-text,
-.nomore-text {
+.loading-text {
   font-size: 28rpx;
   color: #999;
 }

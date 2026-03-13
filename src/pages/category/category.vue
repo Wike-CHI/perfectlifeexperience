@@ -10,7 +10,7 @@
             <text class="store-name">大友元气</text>
           </view>
           <view class="store-meta">
-            <text class="distance" :class="{'loading': loadingDistance}" @click="loadDistance">{{ formatDistance }}</text>
+            <DistanceBadge loading-text="获取中..." />
             <text class="switch-store">切换门店 ></text>
           </view>
         </view>
@@ -38,6 +38,19 @@
         </view>
         <text class="announcement-text">商家暂无公告</text>
         <text class="announcement-more">更多 ></text>
+      </view>
+    </view>
+
+    <!-- 搜索框 -->
+    <view class="search-bar">
+      <view class="search-input-wrapper" @click="goToSearch">
+        <view class="search-icon">
+          <view class="magnifier">
+            <view class="glass"></view>
+            <view class="handle"></view>
+          </view>
+        </view>
+        <text class="search-placeholder">搜索商品</text>
       </view>
     </view>
 
@@ -210,12 +223,6 @@
           </view>
         </view>
 
-        <!-- 传统模式加载状态 -->
-        <view v-if="!useVirtualList" class="load-status">
-          <text v-if="loading" class="status-text">加载中...</text>
-          <text v-else-if="!hasMore && products.length > 0" class="status-text">没有更多了</text>
-        </view>
-
         <!-- 空状态 -->
         <view class="empty-state" v-if="!loading && products.length === 0">
           <view class="empty-icon">
@@ -283,30 +290,6 @@ interface Category {
 const categories = ref<Category[]>([]);
 const products = ref<Product[]>([]);
 
-// 距离相关状态
-const distance = ref<number | null>(null);
-const loadingDistance = ref(false);
-
-// 距离格式化显示
-const formatDistance = computed(() => {
-  if (loadingDistance.value) return '获取中...';
-  if (distance.value === null) return '--';
-  return formatDistanceUtil(distance.value);
-});
-
-// 加载距离
-const loadDistance = async () => {
-  try {
-    loadingDistance.value = true;
-    distance.value = await getDistanceToStore();
-  } catch (error) {
-    console.error('获取距离失败:', error);
-    distance.value = null;
-  } finally {
-    loadingDistance.value = false;
-  }
-};
-
 // 获取分类图标类型
 const getCategoryIconType = (categoryName: string): 'beer' | 'cocktail' => {
   const iconMap: Record<string, 'beer' | 'cocktail'> = {
@@ -357,6 +340,13 @@ const switchDeliveryType = (type: 'pickup' | 'delivery') => {
   deliveryType.value = type;
 };
 
+// 跳转到搜索页面
+const goToSearch = () => {
+  uni.navigateTo({
+    url: '/pages/search/index'
+  });
+};
+
 // 获取分类列表
 const loadCategories = async () => {
   try {
@@ -399,26 +389,27 @@ const loadProducts = async (isRefresh = false) => {
       params.category = currentCategory.value;
     }
 
+    // 后端排序映射
+    const sortMap: Record<string, string> = {
+      'default': 'createTime',
+      'sales': 'sales',
+      'price': 'price'
+    };
+    params.sort = sortMap[sortBy.value] || 'createTime';
+
     const res = await getProducts(params);
-    
+
     if (res.length < pageSize) {
       hasMore.value = false;
     }
-    
-    // 排序
-    let sortedRes = [...res];
-    if (sortBy.value === 'sales') {
-      sortedRes.sort((a, b) => (b.sales || 0) - (a.sales || 0));
-    } else if (sortBy.value === 'price') {
-      sortedRes.sort((a, b) => a.price - b.price);
-    }
-    
+
+    // 直接使用后端排序结果
     if (isRefresh) {
-      products.value = sortedRes;
+      products.value = res;
     } else {
-      products.value.push(...sortedRes);
+      products.value.push(...res);
     }
-    
+
   } catch (error) {
     console.error('加载商品失败:', error);
     uni.showToast({
@@ -482,8 +473,7 @@ onLoad(() => {
   // 并行加载独立数据（优化性能）
   Promise.all([
     loadCategories(),
-    loadRecommendProducts(),
-    loadDistance()
+    loadRecommendProducts()
   ]);
 
   // 检查是否有选中的分类或排序
@@ -574,21 +564,6 @@ onPullDownRefresh(() => {
   gap: 20rpx;
 }
 
-.distance {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.6);
-  transition: all 0.3s ease;
-}
-
-.distance.loading {
-  color: #C8A464;
-  opacity: 0.7;
-}
-
-.distance:active {
-  opacity: 0.5;
-}
-
 .switch-store {
   font-size: 24rpx;
   color: #C8A464;
@@ -668,6 +643,62 @@ onPullDownRefresh(() => {
 
 .announcement-more {
   font-size: 24rpx;
+  color: rgba(245, 245, 240, 0.4);
+}
+
+/* ============================================
+   搜索框
+   ============================================ */
+.search-bar {
+  padding: 16rpx 32rpx;
+  background: #0D0D0D;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 16rpx 24rpx;
+  background: #141414;
+  border-radius: 32rpx;
+  border: 1rpx solid rgba(200, 164, 100, 0.1);
+}
+
+.search-icon {
+  width: 32rpx;
+  height: 32rpx;
+}
+
+/* 放大镜图标 */
+.magnifier {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+}
+
+.glass {
+  width: 20rpx;
+  height: 20rpx;
+  border: 2rpx solid rgba(200, 164, 100, 0.5);
+  border-radius: 50%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.handle {
+  width: 2rpx;
+  height: 10rpx;
+  background: rgba(200, 164, 100, 0.5);
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform: rotate(45deg);
+  transform-origin: bottom;
+}
+
+.search-placeholder {
+  font-size: 26rpx;
   color: rgba(245, 245, 240, 0.4);
 }
 
@@ -883,13 +914,13 @@ onPullDownRefresh(() => {
 
 /* 商品列表 */
 .product-list {
-  padding: 16rpx 24rpx;
+  padding: 0 24rpx;
 }
 
 .product-item {
   display: flex;
-  gap: 20rpx;
-  padding: 20rpx 0;
+  gap: 12rpx;
+  padding: 0;
   border-bottom: 1rpx solid rgba(200, 164, 100, 0.08);
 }
 
@@ -898,9 +929,9 @@ onPullDownRefresh(() => {
 }
 
 .product-image {
-  width: 180rpx;
-  height: 180rpx;
-  border-radius: 12rpx;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 8rpx;
   background: #1A1A1A;
   flex-shrink: 0;
 }
@@ -911,13 +942,14 @@ onPullDownRefresh(() => {
   flex-direction: column;
   justify-content: space-between;
   min-width: 0;
+  padding: 4rpx 0;
 }
 
 .product-name {
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: #F5F5F0;
-  margin-bottom: 8rpx;
+  margin-bottom: 4rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -925,39 +957,39 @@ onPullDownRefresh(() => {
 }
 
 .product-desc {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: rgba(245, 245, 240, 0.5);
-  margin-bottom: 8rpx;
+  margin-bottom: 4rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
   -webkit-box-orient: vertical;
   white-space: normal;
 }
 
 .product-brewery {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: rgba(245, 245, 240, 0.4);
-  margin-bottom: 8rpx;
+  margin-bottom: 4rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
   -webkit-box-orient: vertical;
   white-space: normal;
 }
 
 .product-meta {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 12rpx;
+  gap: 12rpx;
+  margin-bottom: 4rpx;
 }
 
 .sales {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: rgba(245, 245, 240, 0.4);
 }
 
@@ -973,27 +1005,27 @@ onPullDownRefresh(() => {
 }
 
 .price-symbol {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #C8A464;
   margin-right: 2rpx;
 }
 
 .price {
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
   color: #C8A464;
 }
 
 .price-suffix {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: rgba(245, 245, 240, 0.5);
-  margin-left: 4rpx;
+  margin-left: 2rpx;
 }
 
 /* 加购按钮 */
 .add-cart {
-  width: 56rpx;
-  height: 56rpx;
+  width: 48rpx;
+  height: 48rpx;
   background: linear-gradient(145deg, #C8A464 0%, #A88B4A 100%);
   border-radius: 50%;
   display: flex;
@@ -1025,17 +1057,6 @@ onPullDownRefresh(() => {
   width: 2rpx;
   height: 18rpx;
   background: #0D0D0D;
-}
-
-/* 加载状态 */
-.load-status {
-  text-align: center;
-  padding: 40rpx;
-}
-
-.status-text {
-  font-size: 24rpx;
-  color: rgba(245, 245, 240, 0.4);
 }
 
 /* 空状态 */
