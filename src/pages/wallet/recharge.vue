@@ -89,18 +89,27 @@ const selectedOption = ref<RechargeOption | null>(null);
 const isCustomAmount = ref(false);
 const customAmount = ref('');
 const loading = ref(false);
-const rechargeOptions = ref<RechargeOption[]>(getRechargeOptions());
+const rechargeOptions = ref<RechargeOption[]>([]);  // 初始化为空数组
 
 // 页面加载时获取最新配置（强制使用数据库配置）
 onMounted(async () => {
-  const opts = await loadRechargeConfig();
-  if (opts && opts.length > 0) {
-    rechargeOptions.value = opts;
-  } else {
+  try {
+    const opts = await loadRechargeConfig();
+    if (opts && opts.length > 0) {
+      rechargeOptions.value = opts;
+    } else {
+      uni.showToast({
+        title: '请在管理端配置充值档位',
+        icon: 'none',
+        duration: 5000
+      });
+    }
+  } catch (error: any) {
+    console.error('加载充值配置失败:', error);
     uni.showToast({
-      title: '请在管理端配置充值档位',
+      title: error.message || '加载配置失败',
       icon: 'none',
-      duration: 5000
+      duration: 3000
     });
   }
 });

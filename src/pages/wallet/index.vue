@@ -24,7 +24,13 @@
       </view>
       
       <view v-else-if="transactions.length === 0" class="empty-state">
-        <text class="iconfont empty-icon">&#xe6a7;</text>
+        <view class="empty-icon-wrapper">
+          <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="9" stroke="#DDD" stroke-width="1.5"/>
+            <path d="M12 8V12" stroke="#DDD" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M12 16H12.01" stroke="#DDD" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </view>
         <text>暂无交易记录</text>
       </view>
       
@@ -36,7 +42,19 @@
         >
           <view class="item-left">
             <view :class="['icon-box', item.amount > 0 ? 'recharge' : 'payment']">
-              <text class="iconfont">{{ item.amount > 0 ? '&#xe6b0;' : '&#xe6b9;' }}</text>
+              <!-- 充值图标 -->
+              <svg v-if="item.amount > 0" class="transaction-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              <!-- 支付图标 -->
+              <svg v-else class="transaction-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M2 10H22" stroke="currentColor" stroke-width="1.5"/>
+                <circle cx="6" cy="15" r="1" fill="currentColor"/>
+                <circle cx="9" cy="15" r="1" fill="currentColor"/>
+              </svg>
             </view>
             <view class="item-info">
               <text class="item-title">{{ getTransactionTitle(item.type, item.description) }}</text>
@@ -217,10 +235,13 @@ onShow(() => {
   font-size: 28rpx;
 }
 
-.empty-icon {
-  font-size: 64rpx;
+.empty-icon-wrapper {
   margin-bottom: 20rpx;
-  color: #DDD;
+}
+
+.empty-icon-svg {
+  width: 128rpx;
+  height: 128rpx;
 }
 
 .transaction-item {
@@ -260,9 +281,9 @@ onShow(() => {
   color: #FFB085;
 }
 
-.iconfont {
-  font-family: "iconfont";
-  font-size: 40rpx;
+.transaction-icon {
+  width: 40rpx;
+  height: 40rpx;
 }
 
 .item-info {

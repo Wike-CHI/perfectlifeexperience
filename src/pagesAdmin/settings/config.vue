@@ -296,12 +296,13 @@ const config = ref({
   withdrawFeeRate: '0'
 })
 
-// 充值配置
+// 充值配置(默认无赠送)
 const rechargeOptions = ref([
-  { amount: '200', gift: '10' },
-  { amount: '500', gift: '35' },
-  { amount: '1000', gift: '80' },
-  { amount: '2000', gift: '200' }
+  { amount: '100', gift: '0' },
+  { amount: '200', gift: '0' },
+  { amount: '500', gift: '0' },
+  { amount: '1000', gift: '0' },
+  { amount: '2000', gift: '0' }
 ])
 
 // 默认配置
