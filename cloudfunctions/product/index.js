@@ -224,7 +224,7 @@ async function getProducts(params) {
     // 构建查询条件
     const where = {
       // 🔥 只显示上架商品，过滤已下架商品
-      status: 'active'
+      isActive: true
     };
 
     // 分类筛选
@@ -361,7 +361,7 @@ async function getProductDetail(data) {
     }
 
     // 🔥 检查商品状态，已下架商品返回错误
-    if (result.data.status && result.data.status !== 'active') {
+    if (result.data.isActive === false) {
       return {
         code: -2,
         msg: '商品已下架'
@@ -480,7 +480,7 @@ async function getHotProducts(data) {
       .where({
         isHot: true,
         // 🔥 只显示上架的热门商品
-        status: 'active'
+        isActive: true
       })
       .field({
         _id: true,
@@ -540,7 +540,7 @@ async function getNewProducts(data) {
       .where({
         isNew: true,
         // 🔥 只显示上架的新品
-        status: 'active'
+        isActive: true
       })
       .field({
         _id: true,

@@ -139,7 +139,7 @@ async function validateCartItems(cartItems) {
       continue;
     }
 
-    if (product.status && product.status !== 'active') {
+    if (product.isActive === false) {
       errors.push(`"${product.name}"已下架`);
       continue;
     }
@@ -668,11 +668,11 @@ async function payWithBalance(openid, data) {
         .field({
           _id: true,
           name: true,
-          status: true
+          isActive: true
         })
         .get();
 
-      const inactiveProducts = productsCheck.data.filter(p => p.status && p.status !== 'active');
+      const inactiveProducts = productsCheck.data.filter(p => p.isActive === false);
 
       if (inactiveProducts.length > 0) {
         // ⚠️ 有商品已下架，记录警告但允许支付
