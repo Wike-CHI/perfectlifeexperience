@@ -39,6 +39,52 @@ const MIN_QUANTITY = Amount.MIN_CART_QUANTITY;
 const MAX_QUANTITY = Amount.MAX_CART_QUANTITY;
 
 /**
+ * 更新商品销量
+ * @param {Array} items - 订单商品列表
+ * @param {string} orderId - 订单ID（用于日志）
+ */
+async function updateProductSales(items, orderId) {
+  if (!items || items.length === 0) {
+    logger.warn('No items to update sales', { orderId });
+    return;
+  }
+
+  try {
+    logger.info('Updating product sales', { orderId, itemCount: items.length });
+
+    // 按商品ID分组统计数量
+    const salesMap = {};
+    items.forEach(item => {
+      const productId = item.productId;
+      const quantity = parseInt(item.quantity) || 1;
+      salesMap[productId] = (salesMap[productId] || 0) + quantity;
+    });
+
+    // 批量更新商品销量
+    const updatePromises = Object.keys(salesMap).map(productId => {
+      return db.collection('products').doc(productId).update({
+        data: {
+          sales: _.inc(salesMap[productId])
+        }
+      });
+    });
+
+    await Promise.all(updatePromises);
+    logger.info('Product sales updated successfully', {
+      orderId,
+      productCount: Object.keys(salesMap).length,
+      sales: salesMap
+    });
+  } catch (error) {
+    logger.error('Failed to update product sales', {
+      orderId,
+      error: error.message
+    });
+    // 销量更新失败不影响订单流程，只记录错误
+  }
+}
+
+/**
  * 解析购物车数据
  * 统一处理 items/products 字段命名
  */
@@ -431,6 +477,17 @@ async function updateOrderStatus(openid, orderId, status) {
 
     logger.info('Order status updated', { orderId, status });
 
+    // 订单支付成功时更新商品销量
+    if (status === 'paid' && !order.salesUpdated) {
+      logger.info('Updating sales for paid order', { orderId });
+      await updateProductSales(order.items, orderId);
+
+      // 标记销量已更新，避免重复更新
+      await db.collection('orders').doc(orderId).update({
+        data: { salesUpdated: true }
+      });
+    }
+
     if (status === 'cancelled') {
       if (order.items && order.items.length > 0) {
         logger.info('Restoring stock for cancelled order', { orderId });
@@ -518,6 +575,17 @@ async function adminUpdateOrderStatus(orderId, status) {
     }
 
     logger.info('Order status updated by admin', { orderId, status });
+
+    // 订单支付成功时更新商品销量
+    if (status === 'paid' && !order.salesUpdated) {
+      logger.info('Updating sales for paid order (admin)', { orderId });
+      await updateProductSales(order.items, orderId);
+
+      // 标记销量已更新，避免重复更新
+      await db.collection('orders').doc(orderId).update({
+        data: { salesUpdated: true }
+      });
+    }
 
     // 处理取消订单逻辑
     if (status === 'cancelled') {
@@ -671,6 +739,7 @@ async function payWithBalance(openid, data) {
           paymentMethod: 'balance',
           payTime: db.serverDate(),
           rewardSettled: false,
+          salesUpdated: false,
           updateTime: db.serverDate()
         }
       });
@@ -678,6 +747,21 @@ async function payWithBalance(openid, data) {
     logger.info('Balance payment completed', { orderId });
 
     await transaction.commit();
+
+    // 支付成功后更新商品销量（在事务外执行，避免事务失败影响销量）
+    if (!order.salesUpdated) {
+      logger.info('Updating sales after balance payment', { orderId });
+      await updateProductSales(order.items, orderId);
+
+      // 标记销量已更新
+      try {
+        await db.collection('orders').doc(order._id).update({
+          data: { salesUpdated: true }
+        });
+      } catch (error) {
+        logger.warn('Failed to mark sales as updated', { orderId, error: error.message });
+      }
+    }
 
     // 支付成功后清除钱包缓存
     try {
