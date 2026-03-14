@@ -5,16 +5,30 @@
       <view class="stats-bg"></view>
       <view class="stats-content">
         <view class="stat-item">
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V8C22 6.89543 21.1046 6 20 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M2 10H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M12 15L12.01 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
           <text class="stat-num">{{ stats.unused }}</text>
           <text class="stat-label">未使用</text>
         </view>
         <view class="stat-divider"></view>
         <view class="stat-item">
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
           <text class="stat-num">{{ stats.used }}</text>
           <text class="stat-label">已使用</text>
         </view>
         <view class="stat-divider"></view>
         <view class="stat-item">
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M12 16H12.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
           <text class="stat-num">{{ stats.expired }}</text>
           <text class="stat-label">已过期</text>
         </view>
@@ -23,13 +37,26 @@
 
     <!-- Tab 切换 -->
     <view class="tab-bar">
-      <view 
-        class="tab-item" 
-        v-for="tab in tabs" 
+      <view
+        class="tab-item"
+        v-for="tab in tabs"
         :key="tab.value"
         :class="{ active: currentTab === tab.value }"
         @click="switchTab(tab.value)"
       >
+        <svg class="tab-icon" v-if="tab.value === 'unused'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V8C22 6.89543 21.1046 6 20 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M2 10H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <svg class="tab-icon" v-else-if="tab.value === 'used'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <svg class="tab-icon" v-else viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 8V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M12 16H12.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
         <text class="tab-text">{{ tab.label }}</text>
         <view class="tab-line" v-if="currentTab === tab.value"></view>
       </view>
@@ -89,10 +116,21 @@
       
       <!-- 空状态 -->
       <view class="empty-state" v-if="filteredCoupons.length === 0 && !loading">
-        <text class="empty-icon">&#xe6c0;</text>
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V8C22 6.89543 21.1046 6 20 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M2 10H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M8 14L8.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M16 14L16.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
         <text class="empty-text">暂无{{ getTabLabel() }}优惠券</text>
         <text class="empty-desc" v-if="currentTab === 'unused'">快去优惠券中心领取吧</text>
         <view class="btn-go" v-if="currentTab === 'unused'" @click="goToCouponCenter">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 5L7 8H17L15 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 8H22V19C22 20.1 21.1 21 20 21H4C2.9 21 2 20.1 2 19V8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 13H8.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M16 13H16.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
           <text class="btn-text">去领券</text>
         </view>
       </view>
@@ -124,8 +162,9 @@ interface UserCoupon {
     description?: string
     minAmount?: number
   }
-  status: 'available' | 'used' | 'expired'
+  status: 'unused' | 'used' | 'expired'
   expireTime: Date
+  useTime?: Date
 }
 
 interface CouponTemplate {
@@ -295,6 +334,13 @@ onShow(() => {
   align-items: center;
 }
 
+.stat-icon {
+  width: 48rpx;
+  height: 48rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8rpx;
+}
+
 .stat-num {
   font-size: 56rpx;
   font-weight: bold;
@@ -332,6 +378,18 @@ onShow(() => {
   align-items: center;
   padding: 30rpx 0;
   position: relative;
+}
+
+.tab-icon {
+  width: 36rpx;
+  height: 36rpx;
+  color: #9B8B7F;
+  margin-bottom: 8rpx;
+  transition: all 0.3s;
+}
+
+.tab-item.active .tab-icon {
+  color: #D4A574;
 }
 
 .tab-text {
@@ -572,8 +630,8 @@ onShow(() => {
 }
 
 .empty-icon {
-  font-family: "iconfont";
-  font-size: 100rpx;
+  width: 140rpx;
+  height: 140rpx;
   color: #D4A574;
   opacity: 0.4;
   margin-bottom: 24rpx;
@@ -592,9 +650,25 @@ onShow(() => {
 }
 
 .btn-go {
-  padding: 24rpx 80rpx;
+  padding: 24rpx 60rpx;
   background: linear-gradient(135deg, #D4A574 0%, #C9A962 100%);
   border-radius: 40rpx;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  box-shadow: 0 4rpx 12rpx rgba(212, 165, 116, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-go:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 8rpx rgba(212, 165, 116, 0.2);
+}
+
+.btn-icon {
+  width: 28rpx;
+  height: 28rpx;
+  color: #FFFFFF;
 }
 
 .btn-text {

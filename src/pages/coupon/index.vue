@@ -16,7 +16,13 @@
     <!-- 我的优惠券入口 -->
     <view class="my-coupon-entry" @click="goToMyCoupons">
       <view class="entry-left">
-        <text class="entry-icon">&#xe6c0;</text>
+        <svg class="entry-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V8C22 6.89543 21.1046 6 20 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M13 12L15 14L13 12Z" fill="currentColor"/>
+          <path d="M2 10H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="8" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+        </svg>
         <view class="entry-text">
           <text class="entry-title">我的优惠券</text>
           <text class="entry-desc">{{ unusedCount }}张未使用</text>
@@ -24,7 +30,9 @@
       </view>
       <view class="entry-right">
         <text class="entry-action">查看全部</text>
-        <text class="arrow">&#xe6a7;</text>
+        <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </view>
     </view>
 
@@ -82,7 +90,12 @@
       
       <!-- 空状态 -->
       <view class="empty-state" v-if="templates.length === 0 && !loading">
-        <text class="empty-icon">&#xe6c0;</text>
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H20C21.1046 18 22 17.1046 22 16V8C22 6.89543 21.1046 6 20 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M2 10H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M9 15L9.01 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M15 15L15.01 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
         <text class="empty-text">暂无可用优惠券</text>
         <text class="empty-desc">敬请期待更多优惠活动</text>
       </view>
@@ -91,14 +104,42 @@
     <!-- 使用说明 -->
     <view class="coupon-tips">
       <view class="tips-header">
-        <text class="tips-icon">&#xe62f;</text>
+        <svg class="tips-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 16V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M12 8H12.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
         <text class="tips-title">使用说明</text>
       </view>
       <view class="tips-list">
-        <text class="tip-item">1. 优惠券领取后请在有效期内使用，过期自动失效</text>
-        <text class="tip-item">2. 每张优惠券仅限使用一次，不可叠加使用</text>
-        <text class="tip-item">3. 部分特价商品可能不参与优惠券活动</text>
-        <text class="tip-item">4. 如有疑问请联系客服：400-888-8888</text>
+        <view class="tip-item">
+          <svg class="tip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <text class="tip-text">优惠券领取后请在有效期内使用，过期自动失效</text>
+        </view>
+        <view class="tip-item">
+          <svg class="tip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <text class="tip-text">每张优惠券仅限使用一次，不可叠加使用</text>
+        </view>
+        <view class="tip-item">
+          <svg class="tip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 8V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          <text class="tip-text">部分特价商品可能不参与优惠券活动</text>
+        </view>
+        <view class="tip-item">
+          <svg class="tip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22 16.92V19C22 19.5304 21.7893 20.0391 21.4142 20.4142C21.0391 20.7893 20.5304 21 20 21H4C3.46957 21 2.96086 20.7893 2.58579 20.4142C2.21071 20.0391 2 19.5304 2 19V5C2 4.46957 2.21071 3.96086 2.58579 3.58579C2.96086 3.21071 3.46957 3 4 3H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 2V8H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 2L16 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <text class="tip-text">如有疑问请联系客服：400-888-8888</text>
+        </view>
       </view>
     </view>
 
@@ -342,8 +383,8 @@ onShow(() => {
 }
 
 .entry-icon {
-  font-family: "iconfont";
-  font-size: 48rpx;
+  width: 48rpx;
+  height: 48rpx;
   color: #D4A574;
   margin-right: 20rpx;
 }
@@ -376,9 +417,9 @@ onShow(() => {
   margin-right: 8rpx;
 }
 
-.arrow {
-  font-family: "iconfont";
-  font-size: 24rpx;
+.arrow-icon {
+  width: 32rpx;
+  height: 32rpx;
   color: #D4A574;
 }
 
@@ -573,10 +614,10 @@ onShow(() => {
 }
 
 .empty-icon {
-  font-family: "iconfont";
-  font-size: 80rpx;
+  width: 120rpx;
+  height: 120rpx;
   color: #D4A574;
-  opacity: 0.5;
+  opacity: 0.4;
   margin-bottom: 20rpx;
 }
 
@@ -606,8 +647,8 @@ onShow(() => {
 }
 
 .tips-icon {
-  font-family: "iconfont";
-  font-size: 32rpx;
+  width: 32rpx;
+  height: 32rpx;
   color: #D4A574;
   margin-right: 12rpx;
 }
@@ -625,9 +666,24 @@ onShow(() => {
 }
 
 .tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.tip-icon {
+  width: 32rpx;
+  height: 32rpx;
+  color: #D4A574;
+  flex-shrink: 0;
+  margin-top: 4rpx;
+}
+
+.tip-text {
   font-size: 26rpx;
   color: #6B5B4F;
   line-height: 1.6;
+  flex: 1;
 }
 
 /* 安全区域 */
