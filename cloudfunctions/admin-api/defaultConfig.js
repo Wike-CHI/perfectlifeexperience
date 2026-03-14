@@ -32,13 +32,13 @@ const DEFAULT_COMMISSION_CONFIG = {
   maxDailyWithdraws: 3,        // 每日提现次数：3次
   withdrawFeeRate: 0,          // 手续费率：0%
 
-  // 充值配置
+  // 充值配置（无赠送）
   rechargeOptions: [
-    { amount: 100, gift: 5 },    // 充100送5
-    { amount: 200, gift: 25 },   // 充200送25
-    { amount: 500, gift: 75 },   // 充500送75
-    { amount: 1000, gift: 200 }, // 充1000送200
-    { amount: 2000, gift: 500 }  // 充2000送500
+    { amount: 100, gift: 0 },
+    { amount: 200, gift: 0 },
+    { amount: 500, gift: 0 },
+    { amount: 1000, gift: 0 },
+    { amount: 2000, gift: 0 }
   ],
 
   // upgradeConditions（新字段结构）
