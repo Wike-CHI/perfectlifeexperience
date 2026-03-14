@@ -1,41 +1,41 @@
 <template>
   <view class="container">
-    <!-- 顶部状态栏 -->
+    <!-- 顶部状态栏 - 极简版 -->
     <view class="status-header" :class="`status-${order.status}`">
-      <view class="status-content">
-        <view class="status-badge" :class="`badge-${order.status}`">
-          <svg v-if="order.status === 'pending'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M12 7V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'paid'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 7L9 18L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'shipping'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M9 20C9 21.1 8.1 22 7 22C5.9 22 5 21.1 5 20C5 18.9 5.9 18 7 18C8.1 18 9 18.9 9 20ZM20 20C20 21.1 19.1 22 18 22C16.9 22 16 21.1 16 20C16 18.9 16.9 18 18 18C19.1 18 20 18.9 20 20ZM1 1H4L6.68 14.39C6.77144 14.8504 7.02191 15.264 7.38755 15.5583C7.75318 15.8526 8.2107 16.009 8.68 16H19.4C19.8686 16.0081 20.3255 15.8505 20.6907 15.5558C21.0559 15.2611 21.3063 14.8476 21.398 14.387L23 6H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'completed'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.95997" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'cancelled'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M15 9L9 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M9 9L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'refunding'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 10H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M8 14L8.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <path d="M16 14L16.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <path d="M10 20H4C2.89543 20 2 19.1046 2 18V6C2 4.89543 2.89543 4 4 4H20C21.1046 4 22 4.89543 22 6V18C22 19.1046 21.1046 20 20 20H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <svg v-else-if="order.status === 'refunded'" class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-        </view>
+      <view class="status-icon">
+        <svg v-if="order.status === 'pending'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 7V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'paid'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 7L9 18L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'shipping'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 20C9 21.1 8.1 22 7 22C5.9 22 5 21.1 5 20C5 18.9 5.9 18 7 18C8.1 18 9 18.9 9 20ZM20 20C20 21.1 19.1 22 18 22C16.9 22 16 21.1 16 20C16 18.9 16.9 18 18 18C19.1 18 20 18.9 20 20ZM1 1H4L6.68 14.39C6.77144 14.8504 7.02191 15.264 7.38755 15.5583C7.75318 15.8526 8.2107 16.009 8.68 16H19.4C19.8686 16.0081 20.3255 15.8505 20.6907 15.5558C21.0559 15.2611 21.3063 14.8476 21.398 14.387L23 6H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'completed'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.95997" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'cancelled'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M15 9L9 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M9 9L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'refunding'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 10H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M8 14L8.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M16 14L16.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M10 20H4C2.89543 20 2 19.1046 2 18V6C2 4.89543 2.89543 4 4 4H20C21.1046 4 22 4.89543 22 6V18C22 19.1046 21.1046 20 20 20H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg v-else-if="order.status === 'refunded'" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </view>
+      <view class="status-text">
         <text class="status-title">{{ getStatusText(order.status) }}</text>
-        <text class="status-subtitle">{{ getStatusDesc(order.status) }}</text>
+        <text class="status-desc">{{ getStatusDesc(order.status) }}</text>
         <!-- 待付款倒计时 -->
         <view class="countdown" v-if="order.status === 'pending' && countdownTime > 0">
           <svg class="countdown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -151,72 +151,80 @@
       <!-- 商品清单 -->
       <view class="section-card goods-card">
         <view class="card-header">
-          <text class="card-title">购物清单</text>
-          <view class="goods-status-tag" :class="`tag-${order.status}`">
-            <svg v-if="order.status === 'pending'" class="tag-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M12 7V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <svg v-else-if="order.status === 'paid'" class="tag-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <view class="card-title-wrapper">
+            <svg class="goods-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M20 7L9 18L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <svg v-else-if="order.status === 'shipping'" class="tag-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 20C9 21.1 8.1 22 7 22C5.9 22 5 21.1 5 20C5 18.9 5.9 18 7 18C8.1 18 9 18.9 9 20ZM20 20C20 21.1 19.1 22 18 22C16.9 22 16 21.1 16 20C16 18.9 16.9 18 18 18C19.1 18 20 18.9 20 20ZM1 1H4L6.68 14.39C6.77144 14.8504 7.02191 15.264 7.38755 15.5583C7.75318 15.8526 8.2107 16.009 8.68 16H19.4C19.8686 16.0081 20.3255 15.8505 20.6907 15.5558C21.0559 15.2611 21.3063 14.8476 21.398 14.387L23 6H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <svg v-else-if="order.status === 'completed'" class="tag-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-            </svg>
-            <svg v-else-if="order.status === 'cancelled'" class="tag-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M15 9L9 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M9 9L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <text class="tag-text" v-if="order.status === 'refunding' || order.status === 'refunded'">
-              退款金额: ¥{{ formatPrice(refundInfo?.refundAmount ?? order.totalAmount ?? 0) }}
-            </text>
-            <text class="tag-text" v-else>共 {{ order.products?.length || 0 }} 件</text>
+            <text class="card-title">商品清单</text>
+            <text class="goods-count">{{ order.products?.length || 0 }}件商品</text>
           </view>
         </view>
-        <view class="goods-list">
-          <view class="goods-item" v-for="(item, index) in order.products" :key="item.productId || index"
-            :class="{ 'is-refund': order.status === 'refunding' || order.status === 'refunded' }">
-            <!-- 退款标识 -->
-            <view class="refund-badge" v-if="order.status === 'refunding' || order.status === 'refunded'">
-              <svg class="refund-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3 10H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M8 14L8.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <path d="M16 14L16.01 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-              <text class="refund-text">退款商品</text>
-            </view>
+        <!-- Loading状态 -->
+        <view class="loading-products" v-if="loadingProducts">
+          <text>加载商品详情中...</text>
+        </view>
 
-            <image class="goods-img" :src="item.image" mode="aspectFill" />
-            <view class="goods-meta">
-              <text class="goods-name">{{ item.name }}</text>
-              <!-- 商品规格 -->
-              <text class="goods-specs" v-if="item.specs">{{ item.specs }}</text>
+        <!-- 商品卡片列表 - 完整信息版 -->
+        <view class="products-list">
+          <view
+            class="product-card"
+            v-for="(item, index) in order.products"
+            :key="item.productId || index"
+          >
+            <!-- 产品图片 -->
+            <image class="product-image" :src="item.image" mode="aspectFill" />
 
-              <!-- 非退款状态 -->
-              <view class="goods-price-row" v-if="order.status !== 'refunding' && order.status !== 'refunded'">
-                <text class="goods-quantity">x{{ item.quantity }}</text>
-                <text class="goods-price">¥{{ formatPrice(item.price) }}</text>
+            <!-- 产品信息区域 -->
+            <view class="product-info">
+              <!-- 名称组 -->
+              <view class="product-name-group">
+                <text class="product-name">{{ item.name }}</text>
+                <text class="product-en-name" v-if="getProductDetail(item.productId)?.enName">
+                  {{ getProductDetail(item.productId)?.enName }}
+                </text>
               </view>
 
-              <!-- 退款中状态 - 美化版 -->
-              <view class="refund-details" v-else>
-                <view class="refund-row">
-                  <text class="refund-label">退款数量</text>
-                  <text class="refund-value highlight">x{{ getRefundQuantity(item.productId) }}</text>
+              <!-- 标签徽章 -->
+              <view class="product-badges" v-if="hasBadges(item.productId)">
+                <text class="badge hot" v-if="getProductDetail(item.productId)?.isHot">🔥 热销</text>
+                <text class="badge new" v-if="getProductDetail(item.productId)?.isNew">🆕 新品</text>
+              </view>
+
+              <!-- 产品描述 -->
+              <text class="product-description" v-if="getProductDetail(item.productId)?.description">
+                {{ getProductDetail(item.productId)?.description }}
+              </text>
+
+              <!-- 技术参数 -->
+              <view class="product-specs-grid">
+                <text class="spec-item" v-if="item.specs">规格: {{ item.specs }}</text>
+                <text class="spec-item" v-if="getProductDetail(item.productId)?.brewery">
+                  酒厂: {{ getProductDetail(item.productId)?.brewery }}
+                </text>
+                <text class="spec-item" v-if="hasAlcoholOrVolume(item.productId)">
+                  <template v-if="getProductDetail(item.productId)?.alcoholContent">
+                    酒精度: {{ getProductDetail(item.productId)?.alcoholContent }}%
+                  </template>
+                  <template v-if="getProductDetail(item.productId)?.alcoholContent && getProductDetail(item.productId)?.volume">
+                    <text class="spec-separator"> | </text>
+                  </template>
+                  <template v-if="getProductDetail(item.productId)?.volume">
+                    容量: {{ getProductDetail(item.productId)?.volume }}ml
+                  </template>
+                </text>
+              </view>
+
+              <!-- 价格区域 -->
+              <view class="product-footer">
+                <view class="price-left">
+                  <text class="original-price"
+                    v-if="getProductDetail(item.productId)?.originalPrice && getProductDetail(item.productId).originalPrice! > item.price">
+                    ¥{{ formatPrice(getProductDetail(item.productId)!.originalPrice!) }}
+                  </text>
+                  <text class="unit-price">¥{{ formatPrice(item.price) }}</text>
+                  <text class="quantity">x{{ item.quantity }}</text>
                 </view>
-                <view class="refund-row">
-                  <text class="refund-label">单价</text>
-                  <text class="refund-value">¥{{ formatPrice(item.price) }}</text>
-                </view>
-                <view class="refund-row subtotal">
-                  <text class="refund-label">小计</text>
-                  <text class="refund-value money">¥{{ formatPrice(item.price * getRefundQuantity(item.productId)) }}</text>
-                </view>
+                <text class="total-price">¥{{ formatPrice(item.price * item.quantity) }}</text>
               </view>
             </view>
           </view>
@@ -322,9 +330,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, getWalletBalance, cancelRefund, callFunction } from '@/utils/api';
+import { getOrderDetail, updateOrderStatus, cancelOrder as apiCancelOrder, formatPrice, getWalletBalance, cancelRefund, callFunction, getBatchProducts } from '@/utils/api';
 import { getCachedOpenid } from '@/utils/cloudbase';
 import { getDetailThumbnail } from '@/utils/image';
+import type { Product } from '@/types';
 
 // 类型定义（内联，避免分包导入问题）
 interface Order {
@@ -390,6 +399,51 @@ const order = ref<Partial<Order>>({
 
 // 退款详情
 const refundInfo = ref<RefundInfo | null>(null);
+
+// 商品详情（用于显示完整信息）
+const productDetails = ref<Map<string, Product>>(new Map());
+const loadingProducts = ref(false);
+
+// 获取商品详情
+const getProductDetail = (productId?: string): Product | undefined => {
+  if (!productId) return undefined;
+  return productDetails.value.get(productId);
+};
+
+// 检查商品是否有徽章
+const hasBadges = (productId?: string): boolean => {
+  if (!productId) return false;
+  const detail = getProductDetail(productId);
+  return !!(detail?.isHot || detail?.isNew);
+};
+
+// 检查商品是否有酒精度或容量信息
+const hasAlcoholOrVolume = (productId?: string): boolean => {
+  if (!productId) return false;
+  const detail = getProductDetail(productId);
+  return !!(detail?.alcoholContent || detail?.volume);
+};
+
+// 加载商品详情
+const loadProductDetails = async () => {
+  const productIds = order.value.products
+    ?.map(p => p.productId)
+    .filter((id): id is string => Boolean(id)) || [];
+
+  if (productIds.length === 0) return;
+
+  loadingProducts.value = true;
+  try {
+    const products = await getBatchProducts(productIds);
+    products.forEach(p => {
+      if (p._id) productDetails.value.set(p._id, p);
+    });
+  } catch (error) {
+    console.error('加载商品详情失败:', error);
+  } finally {
+    loadingProducts.value = false;
+  }
+};
 
 // 支付方式选择
 const showPaymentPicker = ref(false);
@@ -519,6 +573,9 @@ const loadOrderDetail = async (id: string) => {
       startCountdown();
     }
 
+    // 加载商品详情
+    await loadProductDetails();
+
     uni.hideLoading();
   } catch (error) {
     uni.hideLoading();
@@ -551,7 +608,8 @@ const getRefundStatusText = (status?: string) => {
     approved: '已同意',
     waiting_receive: '待收货',
     processing: '退款中',
-    completed: '已完成',
+    success: '退款成功',
+    failed: '退款失败',
     rejected: '已拒绝',
     cancelled: '已取消'
   };
@@ -872,42 +930,48 @@ onUnmounted(() => {
 
 /* Status Header - 东方美学配色 */
 .status-header {
-  padding: 80rpx var(--spacing-base) 60rpx;
+  padding: 40rpx var(--spacing-base);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 24rpx;
   position: relative;
-  overflow: hidden;
   transition: all 0.3s ease;
 }
 
-/* 不同状态的主题色 */
+/* 不同状态的纯色背景 - 极简版 */
 .status-header.status-pending {
-  background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+  background: #FFF7ED;
+  border-bottom: 1rpx solid #FED7AA;
 }
 
 .status-header.status-paid {
-  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  background: #EFF6FF;
+  border-bottom: 1rpx solid #BFDBFE;
 }
 
 .status-header.status-shipping {
-  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+  background: #F0FDF4;
+  border-bottom: 1rpx solid #BBF7D0;
 }
 
 .status-header.status-completed {
-  background: linear-gradient(135deg, #FAFAF9 0%, #F5F5F4 100%);
+  background: #FAFAF9;
+  border-bottom: 1rpx solid #E5E7EB;
 }
 
 .status-header.status-cancelled {
-  background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+  background: #FEF2F2;
+  border-bottom: 1rpx solid #FECACA;
 }
 
 .status-header.status-refunding {
-  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  background: #FEF3C7;
+  border-bottom: 1rpx solid #FDE68A;
 }
 
 .status-header.status-refunded {
-  background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+  background: #F3F4F6;
+  border-bottom: 1rpx solid #E5E7EB;
 }
 
 .status-content {
@@ -915,64 +979,60 @@ onUnmounted(() => {
   flex: 1;
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  margin-bottom: 20rpx;
-  transition: all 0.3s ease;
-}
-
-.status-badge .badge-icon {
+.status-icon {
   width: 48rpx;
   height: 48rpx;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.status-badge.badge-pending {
-  background: linear-gradient(135deg, #FB923C 0%, #F97316 100%);
-  box-shadow: 0 8rpx 24rpx rgba(249, 115, 22, 0.3);
+.status-icon .icon {
+  width: 100%;
+  height: 100%;
 }
 
-.status-badge.badge-paid {
-  background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%);
-  box-shadow: 0 8rpx 24rpx rgba(59, 130, 246, 0.3);
+.status-header.status-pending .status-icon .icon {
+  color: #FB923C;
 }
 
-.status-badge.badge-shipping {
-  background: linear-gradient(135deg, #4ADE80 0%, #22C55E 100%);
-  box-shadow: 0 8rpx 24rpx rgba(34, 197, 94, 0.3);
+.status-header.status-paid .status-icon .icon {
+  color: #3B82F6;
 }
 
-.status-badge.badge-completed {
-  background: linear-gradient(135deg, #D4A574 0%, #C9A962 100%);
-  box-shadow: 0 8rpx 24rpx rgba(212, 165, 116, 0.3);
+.status-header.status-shipping .status-icon .icon {
+  color: #10B981;
 }
 
-.status-badge.badge-cancelled {
-  background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
-  box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.3);
+.status-header.status-completed .status-icon .icon {
+  color: #EC4899;
 }
 
-.status-badge.badge-refunding {
-  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
-  box-shadow: 0 8rpx 24rpx rgba(251, 191, 36, 0.3);
+.status-header.status-cancelled .status-icon .icon {
+  color: #9CA3AF;
 }
 
-.status-badge.badge-refunded {
-  background: linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%);
-  box-shadow: 0 8rpx 24rpx rgba(107, 114, 128, 0.3);
+.status-header.status-refunding .status-icon .icon {
+  color: #F59E0B;
+}
+
+.status-header.status-refunded .status-icon .icon {
+  color: #6B7280;
+}
+
+.status-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
 }
 
 .status-title {
   display: block;
-  font-size: 56rpx;
-  font-weight: 800;
-  margin-bottom: 16rpx;
-  letter-spacing: -1rpx;
-  transition: all 0.3s ease;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .status-header.status-pending .status-title {
@@ -988,7 +1048,7 @@ onUnmounted(() => {
 }
 
 .status-header.status-completed .status-title {
-  color: #3D2914;
+  color: #885337;
 }
 
 .status-header.status-cancelled .status-title {
@@ -1003,37 +1063,38 @@ onUnmounted(() => {
   color: #374151;
 }
 
-.status-subtitle {
-  font-size: 28rpx;
-  font-weight: 500;
+.status-desc {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 400;
   opacity: 0.8;
 }
 
-.status-header.status-pending .status-subtitle {
+.status-header.status-pending .status-desc {
   color: #9A3412;
 }
 
-.status-header.status-paid .status-subtitle {
+.status-header.status-paid .status-desc {
   color: #1E40AF;
 }
 
-.status-header.status-shipping .status-subtitle {
+.status-header.status-shipping .status-desc {
   color: #166534;
 }
 
-.status-header.status-completed .status-subtitle {
-  color: #3D2914;
+.status-header.status-completed .status-desc {
+  color: #885337;
 }
 
-.status-header.status-cancelled .status-subtitle {
+.status-header.status-cancelled .status-desc {
   color: #991B1B;
 }
 
-.status-header.status-refunding .status-subtitle {
+.status-header.status-refunding .status-desc {
   color: #92400E;
 }
 
-.status-header.status-refunded .status-subtitle {
+.status-header.status-refunded .status-desc {
   color: #374151;
 }
 
@@ -1042,22 +1103,23 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  margin-top: 16rpx;
+  margin-top: 8rpx;
   padding: 8rpx 20rpx;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 20rpx;
+  align-self: flex-start;
 }
 
 .countdown-icon {
-  width: 28rpx;
-  height: 28rpx;
-  color: #F97316;
+  width: 24rpx;
+  height: 24rpx;
+  color: #FB923C;
 }
 
 .countdown-text {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #F97316;
+  font-size: 24rpx;
+  font-weight: 500;
+  color: #FB923C;
   font-family: monospace;
 }
 
@@ -1171,10 +1233,10 @@ onUnmounted(() => {
   opacity: 0.7;
 }
 
-/* Refund Info */
+/* Refund Info - 极简版 */
 .refund-card {
-  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-  border: 1rpx solid #FCD34D;
+  background: #FFFBEB;
+  border: 1rpx solid #FDE68A;
   border-radius: 16rpx;
   padding: 30rpx;
 }
@@ -1203,6 +1265,11 @@ onUnmounted(() => {
   color: #4CAF50;
 }
 
+.refund-status-tag.status-waiting_receive {
+  background: #E0F2FE;
+  color: #0284C7;
+}
+
 .refund-status-tag.status-processing {
   background: #E3F2FD;
   color: #1976D2;
@@ -1214,6 +1281,16 @@ onUnmounted(() => {
 }
 
 .refund-status-tag.status-rejected {
+  background: #FFEBEE;
+  color: #F44336;
+}
+
+.refund-status-tag.status-success {
+  background: #E8F5E9;
+  color: #4CAF50;
+}
+
+.refund-status-tag.status-failed {
   background: #FFEBEE;
   color: #F44336;
 }
@@ -1387,6 +1464,75 @@ onUnmounted(() => {
   color: var(--color-text-tertiary);
 }
 
+/* Loading状态 */
+.loading-products {
+  padding: 40rpx;
+  text-align: center;
+  color: #9B8B7F;
+  font-size: 28rpx;
+}
+
+/* 商品列表容器 - 极简版 */
+.products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+/* 极简商品卡片 */
+.product-card {
+  display: flex;
+  gap: 24rpx;
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+}
+
+.product-image {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 12rpx;
+  flex-shrink: 0;
+}
+
+.product-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.product-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1A1A1A;
+  line-height: 1.4;
+}
+
+.product-specs {
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
+.product-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-price {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.product-quantity {
+  font-size: 24rpx;
+  color: #9B8B7F;
+}
+
 .goods-list {
   display: flex;
   flex-direction: column;
@@ -1405,14 +1551,14 @@ onUnmounted(() => {
   background: #FFFFFF;
 }
 
-/* 退款商品特殊样式 */
+/* 退款商品特殊样式 - 极简版 */
 .goods-item.is-refund {
-  background: linear-gradient(135deg, #FFF7E6 0%, #FFF0D5 100%);
-  border: 2rpx solid #FFE4B5;
+  background: #FFF7ED;
+  border: 2rpx solid #FED7AA;
   margin-bottom: 16rpx;
 }
 
-/* 退款标识 */
+/* 退款标识 - 极简版 */
 .refund-badge {
   position: absolute;
   top: 12rpx;
@@ -1420,10 +1566,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4rpx;
-  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+  background: #F97316;
   padding: 6rpx 12rpx;
   border-radius: 20rpx;
-  box-shadow: 0 4rpx 8rpx rgba(255, 152, 0, 0.3);
+  box-shadow: 0 2rpx 6rpx rgba(249, 115, 22, 0.2);
 }
 
 .refund-icon {
@@ -1643,12 +1789,12 @@ onUnmounted(() => {
   border: 2rpx solid var(--color-text-primary);
 }
 
-/* 退款按钮 */
+/* 退款按钮 - 极简版 */
 .action-btn.refund-btn {
-  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  background: #F59E0B;
   border-color: #F59E0B;
   color: #FFFFFF;
-  box-shadow: 0 4rpx 12rpx rgba(251, 191, 36, 0.3);
+  box-shadow: 0 2rpx 8rpx rgba(245, 158, 11, 0.25);
 }
 
 .action-btn:active {
