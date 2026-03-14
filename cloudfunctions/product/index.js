@@ -377,6 +377,80 @@ async function getProductDetail(data) {
 }
 
 /**
+ * 批量获取商品详情（用于订单详情页）- 性能优化版
+ */
+async function getBatch(data) {
+  const { productIds } = data;
+
+  if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+    return {
+      code: 0,
+      msg: 'success',
+      data: []
+    };
+  }
+
+  // 优化5: 限制批量查询数量，避免超出数据库限制
+  const MAX_BATCH_SIZE = 50;
+  const batches = [];
+  for (let i = 0; i < productIds.length; i += MAX_BATCH_SIZE) {
+    batches.push(productIds.slice(i, i + MAX_BATCH_SIZE));
+  }
+
+  logger.info('Batch get products', { count: productIds.length, batches: batches.length });
+
+  try {
+    // 优化6: 先检查缓存
+    const batchCacheKey = `batch_${productIds.sort().join('_')}`;
+    const cached = productCache.get(batchCacheKey);
+    if (cached !== null) {
+      logger.debug('Cache hit for batch products', { key: batchCacheKey });
+      return cached;
+    }
+
+    // 优化7: 只查询需要的字段，减少数据传输量
+    const result = await db.collection('products')
+      .where({
+        _id: _.in(productIds)
+      })
+      .field({
+        _id: true,
+        name: true,
+        enName: true,
+        description: true,
+        price: true,
+        originalPrice: true,
+        image: true,
+        specs: true,
+        brewery: true,
+        alcoholContent: true,
+        volume: true,
+        isHot: true,
+        isNew: true,
+        stock: true
+      })
+      .get();
+
+    const response = {
+      code: 0,
+      msg: 'success',
+      data: result.data || []
+    };
+
+    // 缓存批量查询结果（30分钟TTL）
+    productCache.set(batchCacheKey, response, 1800000);
+
+    return response;
+  } catch (error) {
+    logger.error('Batch get products failed', error);
+    return {
+      code: -1,
+      msg: error.message || '批量获取商品失败'
+    };
+  }
+}
+
+/**
  * 获取热门商品（优化版 - 使用缓存）
  */
 async function getHotProducts(data) {
@@ -761,6 +835,9 @@ exports.main = async (event, context) => {
 
     case 'getProductDetail':
       return await getProductDetail(data);
+
+    case 'getBatch':
+      return await getBatch(data);
 
     case 'getHotProducts':
       return await getHotProducts(data);

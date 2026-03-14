@@ -180,6 +180,7 @@
                   class="product-image"
                   :src="item.image"
                   mode="aspectFill"
+                  lazy-load
                   @error="() => handleImageError(index)"
                 />
               </template>
@@ -193,37 +194,37 @@
               <!-- 名称组 -->
               <view class="product-name-group">
                 <text class="product-name">{{ item.name }}</text>
-                <text class="product-en-name" v-if="getProductDetail(item.productId)?.enName">
-                  {{ getProductDetail(item.productId)?.enName }}
+                <text class="product-en-name" v-if="computedProductDetails[item.productId]?.enName">
+                  {{ computedProductDetails[item.productId]?.enName }}
                 </text>
               </view>
 
               <!-- 标签徽章 -->
               <view class="product-badges" v-if="hasBadges(item.productId)">
-                <text class="badge hot" v-if="getProductDetail(item.productId)?.isHot">🔥 热销</text>
-                <text class="badge new" v-if="getProductDetail(item.productId)?.isNew">🆕 新品</text>
+                <text class="badge hot" v-if="computedProductDetails[item.productId]?.isHot">🔥 热销</text>
+                <text class="badge new" v-if="computedProductDetails[item.productId]?.isNew">🆕 新品</text>
               </view>
 
               <!-- 产品描述 -->
-              <text class="product-description" v-if="getProductDetail(item.productId)?.description">
-                {{ getProductDetail(item.productId)?.description }}
+              <text class="product-description" v-if="computedProductDetails[item.productId]?.description">
+                {{ computedProductDetails[item.productId]?.description }}
               </text>
 
               <!-- 技术参数 -->
               <view class="product-specs-grid">
                 <text class="spec-item" v-if="item.specs">规格: {{ item.specs }}</text>
-                <text class="spec-item" v-if="getProductDetail(item.productId)?.brewery">
-                  酒厂: {{ getProductDetail(item.productId)?.brewery }}
+                <text class="spec-item" v-if="computedProductDetails[item.productId]?.brewery">
+                  酒厂: {{ computedProductDetails[item.productId]?.brewery }}
                 </text>
                 <text class="spec-item" v-if="hasAlcoholOrVolume(item.productId)">
-                  <template v-if="getProductDetail(item.productId)?.alcoholContent">
-                    酒精度: {{ getProductDetail(item.productId)?.alcoholContent }}%
+                  <template v-if="computedProductDetails[item.productId]?.alcoholContent">
+                    酒精度: {{ computedProductDetails[item.productId]?.alcoholContent }}%
                   </template>
-                  <template v-if="getProductDetail(item.productId)?.alcoholContent && getProductDetail(item.productId)?.volume">
+                  <template v-if="computedProductDetails[item.productId]?.alcoholContent && computedProductDetails[item.productId]?.volume">
                     <text class="spec-separator"> | </text>
                   </template>
-                  <template v-if="getProductDetail(item.productId)?.volume">
-                    容量: {{ getProductDetail(item.productId)?.volume }}ml
+                  <template v-if="computedProductDetails[item.productId]?.volume">
+                    容量: {{ computedProductDetails[item.productId]?.volume }}ml
                   </template>
                 </text>
               </view>
@@ -232,8 +233,8 @@
               <view class="product-footer">
                 <view class="price-left">
                   <text class="original-price"
-                    v-if="getProductDetail(item.productId)?.originalPrice && getProductDetail(item.productId).originalPrice! > item.price">
-                    ¥{{ formatPrice(getProductDetail(item.productId)!.originalPrice!) }}
+                    v-if="computedProductDetails[item.productId]?.originalPrice && computedProductDetails[item.productId].originalPrice! > item.price">
+                    ¥{{ formatPrice(computedProductDetails[item.productId]!.originalPrice!) }}
                   </text>
                   <text class="unit-price">¥{{ formatPrice(item.price) }}</text>
                   <text class="quantity">x{{ item.quantity }}</text>
@@ -434,6 +435,40 @@ const getProductDetail = (productId?: string): Product | undefined => {
   return productDetails.value.get(productId);
 };
 
+// 优化3: 使用 computed 缓存计算结果，避免模板中重复计算
+const computedProductDetails = computed(() => {
+  const details: Record<string, {
+    enName?: string;
+    description?: string;
+    originalPrice?: number;
+    isHot?: boolean;
+    isNew?: boolean;
+    brewery?: string;
+    alcoholContent?: number;
+    volume?: number;
+  }> = {};
+
+  order.value.products?.forEach(item => {
+    if (item.productId) {
+      const detail = getProductDetail(item.productId);
+      if (detail) {
+        details[item.productId] = {
+          enName: detail.enName,
+          description: detail.description,
+          originalPrice: detail.originalPrice,
+          isHot: detail.isHot,
+          isNew: detail.isNew,
+          brewery: detail.brewery,
+          alcoholContent: detail.alcoholContent,
+          volume: detail.volume
+        };
+      }
+    }
+  });
+
+  return details;
+});
+
 // 检查商品是否有徽章
 const hasBadges = (productId?: string): boolean => {
   if (!productId) return false;
@@ -448,7 +483,7 @@ const hasAlcoholOrVolume = (productId?: string): boolean => {
   return !!(detail?.alcoholContent || detail?.volume);
 };
 
-// 加载商品详情
+// 加载商品详情（性能优化版）
 const loadProductDetails = async () => {
   const productIds = order.value.products
     ?.map(p => p.productId)
@@ -456,9 +491,17 @@ const loadProductDetails = async () => {
 
   if (productIds.length === 0) return;
 
+  // 优化1: 检查本地缓存，避免重复查询
+  const uncachedIds = productIds.filter(id => !productDetails.value.has(id));
+  if (uncachedIds.length === 0) {
+    console.log('所有商品详情已缓存，跳过查询');
+    return;
+  }
+
   loadingProducts.value = true;
   try {
-    const products = await getBatchProducts(productIds);
+    // 优化2: 只查询未缓存的商品
+    const products = await getBatchProducts(uncachedIds);
     products.forEach(p => {
       if (p._id) productDetails.value.set(p._id, p);
     });
