@@ -159,23 +159,37 @@
             <text class="goods-count">{{ order.products?.length || 0 }}件商品</text>
           </view>
         </view>
-        <!-- Loading状态 -->
-        <view class="loading-products" v-if="loadingProducts">
-          <text>加载商品详情中...</text>
-        </view>
 
         <!-- 商品卡片列表 - 完整信息版 -->
         <view class="products-list">
-          <view
-            class="product-card"
-            v-for="(item, index) in order.products"
-            :key="item.productId || index"
-          >
-            <!-- 产品图片 -->
-            <image class="product-image" :src="item.image" mode="aspectFill" />
+          <!-- Loading状态 -->
+          <view class="loading-products" v-if="loadingProducts">
+            <text>加载商品详情中...</text>
+          </view>
 
-            <!-- 产品信息区域 -->
-            <view class="product-info">
+          <!-- 商品卡片 -->
+          <template v-else>
+            <view
+              class="product-card"
+              v-for="(item, index) in order.products"
+              :key="item.productId || index"
+            >
+              <!-- 产品图片 - 支持占位符 -->
+              <template v-if="!imageErrors[index]">
+                <image
+                  class="product-image"
+                  :src="item.image"
+                  mode="aspectFill"
+                  @error="() => handleImageError(index)"
+                />
+              </template>
+              <view v-else class="product-image-placeholder">
+                <text class="placeholder-icon">📷</text>
+                <text class="placeholder-text">图片加载失败</text>
+              </view>
+
+              <!-- 产品信息区域 -->
+              <view class="product-info">
               <!-- 名称组 -->
               <view class="product-name-group">
                 <text class="product-name">{{ item.name }}</text>
@@ -228,6 +242,7 @@
               </view>
             </view>
           </view>
+          </template>
         </view>
       </view>
 
@@ -403,6 +418,15 @@ const refundInfo = ref<RefundInfo | null>(null);
 // 商品详情（用于显示完整信息）
 const productDetails = ref<Map<string, Product>>(new Map());
 const loadingProducts = ref(false);
+
+// 图片加载失败状态（使用 Record<number, boolean> 类型）
+const imageErrors = ref<Record<number, boolean>>({});
+
+// 处理图片加载失败
+const handleImageError = (index: number) => {
+  console.warn(`商品图片加载失败，索引: ${index}`);
+  imageErrors.value[index] = true;
+};
 
 // 获取商品详情
 const getProductDetail = (productId?: string): Product | undefined => {
@@ -1623,6 +1647,29 @@ onUnmounted(() => {
   font-size: 36rpx;
   font-weight: 700;
   color: #1A1A1A;
+}
+
+/* 图片占位符 - 简洁版 */
+.product-image-placeholder {
+  width: 100%;
+  height: 280rpx;
+  background: #F5F5F5;
+  border-radius: 16rpx 16rpx 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+}
+
+.placeholder-icon {
+  font-size: 64rpx;
+  opacity: 0.3;
+}
+
+.placeholder-text {
+  font-size: 24rpx;
+  color: #999999;
 }
 
 .product-quantity {
