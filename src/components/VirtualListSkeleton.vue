@@ -35,24 +35,34 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 
 <style scoped>
+/* ============================================
+   虚拟列表骨架屏 - 深色奢华主题
+   ============================================ */
+
 .skeleton-wrapper {
   width: 100%;
-  background-color: #f5f5f5;
+  background-color: #0D0D0D;
 }
 
 .skeleton-item {
   display: flex;
-  padding: 20rpx;
-  background-color: #fff;
-  margin-bottom: 20rpx;
+  gap: 12rpx;
+  padding: 0;
+  background-color: #0D0D0D;
+  border-bottom: 1rpx solid rgba(200, 164, 100, 0.08);
   box-sizing: border-box;
 }
 
 .skeleton-image {
   flex-shrink: 0;
-  width: 200rpx;
-  height: 200rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 120rpx;
+  height: 120rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8rpx;
@@ -60,16 +70,22 @@ const props = withDefaults(defineProps<Props>(), {
 
 .skeleton-content {
   flex: 1;
-  margin-left: 20rpx;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-width: 0;
+  padding: 4rpx 0;
 }
 
 .skeleton-title {
   width: 70%;
-  height: 36rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  height: 28rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4rpx;
@@ -77,9 +93,13 @@ const props = withDefaults(defineProps<Props>(), {
 
 .skeleton-desc {
   width: 50%;
-  height: 28rpx;
-  margin-top: 12rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  height: 22rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4rpx;
@@ -88,9 +108,13 @@ const props = withDefaults(defineProps<Props>(), {
 
 .skeleton-meta {
   width: 30%;
-  height: 24rpx;
-  margin-top: 12rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  height: 20rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4rpx;
@@ -101,13 +125,17 @@ const props = withDefaults(defineProps<Props>(), {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16rpx;
 }
 
 .skeleton-price {
-  width: 120rpx;
-  height: 40rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 100rpx;
+  height: 32rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4rpx;
@@ -115,9 +143,14 @@ const props = withDefaults(defineProps<Props>(), {
 }
 
 .skeleton-btn {
-  width: 60rpx;
-  height: 60rpx;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 48rpx;
+  height: 48rpx;
+  background: linear-gradient(
+    90deg,
+    #141414 0%,
+    rgba(200, 164, 100, 0.15) 50%,
+    #141414 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 50%;
