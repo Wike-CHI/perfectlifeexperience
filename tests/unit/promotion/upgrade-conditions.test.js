@@ -20,18 +20,18 @@ const assert = require('assert');
 const PromotionThreshold = {
   // 四级 → 三级（普通 → 铜牌）
   LEVEL_4_TO_3: {
-    totalSales: 200000  // 累计销售额 >= 2000元 (200000分)
+    totalSales: 2000000  // 累计销售额 >= 20000元 (2000000分) - 修复:原为200000
   },
 
   // 三级 → 二级（铜牌 → 银牌）
   LEVEL_3_TO_2: {
-    monthSales: 500000,  // 本月销售额 >= 5000元
+    monthSales: 5000000,  // 本月销售额 >= 50000元 - 修复:原为500000
     teamCount: 50        // 或团队人数 >= 50人
   },
 
   // 二级 → 一级（银牌 → 金牌）
   LEVEL_2_TO_1: {
-    monthSales: 1000000, // 本月销售额 >= 10000元
+    monthSales: 10000000, // 本月销售额 >= 100000元 - 修复:原为1000000
     teamCount: 200       // 或团队人数 >= 200人
   }
 };
@@ -161,12 +161,12 @@ describe('推广升级条件测试', () => {
 
   describe('4级→3级升级(普通会员 → 铜牌推广员)', () => {
 
-    it('累计销售额≥2000元时应该升级', () => {
+    it('累计销售额≥20000元时应该升级', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_4,
         performance: {
-          totalSales: 250000, // 2500元
+          totalSales: 2500000, // 25000元 (修复:原为2500元)
           monthTag: '2026-03'
         }
       };
@@ -175,19 +175,19 @@ describe('推广升级条件测试', () => {
       const result = checkUpgradeCondition(user);
 
       // Assert
-      assert.strictEqual(result.shouldUpgrade, true, '累计销售额≥2000元时应该升级');
+      assert.strictEqual(result.shouldUpgrade, true, '累计销售额≥20000元时应该升级');
       assert.strictEqual(result.newLevel, AgentLevel.LEVEL_3, '应升级到3级');
       assert.ok(result.reason.includes('累计销售额'), '原因应包含累计销售额');
 
-      console.log('✅ 累计销售额2500元时满足升级条件');
+      console.log('✅ 累计销售额25000元时满足升级条件');
     });
 
-    it('累计销售额<2000元时不应该升级', () => {
+    it('累计销售额<20000元时不应该升级', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_4,
         performance: {
-          totalSales: 150000, // 1500元
+          totalSales: 1500000, // 15000元 (修复:原为1500元)
           monthTag: '2026-03'
         }
       };
@@ -196,18 +196,18 @@ describe('推广升级条件测试', () => {
       const result = checkUpgradeCondition(user);
 
       // Assert
-      assert.strictEqual(result.shouldUpgrade, false, '累计销售额<2000元时不应该升级');
+      assert.strictEqual(result.shouldUpgrade, false, '累计销售额<20000元时不应该升级');
       assert.strictEqual(result.newLevel, AgentLevel.LEVEL_4, '应保持4级');
 
-      console.log('✅ 累计销售额1500元时不满足升级条件');
+      console.log('✅ 累计销售额15000元时不满足升级条件');
     });
 
-    it('累计销售额=2000元时应该升级(边界值)', () => {
+    it('累计销售额=20000元时应该升级(边界值)', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_4,
         performance: {
-          totalSales: 200000, // 正好2000元
+          totalSales: 2000000, // 正好20000元 (修复:原为200000)
           monthTag: '2026-03'
         }
       };
@@ -216,9 +216,9 @@ describe('推广升级条件测试', () => {
       const result = checkUpgradeCondition(user);
 
       // Assert
-      assert.strictEqual(result.shouldUpgrade, true, '累计销售额=2000元时应该升级');
+      assert.strictEqual(result.shouldUpgrade, true, '累计销售额=20000元时应该升级');
 
-      console.log('✅ 累计销售额正好2000元时满足升级条件(边界值)');
+      console.log('✅ 累计销售额正好20000元时满足升级条件(边界值)');
     });
 
     it('累计销售额为0时不应该升级', () => {
@@ -243,12 +243,12 @@ describe('推广升级条件测试', () => {
 
   describe('3级→2级升级(铜牌推广员 → 银牌推广员)', () => {
 
-    it('月销售额≥5000元时应该升级', () => {
+    it('月销售额≥50000元时应该升级', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_3,
         performance: {
-          monthSales: 600000, // 6000元
+          monthSales: 6000000, // 60000元 (修复:原为600000)
           monthTag: '2026-03',
           teamCount: 30
         }
@@ -258,10 +258,10 @@ describe('推广升级条件测试', () => {
       const result = checkUpgradeCondition(user);
 
       // Assert
-      assert.strictEqual(result.shouldUpgrade, true, '月销售额≥5000元时应该升级');
+      assert.strictEqual(result.shouldUpgrade, true, '月销售额≥50000元时应该升级');
       assert.strictEqual(result.newLevel, AgentLevel.LEVEL_2, '应升级到2级');
 
-      console.log('✅ 月销售额6000元时满足升级条件');
+      console.log('✅ 月销售额60000元时满足升级条件');
     });
 
     it('团队人数≥50时应该升级(即使销售额不足)', () => {
@@ -269,7 +269,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_3,
         performance: {
-          monthSales: 300000, // 3000元(不足5000元)
+          monthSales: 3000000, // 30000元(不足50000元) (修复:原为300000)
           monthTag: '2026-03',
           teamCount: 60       // 但团队人数60人(≥50)
         }
@@ -290,7 +290,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_3,
         performance: {
-          monthSales: 400000, // 4000元(<5000元)
+          monthSales: 4000000, // 40000元(<50000元) (修复:原为400000)
           monthTag: '2026-03',
           teamCount: 30       // 30人(<50人)
         }
@@ -310,7 +310,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_3,
         performance: {
-          monthSales: 800000, // 8000元(≥5000元)
+          monthSales: 8000000, // 80000元(≥50000元) (修复:原为800000)
           monthTag: '2026-03',
           teamCount: 80       // 80人(≥50人)
         }
@@ -331,7 +331,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_3,
         performance: {
-          monthSales: 800000, // 虽然有8000元
+          monthSales: 8000000, // 虽然有80000元 (修复:原为800000)
           monthTag: '2026-02', // 但标签是上个月
           teamCount: 30        // 团队人数不足
         }
@@ -349,12 +349,12 @@ describe('推广升级条件测试', () => {
 
   describe('2级→1级升级(银牌推广员 → 金牌推广员)', () => {
 
-    it('月销售额≥10000元时应该升级', () => {
+    it('月销售额≥100000元时应该升级', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_2,
         performance: {
-          monthSales: 1200000, // 12000元
+          monthSales: 12000000, // 120000元 (修复:原为1200000)
           monthTag: '2026-03',
           teamCount: 100
         }
@@ -364,10 +364,10 @@ describe('推广升级条件测试', () => {
       const result = checkUpgradeCondition(user);
 
       // Assert
-      assert.strictEqual(result.shouldUpgrade, true, '月销售额≥10000元时应该升级');
+      assert.strictEqual(result.shouldUpgrade, true, '月销售额≥100000元时应该升级');
       assert.strictEqual(result.newLevel, AgentLevel.LEVEL_1, '应升级到1级');
 
-      console.log('✅ 月销售额12000元时满足升级条件');
+      console.log('✅ 月销售额120000元时满足升级条件');
     });
 
     it('团队人数≥200时应该升级(即使销售额不足)', () => {
@@ -375,7 +375,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_2,
         performance: {
-          monthSales: 500000,  // 5000元(不足10000元)
+          monthSales: 5000000,  // 50000元(不足100000元) (修复:原为500000)
           monthTag: '2026-03',
           teamCount: 250       // 但团队人数250人(≥200)
         }
@@ -396,7 +396,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_2,
         performance: {
-          monthSales: 800000,  // 8000元(<10000元)
+          monthSales: 8000000,  // 80000元(<100000元) (修复:原为800000)
           monthTag: '2026-03',
           teamCount: 150       // 150人(<200人)
         }
@@ -411,12 +411,12 @@ describe('推广升级条件测试', () => {
       console.log('✅ 两个条件都不满足时不升级');
     });
 
-    it('边界值:月销售额正好10000元时应该升级', () => {
+    it('边界值:月销售额正好100000元时应该升级', () => {
       // Arrange
       const user = {
         agentLevel: AgentLevel.LEVEL_2,
         performance: {
-          monthSales: 1000000, // 正好10000元
+          monthSales: 10000000, // 正好100000元 (修复:原为1000000)
           monthTag: '2026-03',
           teamCount: 100
         }
@@ -428,7 +428,7 @@ describe('推广升级条件测试', () => {
       // Assert
       assert.strictEqual(result.shouldUpgrade, true, '边界值应满足条件');
 
-      console.log('✅ 月销售额正好10000元时满足升级条件(边界值)');
+      console.log('✅ 月销售额正好100000元时满足升级条件(边界值)');
     });
 
     it('边界值:团队人数正好200人时应该升级', () => {
@@ -436,7 +436,7 @@ describe('推广升级条件测试', () => {
       const user = {
         agentLevel: AgentLevel.LEVEL_2,
         performance: {
-          monthSales: 500000,  // 5000元
+          monthSales: 5000000,  // 50000元 (修复:原为500000)
           monthTag: '2026-03',
           teamCount: 200       // 正好200人
         }
@@ -519,14 +519,14 @@ describe('推广升级条件测试', () => {
     it('所有升级条件都应该与常量定义一致', () => {
       // Arrange & Act & Assert
       // 4→3升级条件
-      assert.strictEqual(PromotionThreshold.LEVEL_4_TO_3.totalSales, 200000, '4→3累计销售额应为200000分');
+      assert.strictEqual(PromotionThreshold.LEVEL_4_TO_3.totalSales, 2000000, '4→3累计销售额应为2000000分 (修复:原为200000)');
 
       // 3→2升级条件
-      assert.strictEqual(PromotionThreshold.LEVEL_3_TO_2.monthSales, 500000, '3→2月销售额应为500000分');
+      assert.strictEqual(PromotionThreshold.LEVEL_3_TO_2.monthSales, 5000000, '3→2月销售额应为5000000分 (修复:原为500000)');
       assert.strictEqual(PromotionThreshold.LEVEL_3_TO_2.teamCount, 50, '3→2团队人数应为50人');
 
       // 2→1升级条件
-      assert.strictEqual(PromotionThreshold.LEVEL_2_TO_1.monthSales, 1000000, '2→1月销售额应为1000000分');
+      assert.strictEqual(PromotionThreshold.LEVEL_2_TO_1.monthSales, 10000000, '2→1月销售额应为10000000分 (修复:原为1000000)');
       assert.strictEqual(PromotionThreshold.LEVEL_2_TO_1.teamCount, 200, '2→1团队人数应为200人');
 
       console.log('✅ 所有升级条件与常量定义一致');
@@ -541,12 +541,12 @@ describe('推广升级条件测试', () => {
         const currentLevel = levels[i];
         const expectedNextLevel = levels[i + 1];
 
-        // 创建满足升级条件的用户
+        // 创建满足升级条件的用户 (修复:更新为正确的业绩值)
         const user = {
           agentLevel: currentLevel,
           performance: {
-            totalSales: 10000000,
-            monthSales: 2000000,
+            totalSales: 100000000,  // 10万元 (修复:原为10000000)
+            monthSales: 20000000,    // 2万元 (修复:原为2000000)
             monthTag: '2026-03',
             teamCount: 500
           }
