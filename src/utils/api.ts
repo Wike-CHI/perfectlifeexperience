@@ -166,6 +166,35 @@ export const getProductDetail = async (id: string) => {
   }
 };
 
+// 批量获取商品详情（用于订单详情页）
+export const getBatchProducts = async (productIds: string[]): Promise<Product[]> => {
+  if (typeof wx === 'undefined' || !wx.cloud) {
+    throw new Error('当前环境不支持云开发');
+  }
+
+  // 过滤掉空值和重复的ID
+  const validIds = Array.from(new Set(productIds.filter(Boolean)));
+
+  if (validIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const res = await callFunction('product', {
+      action: 'getBatch',
+      data: { productIds: validIds }
+    });
+
+    if (res.code === 0 && res.data) {
+      return extractData(res) || [];
+    }
+    throw new Error(res.msg || '批量获取商品失败');
+  } catch (error) {
+    console.error('批量获取商品失败:', error);
+    throw error;
+  }
+};
+
 // 获取热门商品
 export const getHotProducts = async (limitCount = 6) => {
   if (typeof wx === 'undefined' || !wx.cloud) {
