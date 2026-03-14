@@ -1479,51 +1479,148 @@ onUnmounted(() => {
   gap: 24rpx;
 }
 
-/* 极简商品卡片 */
-.product-card {
-  display: flex;
-  gap: 24rpx;
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
-}
-
-.product-image {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 12rpx;
-  flex-shrink: 0;
-}
-
-.product-info {
-  flex: 1;
+/* 商品列表容器 - 完整信息版 */
+.products-list {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 12rpx;
+  gap: 24rpx;
+}
+
+/* 商品卡片 - 垂直布局 */
+.product-card {
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+  margin-bottom: 0;
+}
+
+/* 产品图片 */
+.product-image {
+  width: 100%;
+  height: 280rpx;
+  border-radius: 16rpx 16rpx 0 0;
+  display: block;
+}
+
+/* 产品信息区域 */
+.product-info {
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+/* 名称组 */
+.product-name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
 }
 
 .product-name {
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 600;
   color: #1A1A1A;
   line-height: 1.4;
 }
 
-.product-specs {
+.product-en-name {
   font-size: 24rpx;
+  font-weight: 400;
   color: #9B8B7F;
+  line-height: 1.3;
 }
 
+/* 标签徽章 */
+.product-badges {
+  display: flex;
+  gap: 8rpx;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.badge.hot {
+  background: #FFF7ED;
+  color: #EA580C;
+}
+
+.badge.new {
+  background: #EFF6FF;
+  color: #3B82F6;
+}
+
+/* 产品描述 */
+.product-description {
+  font-size: 26rpx;
+  color: #666666;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 技术参数网格 */
+.product-specs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.spec-item {
+  font-size: 24rpx;
+  color: #666666;
+  line-height: 1.4;
+}
+
+.spec-separator {
+  color: #CCCCCC;
+  margin: 0 4rpx;
+}
+
+/* 价格区域 */
 .product-footer {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #E5E7EB;
 }
 
-.product-price {
+.price-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+}
+
+.original-price {
+  font-size: 24rpx;
+  color: #999999;
+  text-decoration: line-through;
+}
+
+.unit-price {
   font-size: 28rpx;
+  color: #666666;
+}
+
+.quantity {
+  font-size: 28rpx;
+  color: #9B8B7F;
+}
+
+.total-price {
+  font-size: 36rpx;
   font-weight: 700;
   color: #1A1A1A;
 }
