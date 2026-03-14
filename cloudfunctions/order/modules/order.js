@@ -658,6 +658,33 @@ async function payWithBalance(openid, data) {
       return { success: false, message: '订单状态异常' };
     }
 
+    // 🔥 验证订单中商品的状态（但不阻止支付）
+    if (order.items && order.items.length > 0) {
+      const productIds = order.items.map(item => item.productId);
+      const productsCheck = await transaction.collection('products')
+        .where({
+          _id: _.in(productIds)
+        })
+        .field({
+          _id: true,
+          name: true,
+          status: true
+        })
+        .get();
+
+      const inactiveProducts = productsCheck.data.filter(p => p.status && p.status !== 'active');
+
+      if (inactiveProducts.length > 0) {
+        // ⚠️ 有商品已下架，记录警告但允许支付
+        logger.warn('Payment for order with inactive products', {
+          orderId,
+          inactiveProducts: inactiveProducts.map(p => ({ id: p._id, name: p.name, status: p.status })),
+          message: '订单包含已下架商品，但允许支付（订单已创建时商品正常）'
+        });
+        // TODO: 可以在这里添加通知逻辑，告知管理员
+      }
+    }
+
     const orderAmount = order.totalAmount;
 
     const amountValidation = validateAmount(orderAmount, '订单金额');
