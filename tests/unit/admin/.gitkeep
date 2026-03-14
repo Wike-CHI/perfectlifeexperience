@@ -1,0 +1,5 @@
+// Admin function unit tests (P1 Important Priority)
+// Tests in this directory validate:
+// - Admin authentication
+// - Admin permission checks
+// - Admin management operations

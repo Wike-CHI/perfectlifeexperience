@@ -1,0 +1,5 @@
+// Product validation tests (P1 Important Priority)
+// Tests in this directory validate:
+// - Product data validation
+// - Inventory management
+// - Product status filtering

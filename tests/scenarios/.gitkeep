@@ -1,0 +1,5 @@
+// End-to-end scenario tests (P1 Important Priority)
+// Tests in this directory validate:
+// - Complete user journeys
+// - Multi-step business processes
+// - Real-world usage scenarios

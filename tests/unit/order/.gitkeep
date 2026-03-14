@@ -1,0 +1,5 @@
+// Order validation unit tests (P0 Core Priority)
+// Tests in this directory validate:
+// - Order creation and validation
+// - Order status transitions
+// - Order amount calculations

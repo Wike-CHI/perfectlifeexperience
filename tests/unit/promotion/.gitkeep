@@ -1,0 +1,5 @@
+// Promotion system unit tests (P1 Important Priority)
+// Tests in this directory validate:
+// - User registration and promotion path setup
+// - Agent level calculations
+// - Team hierarchy management

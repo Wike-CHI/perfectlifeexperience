@@ -1,0 +1,5 @@
+// Commission calculation unit tests (P0 Core Priority)
+// Tests in this directory validate:
+// - Four-tier commission distribution rules
+// - Commission allocation accuracy
+// - Edge cases and boundary conditions

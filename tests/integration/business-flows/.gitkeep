@@ -1,0 +1,6 @@
+// Business flow integration tests (P0 Core Priority)
+// Tests in this directory validate:
+// - Complete user registration flow
+// - Order creation and payment flow
+// - Commission distribution flow
+// - Upgrade condition verification flow

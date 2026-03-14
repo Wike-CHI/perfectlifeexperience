@@ -17,9 +17,18 @@ export default defineConfig({
       'src/config/**/*.test.ts',
       // 类型测试
       'src/types/**/*.test.ts',
-      // 集成测试
+      // 单元测试 - P0/P1核心业务逻辑
+      'tests/unit/**/*.test.js',
+      'tests/unit/**/*.test.ts',
+      // 业务流程集成测试
+      'tests/integration/business-flows/**/*.test.js',
+      'tests/integration/business-flows/**/*.test.ts',
+      // 系统集成测试
       'tests/integration/**/*.test.js',
       'tests/integration/**/*.test.ts',
+      // 场景测试 - 端到端用户旅程
+      'tests/scenarios/**/*.test.js',
+      'tests/scenarios/**/*.test.ts',
       // 安全测试
       'tests/security/**/*.test.js',
       'tests/security/**/*.test.ts',
@@ -39,6 +48,7 @@ export default defineConfig({
         'src/constants/**/*.ts',
         'src/composables/**/*.ts',
         'src/config/**/*.ts',
+        'cloudfunctions/**/*.js', // 云函数覆盖率
       ],
       exclude: [
         'node_modules/',
@@ -47,7 +57,9 @@ export default defineConfig({
         '**/*.config.*',
         '**/mockData',
         '**/*.test.ts',
+        '**/*.test.js',
         '**/__tests__/**',
+        'tests/**', // 测试辅助文件不计入覆盖率
       ],
       // 覆盖率阈值
       thresholds: {
